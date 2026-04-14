@@ -201,7 +201,7 @@
               <tr><td class="mono">mission_node</td><td>Maszyna stanów misji i wybór aktywnego celu.</td><td>/tracking/targets, /tracking/parcel_tracks</td><td>/mission/target, /mission/state, /mission/parcel_info</td></tr>
               <tr><td class="mono">control_node</td><td>Generowanie uproszczonych komend ruchu.</td><td>/mission/target</td><td>/cmd_vel</td></tr>
               <tr><td class="mono">debug_node</td><td>Diagnostyka i logowanie stanu.</td><td>wiele topików</td><td>logi / podgląd</td></tr>
-              <tr><td class="mono">topdown_odom_viewer_node</td><td>Top-down preview z rzeczywistego /odom.</td><td>/odom</td><td>okno diagnostyczne OpenCV</td></tr>
+              <tr><td class="mono">topdown_odom_viewer_node</td><td>Top-down preview z rzeczywistego /odom i położenia globalnego przez TF.</td><td>/odom</td><td>okno diagnostyczne OpenCV</td></tr>
             </tbody>
           </table>
 
@@ -217,7 +217,7 @@
               <tr><td class="mono">/mission/target</td><td>MissionTarget</td><td>Aktywny cel dla sterowania.</td></tr>
               <tr><td class="mono">/mission/state</td><td>MissionState</td><td>Stan maszyny stanów misji.</td></tr>
               <tr><td class="mono">/mission/parcel_info</td><td>ParcelInfo</td><td>Wyodrębnione informacje logistyczne.</td></tr>
-              <tr><td class="mono">/odom</td><td>nav_msgs/Odometry</td><td>Rzeczywista odometria robota używana przez top-down viewer.</td></tr>
+              <tr><td class="mono">/odom</td><td>nav_msgs/Odometry</td><td>Rzeczywista odometria robota; viewer może dodatkowo pobierać położenie globalne z map->base_link przez TF.</td></tr>
             </tbody>
           </table>
 
@@ -549,8 +549,8 @@ sudo apt install libzbar0</code></pre>
         "",
         "Uruchamiane elementy:",
         "- subskrypcja /odom",
-        "- rysowanie rzeczywistej trajektorii z odometrii",
-        "- podgląd orientacji robota w rzucie z góry",
+        "- rysowanie trajektorii w układzie globalnym (map), gdy TF jest dostępny",
+        "- fallback do /odom, gdy TF nie jest dostępny\n        - jednoczesny podgląd globalny i lokalny",
         "- niezależne okno diagnostyczne OpenCV"
       ]
     };

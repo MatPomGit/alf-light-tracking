@@ -1005,3 +1005,29 @@ ros2 launch g1_light_tracking topdown_odom.launch.py
 
 To rozszerzenie jest niezależne od standalone GUI.  
 Standalone GUI nadal pokazuje uproszczony lokalny top-down preview, natomiast nowy node ROS 2 korzysta już z rzeczywistego `/odom`.
+
+
+## 27. Globalne położenie w top-down preview
+
+`topdown_odom_viewer_node` został rozszerzony tak, aby pokazywał:
+- trajektorię i pozycję w układzie globalnym, domyślnie `map`,
+- orientację robota w układzie globalnym,
+- opcjonalnie nakładkę lokalnej ścieżki z `/odom`.
+
+Mechanizm działania:
+- podstawowe dane lokalne są pobierane z `/odom`,
+- położenie globalne jest pobierane przez TF:
+  - `map -> base_link`
+- gdy TF nie jest dostępny, viewer automatycznie przechodzi w tryb fallback do `/odom`.
+
+Nowe parametry:
+- `use_global_frame`
+- `global_frame`
+- `odom_frame`
+- `base_frame`
+- `draw_local_path`
+
+Domyślna konfiguracja:
+- `global_frame: map`
+- `base_frame: base_link`
+- `use_global_frame: true`
