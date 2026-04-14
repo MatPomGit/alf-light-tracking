@@ -1,0 +1,6 @@
+parcel_track_node:
+  ros__parameters:
+    tracked_topic: /tracking/targets
+    binding_topic: /tracking/parcel_bindings
+    parcel_track_topic: /tracking/parcel_tracks
+    max_track_age_sec: 4.0

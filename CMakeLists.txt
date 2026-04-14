@@ -18,6 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ParcelInfo.msg"
   "msg/TrackedTarget.msg"
   "msg/ParcelTrackBinding.msg"
+  "msg/ParcelTrack.msg"
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
 )
 
@@ -28,6 +29,7 @@ install(PROGRAMS
   scripts/localization_node
   scripts/tracking_node
   scripts/association_node
+  scripts/parcel_track_node
   scripts/mission_node
   scripts/control_node
   scripts/debug_node

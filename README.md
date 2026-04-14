@@ -93,3 +93,22 @@ Dzięki temu:
 - tracker utrzymuje rzeczywisty obszar obiektu w obrazie,
 - `association_node` używa prawdziwego bbox-a kartonu,
 - wiązanie `QR -> parcel_box_track_id` nie opiera się już na sztucznej aproksymacji wokół środka.
+
+
+## Parcel track: jeden zagregowany obiekt przesyłki
+
+Dodano:
+- `msg/ParcelTrack.msg`
+- `parcel_track_node`
+
+`parcel_track_node` scala w jednym komunikacie:
+- `parcel_box_track_id`
+- `qr_track_id`
+- sparsowane pola logistyczne z QR
+- bieżące `XYZ`
+- wymiary
+- confidence
+- stan logistyczny
+
+To upraszcza dalszą logikę, bo kolejne moduły nie muszą samodzielnie łączyć:
+`TrackedTarget + ParcelTrackBinding + ParcelInfo`.

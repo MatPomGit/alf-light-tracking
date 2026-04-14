@@ -1,0 +1,17 @@
+builtin_interfaces/Time stamp
+string frame_id
+string parcel_box_track_id
+string qr_track_id
+string shipment_id
+string pickup_zone
+string dropoff_zone
+string parcel_type
+float32 mass_kg
+geometry_msgs/Point position
+geometry_msgs/Vector3 dimensions
+float32 confidence
+string source_method
+string raw_payload
+string logistics_state
+bool has_qr
+bool is_confirmed

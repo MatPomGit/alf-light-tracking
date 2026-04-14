@@ -32,6 +32,12 @@ def generate_launch_description():
         ),
         Node(
             package='g1_light_tracking',
+            executable='parcel_track_node',
+            parameters=[os.path.join(pkg_share, 'config', 'parcel_track.yaml')],
+            output='screen'
+        ),
+        Node(
+            package='g1_light_tracking',
             executable='mission_node',
             parameters=[os.path.join(pkg_share, 'config', 'mission.yaml')],
             output='screen'

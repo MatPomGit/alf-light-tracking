@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 
-from g1_light_tracking.msg import TrackedTarget, MissionTarget, ParcelInfo, ParcelTrackBinding
+from g1_light_tracking.msg import TrackedTarget, MissionTarget, ParcelInfo, ParcelTrackBinding, ParcelTrack
 from g1_light_tracking.utils.qr_schema import parse_parcel_qr
 
 
@@ -12,6 +12,7 @@ class MissionNode(Node):
         self.declare_parameter('mission_topic', '/mission/target')
         self.declare_parameter('parcel_info_topic', '/mission/parcel_info')
         self.declare_parameter('binding_topic', '/tracking/parcel_bindings')
+        self.declare_parameter('parcel_track_topic', '/tracking/parcel_tracks')
         self.declare_parameter('color_pickup_values', ['green', 'yellow'])
         self.declare_parameter('color_dropoff_values', ['blue', 'red'])
 
@@ -19,13 +20,28 @@ class MissionNode(Node):
         self.dropoff_colors = set(self.get_parameter('color_dropoff_values').value)
 
         self.latest_bindings = {}
+        self.latest_parcel_tracks = {}
         self.mission_pub = self.create_publisher(MissionTarget, self.get_parameter('mission_topic').value, 20)
         self.parcel_pub = self.create_publisher(ParcelInfo, self.get_parameter('parcel_info_topic').value, 20)
         self.create_subscription(TrackedTarget, self.get_parameter('tracked_topic').value, self.cb, 50)
         self.create_subscription(ParcelTrackBinding, self.get_parameter('binding_topic').value, self.on_binding, 20)
+        self.create_subscription(ParcelTrack, self.get_parameter('parcel_track_topic').value, self.on_parcel_track, 20)
 
     def on_binding(self, msg: ParcelTrackBinding):
         self.latest_bindings[msg.qr_track_id] = msg
+
+    def on_parcel_track(self, msg: ParcelTrack):
+        self.latest_parcel_tracks[msg.parcel_box_track_id] = msg
+        p = ParcelInfo()
+        p.stamp = msg.stamp
+        p.shipment_id = msg.shipment_id
+        p.pickup_zone = msg.pickup_zone
+        p.dropoff_zone = msg.dropoff_zone
+        p.parcel_type = msg.parcel_type
+        p.mass_kg = msg.mass_kg
+        p.raw_payload = msg.raw_payload
+        if msg.has_qr:
+            self.parcel_pub.publish(p)
 
     def cb(self, target: TrackedTarget):
         mission = MissionTarget()
@@ -44,18 +60,7 @@ class MissionNode(Node):
             if binding and binding.is_confirmed:
                 mission.payload = f"parcel_box_track_id={binding.parcel_box_track_id};" + target.payload
             parcel = parse_parcel_qr(target.payload)
-            p = ParcelInfo()
-            p.stamp = target.stamp
-            p.shipment_id = str(parcel.get('shipment_id', ''))
-            p.pickup_zone = str(parcel.get('pickup_zone', ''))
-            p.dropoff_zone = str(parcel.get('dropoff_zone', ''))
-            p.parcel_type = str(parcel.get('parcel_type', ''))
-            try:
-                p.mass_kg = float(parcel.get('mass_kg', 0.0))
-            except Exception:
-                p.mass_kg = 0.0
-            p.raw_payload = target.payload
-            self.parcel_pub.publish(p)
+            # ParcelInfo is now primarily published by parcel_track_node path.
         elif target.target_type == 'light_spot':
             mission.mode = 'light_guided'
             if target.color_label in self.pickup_colors:

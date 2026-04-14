@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 
-from g1_light_tracking.msg import Detection2D, LocalizedTarget, TrackedTarget, MissionTarget, ParcelInfo, ParcelTrackBinding
+from g1_light_tracking.msg import Detection2D, LocalizedTarget, TrackedTarget, MissionTarget, ParcelInfo, ParcelTrackBinding, ParcelTrack
 
 
 class DebugNode(Node):
@@ -11,6 +11,7 @@ class DebugNode(Node):
         self.create_subscription(LocalizedTarget, '/localization/targets', self.on_localized, 50)
         self.create_subscription(TrackedTarget, '/tracking/targets', self.on_tracked, 50)
         self.create_subscription(ParcelTrackBinding, '/tracking/parcel_bindings', self.on_binding, 20)
+        self.create_subscription(ParcelTrack, '/tracking/parcel_tracks', self.on_parcel_track, 20)
         self.create_subscription(MissionTarget, '/mission/target', self.on_mission, 20)
         self.create_subscription(ParcelInfo, '/mission/parcel_info', self.on_parcel, 20)
 
@@ -34,6 +35,11 @@ class DebugNode(Node):
     def on_binding(self, msg: ParcelTrackBinding):
         self.get_logger().info(
             f"BIND qr={msg.qr_track_id} -> box={msg.parcel_box_track_id} score={msg.association_score:.2f} confirmed={msg.is_confirmed}"
+        )
+
+    def on_parcel_track(self, msg: ParcelTrack):
+        self.get_logger().info(
+            f"PTRACK box={msg.parcel_box_track_id} qr={msg.qr_track_id} shipment={msg.shipment_id} state={msg.logistics_state} confirmed={msg.is_confirmed}"
         )
 
     def on_mission(self, msg: MissionTarget):
