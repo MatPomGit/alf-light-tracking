@@ -51,7 +51,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch config profiles calibration docs
+install(DIRECTORY launch config profiles calibration docs msg
   DESTINATION share/${PROJECT_NAME}
 )
 
