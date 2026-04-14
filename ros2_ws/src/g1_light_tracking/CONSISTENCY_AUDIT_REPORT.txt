@@ -1,0 +1,61 @@
+Consistency audit report
+
+Checked areas:
+- Python syntax / imports
+- script wrapper -> module mapping
+- msg type presence
+- heuristic field access vs msg definitions
+- launch -> config references
+- docs -> file references
+
+Automatic fixes applied:
+- Added profiles/ to setup.py data_files
+
+Detected issues:
+- Node imports missing msg type: TrackedTarget
+
+
+CLASS_COLORS
+- Node imports missing msg type: DepthNavHint
+
+
+class ControlNode
+- Node imports missing msg type: Detection2D
+from g1_light_tracking
+- Node imports missing msg type: DepthNavHint
+
+
+class DebugNode
+- Node imports missing msg type: LocalizedTarget
+from g1_light_tracking
+- Node imports missing msg type: DepthNavHint
+
+
+class DepthMapperNode
+- Node imports missing msg type: ParcelTrack
+from g1_light_tracking
+- Node imports missing msg type: TrackedTarget
+from g1_light_tracking
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/parcel_track_node.py uses ParcelTrack.target_type but field not in msg/ParcelTrack.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/parcel_track_node.py uses ParcelTrack.track_id but field not in msg/ParcelTrack.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/parcel_track_node.py uses ParcelTrack.track_id but field not in msg/ParcelTrack.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/parcel_track_node.py uses ParcelTrack.track_id but field not in msg/ParcelTrack.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/parcel_track_node.py uses ParcelTrack.target_type but field not in msg/ParcelTrack.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/parcel_track_node.py uses ParcelTrack.track_id but field not in msg/ParcelTrack.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.track_id but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.track_id but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.parcel_box_track_id but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.parcel_box_track_id but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.shipment_id but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.pickup_zone but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.dropoff_zone but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.parcel_type but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.mass_kg but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.raw_payload but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.has_qr but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.logistics_state but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.is_confirmed but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.has_qr but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.confidence but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/mission_node.py uses MissionState.parcel_box_track_id but field not in msg/MissionState.msg
+- Potential field mismatch: ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/depth_mapper_node.py uses DepthNavHint.k but field not in msg/DepthNavHint.msg

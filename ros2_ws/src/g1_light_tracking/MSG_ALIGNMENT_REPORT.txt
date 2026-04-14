@@ -1,0 +1,10 @@
+MSG alignment report
+
+Updated message definitions:
+- msg/ParcelTrack.msg
+- msg/MissionState.msg
+- msg/DepthNavHint.msg
+
+Intent:
+- align ROS 2 custom interfaces with fields used by current Python nodes
+- reduce interface/runtime mismatch risk during rosidl generation and execution

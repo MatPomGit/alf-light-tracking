@@ -1318,3 +1318,17 @@ Publikowane topiki:
 - `/visual_slam/debug_image`
 
 Top-down preview korzysta domyślnie z `/visual_slam/odom`.
+
+
+## 35. Rozszerzenie definicji wiadomości `msg`
+
+Definicje komunikatów ROS 2 zostały rozszerzone tak, aby odpowiadały aktualnemu kodowi node’ów.
+
+Zaktualizowane pliki:
+- `msg/ParcelTrack.msg`
+- `msg/MissionState.msg`
+- `msg/DepthNavHint.msg`
+
+Cel zmian:
+- usunięcie niespójności między polami używanymi w node’ach a polami formalnie zdefiniowanymi w `msg/`,
+- przygotowanie pakietu do poprawnej generacji interfejsów ROS 2.

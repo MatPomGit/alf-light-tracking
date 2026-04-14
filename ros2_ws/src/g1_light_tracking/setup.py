@@ -22,6 +22,7 @@ setup(
         ('share/' + package_name + '/config', files_in('config')),
         ('share/' + package_name + '/msg', files_in('msg')),
         ('share/' + package_name + '/docs', files_in('docs')),
+        ('share/' + package_name + '/profiles', files_in('profiles')),
     ],
     install_requires=[
         'setuptools',

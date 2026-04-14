@@ -7,4 +7,5 @@ float32 left_clearance_m
 float32 right_clearance_m
 float32 recommended_linear_scale
 float32 recommended_angular_bias
+float32 k
 string source_method

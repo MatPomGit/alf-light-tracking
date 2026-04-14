@@ -62,3 +62,10 @@ W strukturze `ros2_ws/src/g1_light_tracking/` znajduje się także:
 - `config/visual_slam.yaml`
 - `g1_light_tracking/nodes/visual_slam_node.py`
 - `scripts/visual_slam_node`
+
+
+## Raporty techniczne
+
+W pakiecie znajdują się raporty pomocnicze:
+- `ros2_ws/src/g1_light_tracking/EXECUTABLE_AUDIT_REPORT.txt`
+- `ros2_ws/src/g1_light_tracking/CONSISTENCY_AUDIT_REPORT.txt`
