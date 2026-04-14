@@ -32,7 +32,23 @@ source install/setup.bash
 ros2 launch g1_light_tracking prod.launch.py
 ```
 
-## Hook wersjonowania
+
 ```bash
 bash g1_light_tracking/install_git_hooks.sh
 ```
+
+
+## Hook wersjonowania
+
+Możesz zainstalować hook z poziomu repo:
+```bash
+bash g1_light_tracking/install_git_hooks.sh
+```
+
+albo z poziomu workspace:
+```bash
+bash g1_light_tracking/ros2_ws/install_git_hooks.sh
+```
+
+Instalator sam wykrywa właściwą ścieżkę do:
+- `ros2_ws/src/g1_light_tracking/scripts/version_bump.py`

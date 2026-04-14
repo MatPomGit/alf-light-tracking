@@ -20,3 +20,6 @@ g1_light_tracking/
             ├── docs/
             ├── calibration/
             └── profiles/
+
+Dodatkowo:
+- ros2_ws/install_git_hooks.sh

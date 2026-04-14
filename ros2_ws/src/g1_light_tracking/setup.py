@@ -4,7 +4,7 @@ package_name = 'g1_light_tracking'
 
 setup(
     name=package_name,
-    version='0.4.1',
+    version='0.4.3',
     packages=find_packages(),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
