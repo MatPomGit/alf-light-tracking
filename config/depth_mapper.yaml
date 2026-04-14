@@ -1,0 +1,17 @@
+depth_mapper_node:
+  ros__parameters:
+    depth_image_topic: /camera/depth/image_raw
+    camera_info_topic: /camera/camera_info
+    odom_topic: /odom
+    local_grid_topic: /mapping/local_depth_grid
+    depth_hint_topic: /navigation/depth_hint
+    depth_timeout_sec: 1.0
+    max_depth_m: 4.0
+    min_depth_m: 0.20
+    grid_resolution_m: 0.10
+    grid_width_m: 6.0
+    grid_height_m: 6.0
+    sample_stride_px: 8
+    front_obstacle_threshold_m: 0.85
+    side_band_ratio: 0.25
+    center_band_ratio: 0.25

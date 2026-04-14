@@ -20,7 +20,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ParcelTrackBinding.msg"
   "msg/ParcelTrack.msg"
   "msg/MissionState.msg"
-  DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
+  "msg/DepthNavHint.msg"
+  DEPENDENCIES builtin_interfaces std_msgs geometry_msgs nav_msgs sensor_msgs
 )
 
 ament_python_install_package(${PROJECT_NAME})
@@ -34,6 +35,7 @@ install(PROGRAMS
   scripts/control_node
   scripts/debug_node
   scripts/camera_calibration_node
+  scripts/depth_mapper_node
   scripts/topdown_odom_viewer_node
   scripts/standalone_cli
   scripts/standalone_gui
@@ -42,7 +44,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch config profiles calibration doc
+install(DIRECTORY launch config profiles calibration docs
   DESTINATION share/${PROJECT_NAME}
 )
 

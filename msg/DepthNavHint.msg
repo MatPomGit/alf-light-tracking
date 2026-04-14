@@ -1,0 +1,10 @@
+builtin_interfaces/Time stamp
+string frame_id
+bool depth_available
+bool obstacle_ahead
+float32 forward_clearance_m
+float32 left_clearance_m
+float32 right_clearance_m
+float32 recommended_linear_scale
+float32 recommended_angular_bias
+string source_method

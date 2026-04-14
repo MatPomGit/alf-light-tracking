@@ -1,7 +1,12 @@
 control_node:
   ros__parameters:
     mission_topic: /mission/target
+    depth_hint_topic: /navigation/depth_hint
     cmd_vel_topic: /cmd_vel
     linear_speed: 0.15
     angular_speed: 0.50
     stop_distance_m: 0.60
+    use_depth_navigation: true
+    min_safe_clearance_m: 0.70
+    obstacle_stop_clearance_m: 0.45
+    depth_turn_gain: 0.60

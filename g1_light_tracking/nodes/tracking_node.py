@@ -1,7 +1,11 @@
 import time
 from typing import Dict, List, Optional, Tuple
+
 import rclpy
 from rclpy.node import Node
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from std_msgs.msg import String
 
 from g1_light_tracking.msg import LocalizedTarget, TrackedTarget
 from g1_light_tracking.utils.kalman_tracking import (
@@ -15,14 +19,18 @@ from g1_light_tracking.utils.kalman_tracking import (
     predict_kalman,
     update_kalman,
 )
-from g1_light_tracking.utils.motion_compensation import SwayCompensator
+from g1_light_tracking.utils.motion_compensation import GlobalMotionCompensator
 
 
 class TrackingNode(Node):
     def __init__(self):
         super().__init__('tracking_node')
+        self.bridge = CvBridge()
+
         self.declare_parameter('localized_topic', '/localization/targets')
         self.declare_parameter('tracked_topic', '/tracking/targets')
+        self.declare_parameter('debug_motion_topic', '/tracking/global_motion_debug')
+        self.declare_parameter('motion_source_topic', '/debug/calibration_preview')
         self.declare_parameter('association_distance_m', 0.75)
         self.declare_parameter('association_uv_px', 75.0)
         self.declare_parameter('ema_alpha', 0.30)
@@ -44,11 +52,17 @@ class TrackingNode(Node):
         self.declare_parameter('bbox_iou_gate', 0.10)
         self.declare_parameter('max_bbox_center_jump_px', 110.0)
         self.declare_parameter('stale_unconfirmed_purge_hits', 1)
-        self.declare_parameter('enable_sway_compensation', True)
-        self.declare_parameter('sway_uv_alpha', 0.20)
-        self.declare_parameter('max_sway_shift_px', 45.0)
-        self.declare_parameter('use_bbox_center_median_shift', True)
-        self.declare_parameter('ignore_sway_for_marker_types', ['qr', 'apriltag'])
+        self.declare_parameter('enable_global_motion_compensation', True)
+        self.declare_parameter('gmc_alpha', 0.25)
+        self.declare_parameter('gmc_max_shift_px', 60.0)
+        self.declare_parameter('gmc_max_corners', 250)
+        self.declare_parameter('gmc_quality_level', 0.01)
+        self.declare_parameter('gmc_min_distance', 8.0)
+        self.declare_parameter('gmc_block_size', 7)
+        self.declare_parameter('gmc_lk_win_size', 21)
+        self.declare_parameter('gmc_lk_max_level', 3)
+        self.declare_parameter('gmc_homography_ransac_thresh', 3.0)
+        self.declare_parameter('ignore_gmc_for_marker_types', ['qr', 'apriltag'])
 
         self.association_distance_m = float(self.get_parameter('association_distance_m').value)
         self.association_uv_px = float(self.get_parameter('association_uv_px').value)
@@ -64,21 +78,42 @@ class TrackingNode(Node):
         self.bbox_iou_gate = float(self.get_parameter('bbox_iou_gate').value)
         self.max_bbox_center_jump_px = float(self.get_parameter('max_bbox_center_jump_px').value)
         self.stale_unconfirmed_purge_hits = int(self.get_parameter('stale_unconfirmed_purge_hits').value)
-        self.enable_sway_compensation = bool(self.get_parameter('enable_sway_compensation').value)
-        self.use_bbox_center_median_shift = bool(self.get_parameter('use_bbox_center_median_shift').value)
-        self.ignore_sway_for_marker_types = set(self.get_parameter('ignore_sway_for_marker_types').value)
+        self.enable_gmc = bool(self.get_parameter('enable_global_motion_compensation').value)
+        self.ignore_gmc_for_marker_types = set(self.get_parameter('ignore_gmc_for_marker_types').value)
 
         self.pub = self.create_publisher(TrackedTarget, self.get_parameter('tracked_topic').value, 50)
+        self.motion_pub = self.create_publisher(String, self.get_parameter('debug_motion_topic').value, 10)
         self.create_subscription(LocalizedTarget, self.get_parameter('localized_topic').value, self.target_cb, 50)
+        self.create_subscription(Image, self.get_parameter('motion_source_topic').value, self.image_cb, 10)
 
         self.tracks: Dict[str, TrackState] = {}
         self.next_id = 1
         self.last_cleanup_time = time.time()
-        self.sway = SwayCompensator(
-            alpha=float(self.get_parameter('sway_uv_alpha').value),
-            max_shift_px=float(self.get_parameter('max_sway_shift_px').value),
+        self.gmc = GlobalMotionCompensator(
+            max_corners=int(self.get_parameter('gmc_max_corners').value),
+            quality_level=float(self.get_parameter('gmc_quality_level').value),
+            min_distance=float(self.get_parameter('gmc_min_distance').value),
+            block_size=int(self.get_parameter('gmc_block_size').value),
+            lk_win_size=int(self.get_parameter('gmc_lk_win_size').value),
+            lk_max_level=int(self.get_parameter('gmc_lk_max_level').value),
+            homography_ransac_thresh=float(self.get_parameter('gmc_homography_ransac_thresh').value),
+            alpha=float(self.get_parameter('gmc_alpha').value),
+            max_shift_px=float(self.get_parameter('gmc_max_shift_px').value),
         )
-        self.last_shift = (0.0, 0.0)
+        self.last_motion = None
+
+    def image_cb(self, msg: Image):
+        if not self.enable_gmc:
+            return
+        try:
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            motion = self.gmc.update_from_frame(frame)
+            self.last_motion = motion
+            dbg = String()
+            dbg.data = f"du={motion.shift_u:.2f};dv={motion.shift_v:.2f};conf={motion.confidence:.3f};homography={int(motion.used_homography)}"
+            self.motion_pub.publish(dbg)
+        except Exception:
+            pass
 
     def confidence_threshold(self, target_type: str) -> float:
         specific_map = {
@@ -117,12 +152,9 @@ class TrackingNode(Node):
         x_max = float(msg.x_max)
         y_max = float(msg.y_max)
 
-        shift_u, shift_v = self.estimate_sway_shift(msg)
-        self.last_shift = (shift_u, shift_v)
-
-        if self.enable_sway_compensation and msg.target_type not in self.ignore_sway_for_marker_types:
-            u, v = self.sway.compensate_uv(u, v)
-            x_min, y_min, x_max, y_max = self.sway.compensate_bbox(x_min, y_min, x_max, y_max)
+        if self.enable_gmc and self.last_motion is not None and msg.target_type not in self.ignore_gmc_for_marker_types:
+            u, v = self.gmc.compensate_uv(u, v)
+            x_min, y_min, x_max, y_max = self.gmc.compensate_bbox(x_min, y_min, x_max, y_max)
 
         return {
             'msg': msg,
@@ -143,25 +175,6 @@ class TrackingNode(Node):
             'source_method': msg.source_method,
             'dimensions': msg.dimensions,
         }
-
-    def estimate_sway_shift(self, msg: LocalizedTarget) -> Tuple[float, float]:
-        if not self.enable_sway_compensation or not self.tracks or msg.target_type in self.ignore_sway_for_marker_types:
-            return self.sway.update_from_deltas([])
-
-        deltas = []
-        current_cx = float((msg.x_min + msg.x_max) / 2.0)
-        current_cy = float((msg.y_min + msg.y_max) / 2.0)
-
-        for track in self.tracks.values():
-            if not same_semantics(track, msg.target_type, msg.class_name):
-                continue
-            prev_cx = float((track.x_min + track.x_max) / 2.0)
-            prev_cy = float((track.y_min + track.y_max) / 2.0)
-            du = current_cx - prev_cx
-            dv = current_cy - prev_cy
-            deltas.append((du, dv))
-
-        return self.sway.update_from_deltas(deltas if self.use_bbox_center_median_shift else [])
 
     def uses_kalman(self, target_type: str) -> bool:
         return target_type in self.kalman_target_types

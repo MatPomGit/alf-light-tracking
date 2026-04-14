@@ -881,7 +881,7 @@ Nie wszystkie środowiska ROS 2 dobrze znoszą automatyczne dociąganie ciężki
 ## 19. Strona dokumentacyjna repozytorium
 
 Dodano statyczną stronę internetową:
-- `doc/index.html`
+- `docs/index.html`
 
 Strona opisuje:
 - cel repozytorium,
@@ -894,7 +894,7 @@ Strona opisuje:
 
 Możesz ją otworzyć lokalnie bez serwera:
 ```bash
-xdg-open doc/index.html
+xdg-open docs/index.html
 ```
 albo po prostu otwierając plik w przeglądarce.
 
@@ -918,7 +918,7 @@ Jak to działa:
    - aktualizuje `package.xml`,
    - dodaje te pliki do commita.
 
-## 21. Rozbudowana strona `doc/index.html`
+## 21. Rozbudowana strona `docs/index.html`
 
 Strona została przebudowana i teraz zawiera:
 - zakładki,
@@ -940,7 +940,7 @@ Standalone GUI:
   - `profiles/custom_last.json`
 
 
-## 23. Rozszerzone `doc/index.html`
+## 23. Rozszerzone `docs/index.html`
 
 Strona dokumentacyjna została dalej rozbudowana i teraz zawiera:
 - większy interaktywny diagram modułów,
@@ -1123,3 +1123,167 @@ Efekt:
 - mniejszy wpływ kołysania głowy robota na utrzymanie śladów,
 - mniej skoków tracków przy chodzeniu,
 - lepsza stabilność dla `person`, `parcel_box` i `shelf`.
+
+
+## 32. Global motion compensation z optical flow / homography
+
+Kompensacja kołysania kamery została podmieniona na mocniejszy wariant oparty o:
+- detekcję punktów charakterystycznych,
+- optical flow Lucas-Kanade,
+- estymację homografii RANSAC,
+- fallback do medianowego przesunięcia, gdy homografia nie jest stabilna.
+
+Nowe parametry:
+- `enable_global_motion_compensation`
+- `motion_source_topic`
+- `gmc_alpha`
+- `gmc_max_shift_px`
+- `gmc_max_corners`
+- `gmc_quality_level`
+- `gmc_min_distance`
+- `gmc_block_size`
+- `gmc_lk_win_size`
+- `gmc_lk_max_level`
+- `gmc_homography_ransac_thresh`
+- `ignore_gmc_for_marker_types`
+
+Dodatkowo tracker publikuje debugowy stan GMC na:
+- `/tracking/global_motion_debug`
+
+
+## 33. Opcjonalna kamera głębi: automatyczne wykrywanie i użycie
+
+Pakiet został rozszerzony o depth-aware workflow.
+
+### Co jest sprawdzane automatycznie
+Node’y sprawdzają, czy w zadanym czasie napływają aktualne klatki z:
+- `/camera/depth/image_raw`
+
+Jeżeli głębia jest dostępna:
+- `localization_node` korzysta z mediany depth w ROI detekcji,
+- `depth_mapper_node` publikuje lokalną mapę zajętości,
+- `control_node` korzysta z `DepthNavHint` do bezpieczniejszej nawigacji.
+
+Jeżeli głębia nie jest dostępna:
+- działa dotychczasowy tor RGB-only,
+- lokalizacja wraca do PnP / heurystyk znanej szerokości,
+- sterowanie ignoruje depth-aware hints.
+
+### Nowe elementy
+Dodano:
+- `msg/DepthNavHint.msg`
+- `g1_light_tracking/nodes/depth_mapper_node.py`
+- `scripts/depth_mapper_node`
+- `config/depth_mapper.yaml`
+
+### Jak depth poprawia jakość śledzenia
+Depth nie zastępuje trackingu bezpośrednio, ale poprawia jakość wejścia do trackingu:
+- lepsza estymacja `XYZ` dla obiektów,
+- mniej błędnych skoków głębokości przy samych heurystykach RGB,
+- bardziej stabilne pozycje dla `person`, `parcel_box` i `shelf`,
+- lepsze dopasowanie 3D w `tracking_node`.
+
+### Jak depth wspiera mapowanie
+`depth_mapper_node` buduje:
+- lokalny `nav_msgs/OccupancyGrid` na topiku:
+  - `/mapping/local_depth_grid`
+
+Mapa ma charakter lokalny i robot-centryczny:
+- oś do przodu odpowiada kierunkowi ruchu robota,
+- siatka zawiera zajęte komórki na podstawie punktów z depth.
+
+### Jak depth wspiera nawigację
+`depth_mapper_node` publikuje:
+- `DepthNavHint` na:
+  - `/navigation/depth_hint`
+
+Komunikat zawiera między innymi:
+- `depth_available`
+- `obstacle_ahead`
+- `forward_clearance_m`
+- `left_clearance_m`
+- `right_clearance_m`
+- `recommended_linear_scale`
+- `recommended_angular_bias`
+
+`control_node` wykorzystuje te dane do:
+- redukcji prędkości przy małym prześwicie z przodu,
+- zatrzymania przy zbyt bliskiej przeszkodzie,
+- dodania biasu skrętu w stronę bardziej wolnej przestrzeni.
+
+### Dokładny opis realizowanych funkcji oprogramowania
+
+#### 1. Percepcja 2D
+Oprogramowanie wykrywa:
+- człowieka,
+- karton / paczkę,
+- regał,
+- płaszczyznę odkładczą,
+- plamkę światła i jej kolor,
+- QR kod,
+- AprilTag.
+
+#### 2. Lokalizacja 3D
+Oprogramowanie potrafi wyznaczać pozycję obiektów:
+- z PnP dla QR i AprilTag,
+- z projekcji na podłogę dla plamki światła,
+- z heurystyk znanej szerokości dla bbox,
+- z depth ROI, gdy kamera głębi jest dostępna.
+
+#### 3. Tracking obiektów
+Tracking zapewnia:
+- stabilne `track_id`,
+- filtr Kalmana dla wybranych klas,
+- filtrację false positives,
+- kompensację globalnego ruchu obrazu,
+- propagację bbox przez kolejne etapy.
+
+#### 4. Wiązanie semantyczne przesyłki
+System:
+- wiąże QR z konkretnym kartonem,
+- parsuje payload QR,
+- buduje `ParcelTrack`,
+- utrzymuje stan logistyczny przesyłki.
+
+#### 5. Logika misji
+System realizuje maszynę stanów:
+- `search`
+- `approach_person`
+- `receive_parcel`
+- `verify_qr`
+- `navigate`
+- `align`
+- `drop`
+
+#### 6. Sterowanie
+Sterowanie:
+- reaguje na aktywny `MissionTarget`,
+- utrzymuje prostą logikę jazdy do celu,
+- może uwzględniać wskazówki depth-aware do omijania przeszkód.
+
+#### 7. Wizualizacja i diagnostyka
+System oferuje:
+- GUI standalone,
+- CLI standalone,
+- top-down preview globalne,
+- legendy klas,
+- siatkę świata,
+- trajektorię,
+- nakładanie celów, przesyłek i aktywnego celu misji.
+
+#### 8. Kalibracja kamery
+Pakiet zawiera moduł kalibracji kamery:
+- zbieranie próbek planszy,
+- estymacja intrinsics,
+- zapis YAML,
+- publikacja `CameraInfo`.
+
+### Uruchomienie pełnego wariantu depth-aware
+```bash
+ros2 launch g1_light_tracking prod.launch.py
+```
+
+### Ręczne uruchomienie depth mapping
+```bash
+ros2 run g1_light_tracking depth_mapper_node --ros-args --params-file config/depth_mapper.yaml
+```

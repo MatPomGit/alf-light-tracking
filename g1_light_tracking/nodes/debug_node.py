@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 
-from g1_light_tracking.msg import Detection2D, LocalizedTarget, TrackedTarget, MissionTarget, ParcelInfo, ParcelTrackBinding, ParcelTrack, MissionState
+from g1_light_tracking.msg import Detection2D, LocalizedTarget, TrackedTarget, MissionTarget, ParcelInfo, ParcelTrackBinding, ParcelTrack, MissionState, DepthNavHint
 
 
 class DebugNode(Node):
@@ -13,6 +13,7 @@ class DebugNode(Node):
         self.create_subscription(ParcelTrackBinding, '/tracking/parcel_bindings', self.on_binding, 20)
         self.create_subscription(ParcelTrack, '/tracking/parcel_tracks', self.on_parcel_track, 20)
         self.create_subscription(MissionState, '/mission/state', self.on_state, 20)
+        self.create_subscription(DepthNavHint, '/navigation/depth_hint', self.on_depth_hint, 20)
         self.create_subscription(MissionTarget, '/mission/target', self.on_mission, 20)
         self.create_subscription(ParcelInfo, '/mission/parcel_info', self.on_parcel, 20)
 
@@ -46,6 +47,11 @@ class DebugNode(Node):
     def on_state(self, msg: MissionState):
         self.get_logger().info(
             f"STATE state={msg.state} prev={msg.previous_state} active_box={msg.active_parcel_box_track_id} shipment={msg.active_shipment_id} reason={msg.reason}"
+        )
+
+    def on_depth_hint(self, msg: DepthNavHint):
+        self.get_logger().info(
+            f"DEPTH depth={msg.depth_available} front={msg.forward_clearance_m:.2f} left={msg.left_clearance_m:.2f} right={msg.right_clearance_m:.2f} obstacle={msg.obstacle_ahead}"
         )
 
     def on_mission(self, msg: MissionTarget):
