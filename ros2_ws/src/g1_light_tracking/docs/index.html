@@ -78,6 +78,7 @@
         <h2>Nawigacja</h2>
         <div class="tablist">
           <button class="tab-button active" data-tab="overview">Przegląd</button>
+          <button class="tab-button" data-tab="repo_paths">Ścieżki repo</button>
           <button class="tab-button" data-tab="architecture">Architektura</button>
           <button class="tab-button" data-tab="ros2">ROS 2 / node-y / msg</button>
           <button class="tab-button" data-tab="graphs">Grafy zależności</button>
@@ -94,6 +95,18 @@
     </aside>
 
     <main>
+
+      <section id="repo_paths" class="section">
+        <h2>Ścieżki w repozytorium</h2>
+        <p>
+          Właściwy pakiet ROS 2 znajduje się w:
+          <code>src/g1_light_tracking/</code>
+        </p>
+        <p class="muted">
+          Wszystkie przyciski otwierające pliki w tej dokumentacji odnoszą się do plików znajdujących się względem katalogu pakietu.
+        </p>
+      </section>
+
       <section id="overview" class="section active">
         <h2>Przegląd projektu</h2>
         <p>Repozytorium dostarcza architekturę dla robota, który wykrywa człowieka, karton, QR, AprilTagi i plamkę światła, a następnie wiąże dane percepcyjne z obiektem logistycznym <code>ParcelTrack</code>.</p>
@@ -324,7 +337,7 @@ sudo apt install libzbar0</code></pre>
     </main>
   </div>
 
-  <footer><p>Dokumentacja jest utrzymywana w katalogu <code>docs/</code>.</p></footer>
+  <footer><p>Dokumentacja pakietu jest utrzymywana w katalogu <code>src/g1_light_tracking/docs/</code>.</p></footer>
 </div>
 
 <script>
@@ -337,8 +350,8 @@ tabButtons.forEach(btn => btn.addEventListener('click', () => {
 }));
 
 const seq = {
-  "ros-full": ["$ ros2 launch g1_light_tracking prod.launch.py","","Pełny pipeline ROS 2 z trackingiem, parcel trackingiem i misją."],
-  "ros-topdown": ["$ ros2 launch g1_light_tracking topdown_odom.launch.py","","Top-down z /odom, TF, siatką metryczną i nakładaniem obiektów."],
+  "ros-full": ["$ cd ../../ && colcon build && source install/setup.bash && ros2 launch g1_light_tracking prod.launch.py","","Pełny pipeline ROS 2 z trackingiem, parcel trackingiem i misją."],
+  "ros-topdown": ["$ cd ../../ && source install/setup.bash && ros2 launch g1_light_tracking topdown_odom.launch.py","","Top-down z /odom, TF, siatką metryczną i nakładaniem obiektów."],
   "standalone-cli": ["$ python3 -m g1_light_tracking.standalone.cli_app --camera 0 --model yolov8n.pt --profile full_logistics"],
   "standalone-gui": ["$ python3 -m g1_light_tracking.standalone.gui_app --camera 0 --model yolov8n.pt --profile debug_perception"]
 };

@@ -1,43 +1,27 @@
 from setuptools import find_packages, setup
+from pathlib import Path
 
 package_name = 'g1_light_tracking'
 
+def files_in(rel_dir):
+    p = Path(rel_dir)
+    if not p.exists():
+        return []
+    return [str(x) for x in sorted(p.iterdir()) if x.is_file()]
+
+version = Path('VERSION').read_text(encoding='utf-8').strip() if Path('VERSION').exists() else '0.4.0'
+
 setup(
     name=package_name,
-    version='0.4.4',
+    version=version,
     packages=find_packages(),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml', 'VERSION']),
-        ('share/' + package_name + '/launch', [
-            'launch/prod.launch.py',
-            'launch/topdown_odom.launch.py',
-        ]),
-        ('share/' + package_name + '/config', [
-            'config/perception.yaml',
-            'config/localization.yaml',
-            'config/tracking.yaml',
-            'config/parcel_track.yaml',
-            'config/mission.yaml',
-            'config/control.yaml',
-            'config/camera_calibration.yaml',
-            'config/depth_mapper.yaml',
-            'config/topdown_odom.yaml',
-            'config/visual_slam.yaml',
-        ]),
-        ('share/' + package_name + '/msg', [
-            'msg/Detection2D.msg',
-            'msg/LocalizedTarget.msg',
-            'msg/TrackedTarget.msg',
-            'msg/ParcelTrackBinding.msg',
-            'msg/ParcelTrack.msg',
-            'msg/ParcelInfo.msg',
-            'msg/MissionTarget.msg',
-            'msg/MissionState.msg',
-            'msg/DepthNavHint.msg',
-        ]),
-        ('share/' + package_name + '/docs', ['docs/index.html']),
-        ('share/' + package_name + '/calibration', []),
+        ('share/' + package_name + '/launch', files_in('launch')),
+        ('share/' + package_name + '/config', files_in('config')),
+        ('share/' + package_name + '/msg', files_in('msg')),
+        ('share/' + package_name + '/docs', files_in('docs')),
     ],
     install_requires=[
         'setuptools',

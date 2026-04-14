@@ -9,7 +9,7 @@ fi
 
 # Candidate locations for version_bump.py relative to git root or script dir.
 CANDIDATES=(
-  "$REPO_ROOT/g1_light_tracking/ros2_ws/src/g1_light_tracking/scripts/version_bump.py"
+  "$REPO_ROOT/ros2_ws/src/g1_light_tracking/scripts/version_bump.py"
   "$REPO_ROOT/ros2_ws/src/g1_light_tracking/scripts/version_bump.py"
   "$SCRIPT_DIR/ros2_ws/src/g1_light_tracking/scripts/version_bump.py"
 )

@@ -1,8 +1,10 @@
 g1_light_tracking/
 ├── README.md
 ├── install_git_hooks.sh
+├── REPO_LAYOUT.txt
 └── ros2_ws/
     ├── README.md
+    ├── install_git_hooks.sh
     └── src/
         └── g1_light_tracking/
             ├── CMakeLists.txt
@@ -19,7 +21,6 @@ g1_light_tracking/
             ├── scripts/
             ├── docs/
             ├── calibration/
-            └── profiles/
-
-Dodatkowo:
-- ros2_ws/install_git_hooks.sh
+            ├── profiles/
+            ├── README.md
+            └── requirements-*.txt

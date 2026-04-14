@@ -1,7 +1,12 @@
 
+> Uwaga: repozytorium ma obecnie strukturę workspace ROS 2.
+> Ten plik README dotyczy pakietu znajdującego się w:
+> `src/g1_light_tracking/`
+
+
 > Uwaga: repozytorium zostało przebudowane.
 > Aktualny główny katalog pakietu znajduje się w:
-> `g1_light_tracking/ros2_ws/`
+> `ros2_ws/`
 
 # g1_light_tracking
 
@@ -275,7 +280,7 @@ Przydatne, gdy chcesz testować kamerę, YOLO, QR albo detekcję plamki światł
 
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking perception_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/perception.yaml
+ros2 run g1_light_tracking perception_node --ros-args --params-file ~/config/perception.yaml
 ```
 
 Przykład obserwacji topików:
@@ -294,13 +299,13 @@ Dobre do testów `PnP`, projekcji na podłogę i estymacji `XYZ`.
 Terminal 1:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking perception_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/perception.yaml
+ros2 run g1_light_tracking perception_node --ros-args --params-file ~/config/perception.yaml
 ```
 
 Terminal 2:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking localization_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/localization.yaml
+ros2 run g1_light_tracking localization_node --ros-args --params-file ~/config/localization.yaml
 ```
 
 Podgląd wyników:
@@ -317,25 +322,25 @@ Przydatne do sprawdzenia stabilności śladów i poprawności przypięcia QR do 
 Terminal 1:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking perception_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/perception.yaml
+ros2 run g1_light_tracking perception_node --ros-args --params-file ~/config/perception.yaml
 ```
 
 Terminal 2:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking localization_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/localization.yaml
+ros2 run g1_light_tracking localization_node --ros-args --params-file ~/config/localization.yaml
 ```
 
 Terminal 3:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking tracking_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/tracking.yaml
+ros2 run g1_light_tracking tracking_node --ros-args --params-file ~/config/tracking.yaml
 ```
 
 Terminal 4:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking association_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/association.yaml
+ros2 run g1_light_tracking association_node --ros-args --params-file ~/config/association.yaml
 ```
 
 Podgląd:
@@ -353,31 +358,31 @@ Ten wariant pokazuje już obiekt logistyczny wyższego poziomu.
 Terminal 1:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking perception_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/perception.yaml
+ros2 run g1_light_tracking perception_node --ros-args --params-file ~/config/perception.yaml
 ```
 
 Terminal 2:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking localization_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/localization.yaml
+ros2 run g1_light_tracking localization_node --ros-args --params-file ~/config/localization.yaml
 ```
 
 Terminal 3:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking tracking_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/tracking.yaml
+ros2 run g1_light_tracking tracking_node --ros-args --params-file ~/config/tracking.yaml
 ```
 
 Terminal 4:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking association_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/association.yaml
+ros2 run g1_light_tracking association_node --ros-args --params-file ~/config/association.yaml
 ```
 
 Terminal 5:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking parcel_track_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/parcel_track.yaml
+ros2 run g1_light_tracking parcel_track_node --ros-args --params-file ~/config/parcel_track.yaml
 ```
 
 Podgląd:
@@ -394,7 +399,7 @@ Jeżeli masz już źródła danych z innych node’ów lub z rosbag, możesz uru
 Terminal 1:
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 run g1_light_tracking mission_node --ros-args --params-file ~/ros2_ws/src/g1_light_tracking/config/mission.yaml
+ros2 run g1_light_tracking mission_node --ros-args --params-file ~/config/mission.yaml
 ```
 
 Terminal 2:
@@ -914,7 +919,7 @@ Dodano:
 Jak to działa:
 1. instalujesz hook:
    ```bash
-   bash scripts/install_git_hooks.sh
+   bash ../../install_git_hooks.sh
    ```
 2. przy każdym `git commit` hook `pre-commit`:
    - zwiększa patch wersji,

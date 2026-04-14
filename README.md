@@ -21,6 +21,7 @@ W pakiecie:
 - `g1_light_tracking/ros2_ws/src/g1_light_tracking/resource/`
 
 ## Budowanie
+
 ```bash
 cd g1_light_tracking/ros2_ws
 colcon build
@@ -28,27 +29,36 @@ source install/setup.bash
 ```
 
 ## Uruchomienie
+
 ```bash
+cd g1_light_tracking/ros2_ws
+source install/setup.bash
 ros2 launch g1_light_tracking prod.launch.py
 ```
 
+## Dokumentacja WWW
 
-```bash
-bash g1_light_tracking/install_git_hooks.sh
-```
-
+Plik dokumentacji znajduje się w:
+- `g1_light_tracking/ros2_ws/src/g1_light_tracking/docs/index.html`
 
 ## Hook wersjonowania
 
-Możesz zainstalować hook z poziomu repo:
+Z poziomu katalogu głównego repozytorium:
 ```bash
-bash g1_light_tracking/install_git_hooks.sh
+bash install_git_hooks.sh
 ```
 
-albo z poziomu workspace:
+Z poziomu katalogu workspace:
 ```bash
-bash g1_light_tracking/ros2_ws/install_git_hooks.sh
+bash ros2_ws/install_git_hooks.sh
 ```
 
-Instalator sam wykrywa właściwą ścieżkę do:
+Instalator używa:
 - `ros2_ws/src/g1_light_tracking/scripts/version_bump.py`
+
+## Dodatkowy moduł
+
+W strukturze `ros2_ws/src/g1_light_tracking/` znajduje się także:
+- `config/visual_slam.yaml`
+- `g1_light_tracking/nodes/visual_slam_node.py`
+- `scripts/visual_slam_node`
