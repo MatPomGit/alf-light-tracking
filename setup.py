@@ -4,7 +4,7 @@ package_name = 'g1_light_tracking'
 
 setup(
     name=package_name,
-    version='0.4.5',
+    version='0.1.6',
     packages=find_packages(),
     install_requires=[
         'setuptools',
