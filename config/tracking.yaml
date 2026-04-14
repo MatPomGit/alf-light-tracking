@@ -2,12 +2,29 @@ tracking_node:
   ros__parameters:
     localized_topic: /localization/targets
     tracked_topic: /tracking/targets
-    association_distance_m: 1.00
-    association_uv_px: 100.0
-    ema_alpha: 0.35
-    max_missed_frames: 10
-    min_confirmed_hits: 2
+    association_distance_m: 0.75
+    association_uv_px: 75.0
+    ema_alpha: 0.30
+    max_missed_frames: 8
+    min_confirmed_hits: 3
     kalman_target_types: ["person", "parcel_box", "shelf"]
     process_noise_pos: 1.0e-2
     process_noise_vel: 5.0e-2
     measurement_noise_pos: 8.0e-2
+    publish_unconfirmed: false
+    reject_low_confidence_before_hits: 2
+    min_confidence_default: 0.45
+    min_confidence_person: 0.55
+    min_confidence_parcel_box: 0.50
+    min_confidence_shelf: 0.45
+    min_confidence_qr: 0.80
+    min_confidence_apriltag: 0.80
+    min_confidence_light_spot: 0.95
+    bbox_iou_gate: 0.10
+    max_bbox_center_jump_px: 110.0
+    stale_unconfirmed_purge_hits: 1
+    enable_sway_compensation: true
+    sway_uv_alpha: 0.20
+    max_sway_shift_px: 45.0
+    use_bbox_center_median_shift: true
+    ignore_sway_for_marker_types: ["qr", "apriltag"]

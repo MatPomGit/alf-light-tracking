@@ -1080,3 +1080,46 @@ Przykładowe klasy kolorowania:
 
 Nowy parametr:
 - `draw_legend`
+
+
+## 30. Utwardzenie trackingu pod kątem false positives
+
+Tracking został zaostrzony tak, aby ograniczyć krótkotrwałe i błędne ślady:
+- wyższe progi confidence per typ obiektu,
+- publikacja dopiero po potwierdzeniu przez kilka trafień,
+- ostrzejsze bramkowanie dopasowania przez bbox IoU i skok środka bbox,
+- szybsze usuwanie niepotwierdzonych, słabych śladów.
+
+Nowe parametry w `config/tracking.yaml`:
+- `publish_unconfirmed`
+- `reject_low_confidence_before_hits`
+- `min_confidence_*`
+- `bbox_iou_gate`
+- `max_bbox_center_jump_px`
+- `stale_unconfirmed_purge_hits`
+
+To zmniejsza false positives szczególnie dla:
+- `person`
+- `parcel_box`
+- `qr`
+- `apriltag`
+
+
+## 31. Kompensacja kołysania kamery podczas chodzenia
+
+Tracking został rozszerzony o prostą kompensację bocznego kołysania kamery:
+- estymacja medianowego przesunięcia bbox-ów między klatkami,
+- filtrowanie tego przesunięcia w czasie,
+- kompensacja `center_u/v` i bbox przed dopasowaniem tracków.
+
+Nowe parametry:
+- `enable_sway_compensation`
+- `sway_uv_alpha`
+- `max_sway_shift_px`
+- `use_bbox_center_median_shift`
+- `ignore_sway_for_marker_types`
+
+Efekt:
+- mniejszy wpływ kołysania głowy robota na utrzymanie śladów,
+- mniej skoków tracków przy chodzeniu,
+- lepsza stabilność dla `person`, `parcel_box` i `shelf`.
