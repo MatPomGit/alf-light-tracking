@@ -1,0 +1,8 @@
+topdown_odom_viewer_node:
+  ros__parameters:
+    odom_topic: /odom
+    window_name: g1_light_tracking ROS2 Top-Down
+    scale_px_per_m: 80.0
+    canvas_width: 640
+    canvas_height: 640
+    max_points: 2000

@@ -201,6 +201,7 @@
               <tr><td class="mono">mission_node</td><td>Maszyna stanów misji i wybór aktywnego celu.</td><td>/tracking/targets, /tracking/parcel_tracks</td><td>/mission/target, /mission/state, /mission/parcel_info</td></tr>
               <tr><td class="mono">control_node</td><td>Generowanie uproszczonych komend ruchu.</td><td>/mission/target</td><td>/cmd_vel</td></tr>
               <tr><td class="mono">debug_node</td><td>Diagnostyka i logowanie stanu.</td><td>wiele topików</td><td>logi / podgląd</td></tr>
+              <tr><td class="mono">topdown_odom_viewer_node</td><td>Top-down preview z rzeczywistego /odom.</td><td>/odom</td><td>okno diagnostyczne OpenCV</td></tr>
             </tbody>
           </table>
 
@@ -216,6 +217,7 @@
               <tr><td class="mono">/mission/target</td><td>MissionTarget</td><td>Aktywny cel dla sterowania.</td></tr>
               <tr><td class="mono">/mission/state</td><td>MissionState</td><td>Stan maszyny stanów misji.</td></tr>
               <tr><td class="mono">/mission/parcel_info</td><td>ParcelInfo</td><td>Wyodrębnione informacje logistyczne.</td></tr>
+              <tr><td class="mono">/odom</td><td>nav_msgs/Odometry</td><td>Rzeczywista odometria robota używana przez top-down viewer.</td></tr>
             </tbody>
           </table>
 
@@ -261,6 +263,7 @@
             <button class="btn ok" data-seq="standalone-gui">Standalone GUI</button>
             <button class="btn warn" data-seq="tracking-only">Tracking + ParcelTrack</button>
             <button class="btn" data-seq="install-hooks">Instalacja hooków Git</button>
+            <button class="btn warn" data-seq="ros-topdown">ROS2 /odom top-down</button>
           </div>
           <div id="sequenceConsole" class="console" aria-live="polite"></div>
         </section>
@@ -352,6 +355,7 @@
             <a class="btn" href="../setup.py" target="_blank" rel="noopener">setup.py</a>
             <a class="btn" href="../VERSION" target="_blank" rel="noopener">VERSION</a>
             <a class="btn" href="../launch/prod.launch.py" target="_blank" rel="noopener">launch/prod.launch.py</a>
+            <a class="btn" href="../launch/topdown_odom.launch.py" target="_blank" rel="noopener">launch/topdown_odom.launch.py</a>
             <a class="btn" href="../config/perception.yaml" target="_blank" rel="noopener">config/perception.yaml</a>
             <a class="btn" href="../config/localization.yaml" target="_blank" rel="noopener">config/localization.yaml</a>
             <a class="btn" href="../config/tracking.yaml" target="_blank" rel="noopener">config/tracking.yaml</a>
@@ -359,6 +363,7 @@
             <a class="btn" href="../config/mission.yaml" target="_blank" rel="noopener">config/mission.yaml</a>
             <a class="btn" href="../config/control.yaml" target="_blank" rel="noopener">config/control.yaml</a>
             <a class="btn" href="../config/camera_calibration.yaml" target="_blank" rel="noopener">config/camera_calibration.yaml</a>
+            <a class="btn" href="../config/topdown_odom.yaml" target="_blank" rel="noopener">config/topdown_odom.yaml</a>
             <a class="btn ok" href="../g1_light_tracking/nodes/perception_node.py" target="_blank" rel="noopener">perception_node.py</a>
             <a class="btn ok" href="../g1_light_tracking/nodes/localization_node.py" target="_blank" rel="noopener">localization_node.py</a>
             <a class="btn ok" href="../g1_light_tracking/nodes/tracking_node.py" target="_blank" rel="noopener">tracking_node.py</a>
@@ -367,6 +372,7 @@
             <a class="btn ok" href="../g1_light_tracking/nodes/control_node.py" target="_blank" rel="noopener">control_node.py</a>
             <a class="btn ok" href="../g1_light_tracking/nodes/debug_node.py" target="_blank" rel="noopener">debug_node.py</a>
             <a class="btn ok" href="../g1_light_tracking/nodes/camera_calibration_node.py" target="_blank" rel="noopener">camera_calibration_node.py</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/topdown_odom_viewer_node.py" target="_blank" rel="noopener">topdown_odom_viewer_node.py</a>
             <a class="btn warn" href="../msg/Detection2D.msg" target="_blank" rel="noopener">Detection2D.msg</a>
             <a class="btn warn" href="../msg/LocalizedTarget.msg" target="_blank" rel="noopener">LocalizedTarget.msg</a>
             <a class="btn warn" href="../msg/TrackedTarget.msg" target="_blank" rel="noopener">TrackedTarget.msg</a>
@@ -382,6 +388,7 @@
             <a class="btn" href="../scripts/version_bump.py" target="_blank" rel="noopener">scripts/version_bump.py</a>
             <a class="btn" href="../scripts/install_git_hooks.sh" target="_blank" rel="noopener">scripts/install_git_hooks.sh</a>
             <a class="btn" href="../scripts/camera_calibration_node" target="_blank" rel="noopener">scripts/camera_calibration_node</a>
+            <a class="btn" href="../scripts/topdown_odom_viewer_node" target="_blank" rel="noopener">scripts/topdown_odom_viewer_node</a>
           </div>
         </section>
 
@@ -536,6 +543,15 @@ sudo apt install libzbar0</code></pre>
         "- VERSION jest zwiększany automatycznie",
         "- setup.py i package.xml są aktualizowane",
         "- zmiany są dodawane do commita"
+      ],
+      "ros-topdown": [
+        "$ ros2 launch g1_light_tracking topdown_odom.launch.py",
+        "",
+        "Uruchamiane elementy:",
+        "- subskrypcja /odom",
+        "- rysowanie rzeczywistej trajektorii z odometrii",
+        "- podgląd orientacji robota w rzucie z góry",
+        "- niezależne okno diagnostyczne OpenCV"
       ]
     };
 

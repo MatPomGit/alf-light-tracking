@@ -34,6 +34,7 @@ install(PROGRAMS
   scripts/control_node
   scripts/debug_node
   scripts/camera_calibration_node
+  scripts/topdown_odom_viewer_node
   scripts/standalone_cli
   scripts/standalone_gui
   scripts/version_bump.py

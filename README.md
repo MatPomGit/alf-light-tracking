@@ -980,3 +980,28 @@ Okno pokazuje uproszczony rzut z góry:
 - orientację robota.
 
 To jest podgląd diagnostyczny do pracy lokalnej i demonstracyjnej. Nie zastępuje pełnej odometrii z robotycznego stosu nawigacyjnego.
+
+
+## 26. Rzeczywisty `/odom` w top-down preview dla ROS 2
+
+Pakiet został rozszerzony o:
+- `g1_light_tracking/nodes/topdown_odom_viewer_node.py`
+- `scripts/topdown_odom_viewer_node`
+- `config/topdown_odom.yaml`
+- `launch/topdown_odom.launch.py`
+
+Node subskrybuje:
+- `/odom` (`nav_msgs/Odometry`)
+
+i rysuje w osobnym oknie OpenCV:
+- rzeczywistą trajektorię robota,
+- aktualną pozycję,
+- orientację (`yaw`).
+
+Uruchomienie:
+```bash
+ros2 launch g1_light_tracking topdown_odom.launch.py
+```
+
+To rozszerzenie jest niezależne od standalone GUI.  
+Standalone GUI nadal pokazuje uproszczony lokalny top-down preview, natomiast nowy node ROS 2 korzysta już z rzeczywistego `/odom`.
