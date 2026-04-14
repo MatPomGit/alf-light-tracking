@@ -1,0 +1,7 @@
+mission_node:
+  ros__parameters:
+    tracked_topic: /tracking/targets
+    mission_topic: /mission/target
+    parcel_info_topic: /mission/parcel_info
+    color_pickup_values: ["green", "yellow"]
+    color_dropoff_values: ["blue", "red"]

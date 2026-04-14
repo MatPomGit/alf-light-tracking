@@ -1,0 +1,13 @@
+perception_node:
+  ros__parameters:
+    use_yolo: true
+    use_qr: true
+    use_apriltag: true
+    use_light_spot: true
+    detect_classes:
+      - person
+      - parcel_box
+      - shelf
+      - planar_surface
+    pickup_color: green
+    dropoff_color: blue

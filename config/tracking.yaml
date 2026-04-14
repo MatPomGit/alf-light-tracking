@@ -1,0 +1,13 @@
+tracking_node:
+  ros__parameters:
+    localized_topic: /localization/targets
+    tracked_topic: /tracking/targets
+    association_distance_m: 1.00
+    association_uv_px: 100.0
+    ema_alpha: 0.35
+    max_missed_frames: 10
+    min_confirmed_hits: 2
+    kalman_target_types: ["person", "parcel_box", "shelf"]
+    process_noise_pos: 1.0e-2
+    process_noise_vel: 5.0e-2
+    measurement_noise_pos: 8.0e-2

@@ -1,0 +1,11 @@
+# Python libraries required by g1_light_tracking nodes.
+opencv-python 
+numpy 
+ultralytics 
+pyzbar
+
+# ROS2 packages like rclpy/sensor_msgs are installed from ROS, not pip.
+numpy>=1.22
+opencv-python>=4.8
+pyrealsense2>=2.54
+

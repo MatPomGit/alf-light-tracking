@@ -1,0 +1,7 @@
+control_node:
+  ros__parameters:
+    mission_topic: /mission/target
+    cmd_vel_topic: /cmd_vel
+    linear_speed: 0.15
+    angular_speed: 0.50
+    stop_distance_m: 0.60
