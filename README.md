@@ -112,3 +112,19 @@ Dodano:
 
 To upraszcza dalszą logikę, bo kolejne moduły nie muszą samodzielnie łączyć:
 `TrackedTarget + ParcelTrackBinding + ParcelInfo`.
+
+
+## Mission node: ParcelTrack jako źródło priorytetowe
+
+`mission_node` został przepisany tak, że:
+1. najpierw wybiera najlepszy `ParcelTrack`,
+2. dopiero gdy nie ma aktywnej przesyłki, przechodzi do fallbacku na `TrackedTarget`.
+
+Priorytety decyzji dla przesyłek:
+- `identified`
+- `confirmed`
+- `has_qr`
+- `confidence`
+- mniejsza odległość `z`
+
+To sprawia, że logika misji bazuje na pełnym obiekcie przesyłki, a nie na rozproszonych komunikatach.

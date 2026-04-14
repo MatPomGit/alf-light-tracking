@@ -44,7 +44,7 @@ class DebugNode(Node):
 
     def on_mission(self, msg: MissionTarget):
         self.get_logger().info(
-            f"MISSION mode={msg.mode} target={msg.target_type} z={msg.position.z:.2f} color={msg.color_label}"
+            f"MISSION mode={msg.mode} target={msg.target_type} cls={msg.class_name} z={msg.position.z:.2f} color={msg.color_label}"
         )
 
     def on_parcel(self, msg: ParcelInfo):
