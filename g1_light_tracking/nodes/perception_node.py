@@ -165,7 +165,7 @@ class PerceptionNode(Node):
                 ys = [float(p[1]) for p in pts]
                 det.x_min = min(xs); det.y_min = min(ys); det.x_max = max(xs); det.y_max = max(ys)
                 det.center_u = float(tag.center[0]); det.center_v = float(tag.center[1])
-                det.payload = str(tag.tag_id)
+                det.payload = f'tag_id={tag.tag_id}'
                 flat = []
                 for p in pts:
                     flat.extend([float(p[0]), float(p[1])])

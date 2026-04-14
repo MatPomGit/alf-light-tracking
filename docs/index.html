@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>g1_light_tracking — dokumentacja repozytorium</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#121935;
+      --panel2:#1a2347;
+      --panel3:#10182f;
+      --text:#eaf0ff;
+      --muted:#a8b4d9;
+      --accent:#6ea8fe;
+      --accent2:#7ee787;
+      --warn:#ffd166;
+      --danger:#ff8a8a;
+      --code:#0f1530;
+      --border:#2b3766;
+      --shadow:0 18px 50px rgba(0,0,0,.28);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+      background:linear-gradient(180deg,var(--bg),#0f1630);
+      color:var(--text);
+      line-height:1.6;
+    }
+    .wrap{max-width:1180px;margin:0 auto;padding:24px 18px 64px}
+    .hero,.section,.sidebar-card{
+      background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.02));
+      border:1px solid var(--border);
+      border-radius:22px;
+      box-shadow:var(--shadow);
+    }
+    .hero{padding:28px}
+    h1,h2,h3{line-height:1.2}
+    h1{margin:0 0 10px;font-size:2.2rem}
+    h2{margin:0 0 18px;font-size:1.5rem}
+    h3{margin:20px 0 10px;font-size:1.1rem}
+    p,li{color:var(--text)}
+    .muted{color:var(--muted)}
+    .pill{
+      display:inline-block;padding:6px 10px;border-radius:999px;
+      background:rgba(110,168,254,.12);border:1px solid rgba(110,168,254,.35);
+      color:#dbe8ff;margin:4px 8px 0 0;font-size:.92rem
+    }
+    .pill.ok{border-color:rgba(126,231,135,.35);background:rgba(126,231,135,.10)}
+    .pill.warn{border-color:rgba(255,209,102,.35);background:rgba(255,209,102,.10)}
+    .layout{display:grid;grid-template-columns:280px 1fr;gap:18px;margin-top:22px}
+    .sidebar{position:sticky;top:16px;height:fit-content}
+    .sidebar-card{padding:16px}
+    .tablist{display:flex;flex-direction:column;gap:8px}
+    .tab-button{
+      width:100%;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--border);
+      background:var(--panel3);color:var(--text);cursor:pointer;font-weight:600
+    }
+    .tab-button.active{background:rgba(110,168,254,.16);border-color:rgba(110,168,254,.45)}
+    .section{padding:22px;display:none}
+    .section.active{display:block}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+    .card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:18px;padding:16px}
+    pre{
+      background:var(--code);border:1px solid var(--border);border-radius:16px;padding:14px;overflow:auto;white-space:pre-wrap
+    }
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+    .flow .step{
+      background:var(--code);border:1px solid var(--border);border-radius:16px;padding:14px;text-align:center;font-weight:700
+    }
+    .actions{display:flex;flex-wrap:wrap;gap:10px}
+    .btn{
+      border:1px solid var(--border);background:var(--panel3);color:var(--text);
+      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600
+    }
+    .btn.primary{background:rgba(110,168,254,.16);border-color:rgba(110,168,254,.45)}
+    .btn.ok{background:rgba(126,231,135,.10);border-color:rgba(126,231,135,.35)}
+    .btn.warn{background:rgba(255,209,102,.10);border-color:rgba(255,209,102,.35)}
+    .console{
+      margin-top:14px;background:#09101f;border:1px solid var(--border);border-radius:16px;
+      padding:14px;min-height:170px;max-height:320px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-size:.93rem
+    }
+    .console-line{margin:0 0 6px;white-space:pre-wrap}
+    .diagram-wrap{display:grid;grid-template-columns:1fr 320px;gap:16px}
+    svg{width:100%;height:auto;background:linear-gradient(180deg,#0e152d,#0a1123);border:1px solid var(--border);border-radius:18px}
+    .node{cursor:pointer}
+    .node rect{fill:#121b38;stroke:#4e69b8;stroke-width:2}
+    .node.active rect{fill:#16325f;stroke:#7ee787}
+    .node text{fill:#eef3ff;font-size:14px;font-weight:700}
+    .edge{stroke:#6a7dbb;stroke-width:2.2;marker-end:url(#arrow)}
+    .detail{background:var(--code);border:1px solid var(--border);border-radius:16px;padding:14px}
+    .small{font-size:.92rem}
+    footer{margin-top:36px;color:var(--muted)}
+    @media (max-width: 980px){
+      .layout{grid-template-columns:1fr}
+      .sidebar{position:static}
+      .diagram-wrap{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>g1_light_tracking</h1>
+      <p class="muted">
+        Dokumentacja repozytorium systemu percepcji, śledzenia i logiki misji dla robota intra-logistycznego.
+        Strona została podzielona na zakładki, zawiera interaktywny diagram przepływu modułów oraz panel uruchamiania przykładowych sekwencji.
+      </p>
+      <div>
+        <span class="pill">ROS 2</span>
+        <span class="pill">Python</span>
+        <span class="pill">OpenCV</span>
+        <span class="pill">YOLOv8n</span>
+        <span class="pill">QR</span>
+        <span class="pill">AprilTag</span>
+        <span class="pill ok">CLI</span>
+        <span class="pill ok">GUI</span>
+        <span class="pill warn">Git hooks</span>
+      </div>
+    </section>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-card">
+          <h2>Nawigacja</h2>
+          <div class="tablist">
+            <button class="tab-button active" data-tab="overview">Przegląd</button>
+            <button class="tab-button" data-tab="architecture">Architektura</button>
+            <button class="tab-button" data-tab="sequences">Sekwencje uruchamiania</button>
+            <button class="tab-button" data-tab="diagram">Diagram modułów</button>
+            <button class="tab-button" data-tab="dependencies">Zależności</button>
+            <button class="tab-button" data-tab="versioning">Wersjonowanie</button>
+          </div>
+        </div>
+      </aside>
+
+      <main>
+        <section id="overview" class="section active">
+          <h2>Przegląd projektu</h2>
+          <p>
+            Repozytorium dostarcza bazową architekturę dla robota, który potrafi wykrywać człowieka, karton, QR kod,
+            AprilTagi oraz plamkę światła, a następnie powiązać dane percepcyjne z obiektem logistycznym reprezentowanym przez <code>ParcelTrack</code>.
+          </p>
+          <div class="grid">
+            <div class="card"><h3>Percepcja</h3><p>YOLO, QR, AprilTag, plamka światła, kolor.</p></div>
+            <div class="card"><h3>Tracking</h3><p>Stabilizacja w czasie i utrzymanie tożsamości obiektów.</p></div>
+            <div class="card"><h3>Logistyka</h3><p>Wiązanie QR z kartonem i budowa <code>ParcelTrack</code>.</p></div>
+            <div class="card"><h3>Misja</h3><p>Maszyna stanów od wyszukiwania do odłożenia przesyłki.</p></div>
+          </div>
+          <h3>Przepływ danych</h3>
+          <div class="flow">
+            <div class="step">Detection2D</div>
+            <div class="step">LocalizedTarget</div>
+            <div class="step">TrackedTarget</div>
+            <div class="step">ParcelTrack</div>
+            <div class="step">MissionState</div>
+          </div>
+        </section>
+
+        <section id="architecture" class="section">
+          <h2>Architektura modułów</h2>
+          <div class="grid">
+            <div class="card"><h3>perception_node</h3><p>Detekcja 2D: YOLO, QR, AprilTag, plamka światła.</p></div>
+            <div class="card"><h3>localization_node</h3><p>Pozycja 3D, bbox, propagacja do dalszych etapów.</p></div>
+            <div class="card"><h3>tracking_node</h3><p>Tracking w czasie, w tym filtr Kalmana dla wybranych klas.</p></div>
+            <div class="card"><h3>parcel_track_node</h3><p>Kojarzenie QR do kartonu i publikacja <code>ParcelTrack</code>.</p></div>
+            <div class="card"><h3>mission_node</h3><p>Wybór celu i maszyna stanów wysokiego poziomu.</p></div>
+            <div class="card"><h3>control_node</h3><p>Przeliczanie celu na uproszczone komendy ruchu.</p></div>
+            <div class="card"><h3>debug_node</h3><p>Logowanie i diagnostyka.</p></div>
+            <div class="card"><h3>standalone CLI/GUI</h3><p>Uruchamianie bez topiców ROS 2.</p></div>
+          </div>
+        </section>
+
+        <section id="sequences" class="section">
+          <h2>Sekwencje uruchamiania</h2>
+          <p>Kliknięcie przycisku nie uruchamia kodu lokalnie z poziomu przeglądarki. Pokazuje natomiast przygotowaną sekwencję poleceń oraz opis kroków.</p>
+          <div class="actions">
+            <button class="btn primary" data-seq="ros-full">Pełny pipeline ROS 2</button>
+            <button class="btn ok" data-seq="standalone-cli">Standalone CLI</button>
+            <button class="btn ok" data-seq="standalone-gui">Standalone GUI</button>
+            <button class="btn warn" data-seq="tracking-only">Tracking + ParcelTrack</button>
+            <button class="btn" data-seq="install-hooks">Instalacja hooków Git</button>
+          </div>
+          <div id="sequenceConsole" class="console" aria-live="polite"></div>
+        </section>
+
+        <section id="diagram" class="section">
+          <h2>Interaktywny diagram przepływu modułów</h2>
+          <div class="diagram-wrap">
+            <div>
+              <svg viewBox="0 0 980 520" role="img" aria-label="Diagram przepływu modułów">
+                <defs>
+                  <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#6a7dbb"></path>
+                  </marker>
+                </defs>
+
+                <g class="edge"><line x1="115" y1="100" x2="255" y2="100"/></g>
+                <g class="edge"><line x1="355" y1="100" x2="495" y2="100"/></g>
+                <g class="edge"><line x1="595" y1="100" x2="735" y2="100"/></g>
+                <g class="edge"><line x1="835" y1="100" x2="915" y2="100"/></g>
+
+                <g class="edge"><line x1="575" y1="160" x2="575" y2="235"/></g>
+                <g class="edge"><line x1="575" y1="295" x2="575" y2="375"/></g>
+
+                <g class="node" data-node="camera">
+                  <rect x="20" y="60" rx="18" ry="18" width="95" height="80"></rect>
+                  <text x="67" y="100" text-anchor="middle">Kamera</text>
+                </g>
+
+                <g class="node" data-node="perception">
+                  <rect x="255" y="50" rx="18" ry="18" width="100" height="100"></rect>
+                  <text x="305" y="92" text-anchor="middle">Perception</text>
+                  <text x="305" y="114" text-anchor="middle">Node</text>
+                </g>
+
+                <g class="node" data-node="localization">
+                  <rect x="495" y="50" rx="18" ry="18" width="100" height="100"></rect>
+                  <text x="545" y="92" text-anchor="middle">Localization</text>
+                  <text x="545" y="114" text-anchor="middle">Node</text>
+                </g>
+
+                <g class="node" data-node="tracking">
+                  <rect x="735" y="50" rx="18" ry="18" width="100" height="100"></rect>
+                  <text x="785" y="92" text-anchor="middle">Tracking</text>
+                  <text x="785" y="114" text-anchor="middle">Node</text>
+                </g>
+
+                <g class="node" data-node="parceltrack">
+                  <rect x="865" y="50" rx="18" ry="18" width="95" height="100"></rect>
+                  <text x="912" y="92" text-anchor="middle">Parcel</text>
+                  <text x="912" y="114" text-anchor="middle">Track</text>
+                </g>
+
+                <g class="node" data-node="mission">
+                  <rect x="495" y="235" rx="18" ry="18" width="160" height="60"></rect>
+                  <text x="575" y="271" text-anchor="middle">Mission Node</text>
+                </g>
+
+                <g class="node" data-node="control">
+                  <rect x="495" y="375" rx="18" ry="18" width="160" height="60"></rect>
+                  <text x="575" y="411" text-anchor="middle">Control Node</text>
+                </g>
+              </svg>
+            </div>
+            <div class="detail">
+              <h3 id="diagramTitle">Kliknij moduł</h3>
+              <p id="diagramDesc" class="small">
+                Po kliknięciu elementu diagramu zobaczysz opis jego roli w pipeline oraz wejścia i wyjścia.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="dependencies" class="section">
+          <h2>Zależności</h2>
+          <div class="grid">
+            <div class="card">
+              <h3>ROS 2</h3>
+              <p><code>rclpy</code>, wiadomości ROS, <code>cv_bridge</code>, komponenty zdefiniowane w <code>package.xml</code> i <code>CMakeLists.txt</code>.</p>
+            </div>
+            <div class="card">
+              <h3>Percepcja</h3>
+              <p><code>numpy</code>, <code>opencv-python</code>, <code>ultralytics</code>, <code>pyzbar</code>, <code>pupil-apriltags</code>.</p>
+            </div>
+            <div class="card">
+              <h3>System</h3>
+              <p>Dla <code>pyzbar</code> zwykle wymagane jest <code>libzbar0</code>.</p>
+            </div>
+          </div>
+          <pre><code>pip install -r requirements-standalone.txt
+pip install -r requirements-ros-python.txt
+sudo apt install libzbar0</code></pre>
+        </section>
+
+        <section id="versioning" class="section">
+          <h2>Automatyczna zmiana wersji przy commicie</h2>
+          <p>
+            Repozytorium zostało rozszerzone o prosty mechanizm automatycznego zwiększania wersji patch przy każdym commicie.
+          </p>
+          <ul>
+            <li>Plik <code>VERSION</code> przechowuje bieżącą wersję.</li>
+            <li>Skrypt <code>scripts/version_bump.py</code> zwiększa patch i aktualizuje:
+              <ul>
+                <li><code>VERSION</code></li>
+                <li><code>setup.py</code></li>
+                <li><code>package.xml</code></li>
+              </ul>
+            </li>
+            <li>Skrypt <code>scripts/install_git_hooks.sh</code> instaluje hook <code>pre-commit</code>.</li>
+          </ul>
+          <pre><code>bash scripts/install_git_hooks.sh</code></pre>
+          <p class="muted">
+            Po instalacji hooka każdy commit automatycznie podniesie numer wersji patch i doda zmienione pliki do commita.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <footer>
+      <p>
+        Strona <code>doc/index.html</code> działa lokalnie jako statyczna dokumentacja repozytorium i może być otwierana bezpośrednio w przeglądarce.
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabs = document.querySelectorAll('.section');
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const name = btn.dataset.tab;
+        tabButtons.forEach(b => b.classList.toggle('active', b === btn));
+        tabs.forEach(tab => tab.classList.toggle('active', tab.id === name));
+      });
+    });
+
+    const sequenceData = {
+      "ros-full": [
+        "$ cd ~/ros2_ws",
+        "$ colcon build --packages-select g1_light_tracking",
+        "$ source install/setup.bash",
+        "$ ros2 launch g1_light_tracking prod.launch.py",
+        "",
+        "Uruchamiane elementy:",
+        "- perception_node",
+        "- localization_node",
+        "- tracking_node",
+        "- parcel_track_node",
+        "- mission_node",
+        "- control_node",
+        "- debug_node"
+      ],
+      "standalone-cli": [
+        "$ python3 -m g1_light_tracking.standalone.cli_app --camera 0 --model yolov8n.pt --profile full_logistics",
+        "",
+        "Uruchamiane funkcje:",
+        "- kamera OpenCV",
+        "- YOLO",
+        "- QR",
+        "- AprilTag",
+        "- plamka światła",
+        "- tracking lokalny",
+        "- wiązanie QR do kartonu"
+      ],
+      "standalone-gui": [
+        "$ python3 -m g1_light_tracking.standalone.gui_app --camera 0 --model yolov8n.pt --profile debug_perception",
+        "",
+        "Uruchamiane funkcje:",
+        "- GUI z overlayem",
+        "- percepcja lokalna",
+        "- profile runtime",
+        "- menu klawiszowe",
+        "- panel statusu"
+      ],
+      "tracking-only": [
+        "$ ros2 run g1_light_tracking tracking_node --ros-args --params-file config/tracking.yaml",
+        "$ ros2 run g1_light_tracking parcel_track_node --ros-args --params-file config/parcel_track.yaml",
+        "",
+        "Scenariusz użyteczny do testów:",
+        "- śledzenia obiektów",
+        "- wiązania QR do kartonu",
+        "- publikacji ParcelTrack"
+      ],
+      "install-hooks": [
+        "$ bash scripts/install_git_hooks.sh",
+        "",
+        "Po instalacji:",
+        "- hook pre-commit uruchamia version_bump.py",
+        "- VERSION jest zwiększany automatycznie",
+        "- setup.py i package.xml są aktualizowane",
+        "- zmiany są dodawane do commita"
+      ]
+    };
+
+    const consoleEl = document.getElementById('sequenceConsole');
+    function renderSequence(key){
+      const lines = sequenceData[key] || ["Brak danych."];
+      consoleEl.innerHTML = "";
+      lines.forEach(line => {
+        const div = document.createElement('div');
+        div.className = 'console-line';
+        div.textContent = line;
+        consoleEl.appendChild(div);
+      });
+    }
+    document.querySelectorAll('[data-seq]').forEach(btn => {
+      btn.addEventListener('click', () => renderSequence(btn.dataset.seq));
+    });
+    renderSequence('ros-full');
+
+    const moduleDetails = {
+      camera: {
+        title: "Kamera",
+        desc: "Źródło obrazu dla całego pipeline. W trybie standalone korzysta z OpenCV VideoCapture, a w trybie ROS z topików obrazu."
+      },
+      perception: {
+        title: "Perception Node",
+        desc: "Wykrywa obiekty 2D: YOLO, QR, AprilTag i plamkę światła. Generuje Detection2D jako wejście dla lokalizacji."
+      },
+      localization: {
+        title: "Localization Node",
+        desc: "Uzupełnia wykrycia o pozycję 3D i bbox. Dla markerów może używać PnP, dla innych obiektów przybliżeń geometrycznych."
+      },
+      tracking: {
+        title: "Tracking Node",
+        desc: "Stabilizuje obiekty w czasie, utrzymuje track_id i propaguje bbox. Dla wybranych klas wykorzystuje filtr Kalmana."
+      },
+      parceltrack: {
+        title: "Parcel Track Node",
+        desc: "Kojarzy QR z kartonem i buduje ParcelTrack — obiekt logistyczny wyższego poziomu z danymi przesyłki."
+      },
+      mission: {
+        title: "Mission Node",
+        desc: "Podejmuje decyzje wysokiego poziomu i prowadzi maszynę stanów, np. search → verify_qr → navigate → align → drop."
+      },
+      control: {
+        title: "Control Node",
+        desc: "Zamienia aktywny cel z logiki misji na uproszczone komendy sterowania ruchem."
+      }
+    };
+
+    const nodeEls = document.querySelectorAll('.node');
+    const titleEl = document.getElementById('diagramTitle');
+    const descEl = document.getElementById('diagramDesc');
+    nodeEls.forEach(node => {
+      node.addEventListener('click', () => {
+        nodeEls.forEach(n => n.classList.remove('active'));
+        node.classList.add('active');
+        const detail = moduleDetails[node.dataset.node];
+        titleEl.textContent = detail.title;
+        descEl.textContent = detail.desc;
+      });
+    });
+  </script>
+</body>
+</html>

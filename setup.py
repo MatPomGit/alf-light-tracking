@@ -4,12 +4,28 @@ package_name = 'g1_light_tracking'
 
 setup(
     name=package_name,
-    version='0.3.0',
+    version='0.4.1',
     packages=find_packages(),
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'numpy',
+        'opencv-python',
+    ],
+    extras_require={
+        'standalone': [
+            'ultralytics',
+            'pyzbar',
+            'pupil-apriltags',
+        ],
+        'full': [
+            'ultralytics',
+            'pyzbar',
+            'pupil-apriltags',
+        ],
+    },
     zip_safe=True,
     maintainer='Mateusz Pomianek',
     maintainer_email='matpomianek@gmail.com',
-    description='Production-leaning ROS 2 Python skeleton with custom messages, OpenCV, YOLOv8n, QR, AprilTag hooks, temporal target tracking, and QR-to-parcel binding.',
+    description='Production-leaning ROS 2 Python skeleton with custom messages, OpenCV, YOLOv8n, QR, AprilTag hooks, temporal target tracking, and standalone CLI/GUI modes.',
     license='Apache-2.0',
 )

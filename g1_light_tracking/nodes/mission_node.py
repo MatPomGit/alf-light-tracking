@@ -6,7 +6,6 @@ from g1_light_tracking.msg import (
     TrackedTarget,
     MissionTarget,
     ParcelInfo,
-    ParcelTrackBinding,
     ParcelTrack,
     MissionState,
 )
@@ -20,7 +19,6 @@ class MissionNode(Node):
         self.declare_parameter('mission_topic', '/mission/target')
         self.declare_parameter('mission_state_topic', '/mission/state')
         self.declare_parameter('parcel_info_topic', '/mission/parcel_info')
-        self.declare_parameter('binding_topic', '/tracking/parcel_bindings')
         self.declare_parameter('color_pickup_values', ['green', 'yellow'])
         self.declare_parameter('color_dropoff_values', ['blue', 'red'])
         self.declare_parameter('prefer_identified_parcels', True)
@@ -33,7 +31,6 @@ class MissionNode(Node):
         self.parcel_timeout_sec = float(self.get_parameter('parcel_timeout_sec').value)
         self.state_hold_sec = float(self.get_parameter('state_hold_sec').value)
 
-        self.latest_bindings = {}
         self.latest_tracked_by_id = {}
         self.latest_parcel_tracks = {}
         self.latest_parcel_time = {}
@@ -50,13 +47,9 @@ class MissionNode(Node):
         self.parcel_pub = self.create_publisher(ParcelInfo, self.get_parameter('parcel_info_topic').value, 20)
 
         self.create_subscription(TrackedTarget, self.get_parameter('tracked_topic').value, self.on_tracked, 50)
-        self.create_subscription(ParcelTrackBinding, self.get_parameter('binding_topic').value, self.on_binding, 20)
         self.create_subscription(ParcelTrack, self.get_parameter('parcel_track_topic').value, self.on_parcel_track, 20)
 
         self.timer = self.create_timer(0.20, self.tick)
-
-    def on_binding(self, msg: ParcelTrackBinding):
-        self.latest_bindings[msg.qr_track_id] = msg
 
     def on_tracked(self, msg: TrackedTarget):
         self.latest_tracked_by_id[msg.track_id] = msg

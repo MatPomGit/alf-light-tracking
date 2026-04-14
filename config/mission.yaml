@@ -5,7 +5,6 @@ mission_node:
     mission_topic: /mission/target
     mission_state_topic: /mission/state
     parcel_info_topic: /mission/parcel_info
-    binding_topic: /tracking/parcel_bindings
     color_pickup_values: ["green", "yellow"]
     color_dropoff_values: ["blue", "red"]
     prefer_identified_parcels: true

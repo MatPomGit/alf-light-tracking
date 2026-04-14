@@ -4,3 +4,7 @@ parcel_track_node:
     binding_topic: /tracking/parcel_bindings
     parcel_track_topic: /tracking/parcel_tracks
     max_track_age_sec: 4.0
+    max_qr_to_box_center_px: 140.0
+    qr_inside_box_bonus: 0.35
+    max_binding_age_sec: 3.0
+    min_confirmed_matches: 2

@@ -29,15 +29,18 @@ install(PROGRAMS
   scripts/perception_node
   scripts/localization_node
   scripts/tracking_node
-  scripts/association_node
   scripts/parcel_track_node
   scripts/mission_node
   scripts/control_node
   scripts/debug_node
+  scripts/standalone_cli
+  scripts/standalone_gui
+  scripts/version_bump.py
+  scripts/install_git_hooks.sh
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch config
+install(DIRECTORY launch config profiles
   DESTINATION share/${PROJECT_NAME}
 )
 
