@@ -1,7 +1,0 @@
-[0.010s] Invoking command in '/home/matpom/repo/j2s/ros2/g1-ros2-light-tracking/src/alf_light_tracking/build/g1_light_tracking': DEBUGINFOD_URLS=ima:enforcing https://debuginfod.fedoraproject.org/ ima:ignore _=/usr/bin/env /usr/bin/cmake /home/matpom/repo/j2s/ros2/g1-ros2-light-tracking/src/alf_light_tracking -DCMAKE_INSTALL_PREFIX=/home/matpom/repo/j2s/ros2/g1-ros2-light-tracking/src/alf_light_tracking/install/g1_light_tracking
-[0.038s] [31mCMake Error at CMakeLists.txt:1:
-[0.038s]   Parse error.  Expected a command name, got bad character with text "\".
-[0.038s] 
-[0.038s] [0m
-[0.038s] -- Configuring incomplete, errors occurred!
-[0.040s] Invoked command in '/home/matpom/repo/j2s/ros2/g1-ros2-light-tracking/src/alf_light_tracking/build/g1_light_tracking' returned '1': DEBUGINFOD_URLS=ima:enforcing https://debuginfod.fedoraproject.org/ ima:ignore _=/usr/bin/env /usr/bin/cmake /home/matpom/repo/j2s/ros2/g1-ros2-light-tracking/src/alf_light_tracking -DCMAKE_INSTALL_PREFIX=/home/matpom/repo/j2s/ros2/g1-ros2-light-tracking/src/alf_light_tracking/install/g1_light_tracking
