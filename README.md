@@ -938,3 +938,45 @@ Standalone CLI:
 Standalone GUI:
 - klawisz `w` zapisuje aktualny stan funkcji do:
   - `profiles/custom_last.json`
+
+
+## 23. Rozszerzone `doc/index.html`
+
+Strona dokumentacyjna została dalej rozbudowana i teraz zawiera:
+- większy interaktywny diagram modułów,
+- osobną zakładkę:
+  - `ROS 2 / node-y / msg`
+- zakładkę z przyciskami otwierającymi najważniejsze pliki repozytorium,
+- dokładniejszy opis topików, wiadomości i połączeń między node’ami.
+
+
+## 24. Moduł poprawnej kalibracji kamery
+
+Pakiet został rozszerzony o:
+- `g1_light_tracking/nodes/camera_calibration_node.py`
+- `scripts/camera_calibration_node`
+- `config/camera_calibration.yaml`
+
+Moduł realizuje workflow kalibracji na podstawie planszy szachownicy:
+- zbiera próbki narożników,
+- uruchamia `cv2.calibrateCamera`,
+- publikuje skalibrowane `CameraInfo`,
+- zapisuje wynik do pliku YAML, np.:
+  - `calibration/camera_intrinsics.yaml`
+
+Przykład uruchomienia:
+```bash
+ros2 run g1_light_tracking camera_calibration_node --ros-args --params-file config/camera_calibration.yaml
+```
+
+## 25. Top-down odometry preview w GUI
+
+Standalone GUI zostało rozszerzone o dodatkowe okno:
+- `g1_light_tracking Top-Down`
+
+Okno pokazuje uproszczony rzut z góry:
+- estymowaną lokalną trajektorię,
+- aktualną pozycję robota,
+- orientację robota.
+
+To jest podgląd diagnostyczny do pracy lokalnej i demonstracyjnej. Nie zastępuje pełnej odometrii z robotycznego stosu nawigacyjnego.

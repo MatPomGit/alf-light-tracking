@@ -481,3 +481,67 @@ def draw_overlay(frame: np.ndarray, tracks: List[TrackedObject], parcel_tracks: 
             cv2.putText(overlay, line[:95], (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (180, 255, 180), 1)
             y += 18
     return overlay
+
+
+@dataclass
+class TopDownOdometry:
+    x: float = 0.0
+    y: float = 0.0
+    yaw: float = 0.0
+    path: List[Tuple[float, float]] = field(default_factory=lambda: [(0.0, 0.0)])
+
+    def update_from_tracks(self, tracks: List[TrackedObject], dt: float = 0.05):
+        # Uproszczona estymacja lokalnej odometrii do podglądu GUI.
+        # Bazuje na aktywnym celu z przodu kadru: im większe odchylenie w bok, tym większy skręt.
+        target = None
+        for tr in tracks:
+            if tr.target_type in ('parcel_box', 'person', 'shelf', 'light_spot'):
+                target = tr
+                break
+        if target is None:
+            return
+
+        img_cx = 640.0 / 2.0
+        norm_x = (target.center_u - img_cx) / img_cx
+        turn_rate = float(max(-1.0, min(1.0, norm_x))) * 0.7
+        forward = 0.02
+        self.yaw += turn_rate * dt
+        self.x += forward * math.cos(self.yaw)
+        self.y += forward * math.sin(self.yaw)
+        self.path.append((self.x, self.y))
+        if len(self.path) > 500:
+            self.path = self.path[-500:]
+
+
+def draw_topdown(odom: TopDownOdometry, size: Tuple[int, int] = (420, 420)) -> np.ndarray:
+    w, h = size
+    img = np.zeros((h, w, 3), dtype=np.uint8)
+    img[:] = (14, 20, 42)
+
+    cv2.putText(img, 'Top-down odometry preview', (16, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (230, 230, 230), 1)
+    cx, cy = w // 2, h // 2
+    scale = 80.0
+
+    cv2.line(img, (0, cy), (w, cy), (55, 70, 120), 1)
+    cv2.line(img, (cx, 0), (cx, h), (55, 70, 120), 1)
+
+    pts = []
+    for px, py in odom.path:
+        sx = int(cx + px * scale)
+        sy = int(cy - py * scale)
+        pts.append((sx, sy))
+    for i in range(1, len(pts)):
+        cv2.line(img, pts[i - 1], pts[i], (126, 231, 135), 2)
+
+    robot_x = int(cx + odom.x * scale)
+    robot_y = int(cy - odom.y * scale)
+    cv2.circle(img, (robot_x, robot_y), 7, (110, 168, 254), -1)
+
+    hx = int(robot_x + 20 * math.cos(odom.yaw))
+    hy = int(robot_y - 20 * math.sin(odom.yaw))
+    cv2.arrowedLine(img, (robot_x, robot_y), (hx, hy), (255, 209, 102), 2, tipLength=0.3)
+
+    cv2.putText(img, f'x={odom.x:.2f} m', (16, h - 48), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1)
+    cv2.putText(img, f'y={odom.y:.2f} m', (16, h - 28), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1)
+    cv2.putText(img, f'yaw={odom.yaw:.2f} rad', (150, h - 28), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1)
+    return img

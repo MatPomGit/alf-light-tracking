@@ -33,6 +33,7 @@ install(PROGRAMS
   scripts/mission_node
   scripts/control_node
   scripts/debug_node
+  scripts/camera_calibration_node
   scripts/standalone_cli
   scripts/standalone_gui
   scripts/version_bump.py
@@ -40,7 +41,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch config profiles
+install(DIRECTORY launch config profiles calibration doc
   DESTINATION share/${PROJECT_NAME}
 )
 

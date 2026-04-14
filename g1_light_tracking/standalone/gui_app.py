@@ -7,7 +7,9 @@ from g1_light_tracking.standalone.pipeline import (
     PerceptionEngine,
     SimpleTracker,
     ParcelAggregator,
+    TopDownOdometry,
     draw_overlay,
+    draw_topdown,
     summarize_functions,
 )
 from g1_light_tracking.standalone.profiles import list_profiles, load_profile_dict, sanitize_flags, save_profile_dict
@@ -73,6 +75,7 @@ def run_gui(camera: int, model: str, profile: str = ''):
     perception = PerceptionEngine(model_path=model)
     tracker = SimpleTracker()
     aggregator = ParcelAggregator()
+    odom = TopDownOdometry()
 
     if profile:
         apply_named_profile(perception, profile)
@@ -102,6 +105,7 @@ def run_gui(camera: int, model: str, profile: str = ''):
         tracks = tracker.update(detections, enabled=perception.flags.enable_tracking)
         parcel_tracks = aggregator.build(tracks, enabled=perception.flags.enable_binding)
         status = perception.build_status(camera_open=True, gui_enabled=True, cli_enabled=False)
+        odom.update_from_tracks(tracks, dt=0.05)
 
         if parcel_tracks:
             best = parcel_tracks[0]
@@ -112,7 +116,9 @@ def run_gui(camera: int, model: str, profile: str = ''):
         status_lines = summarize_functions(status, detections, tracks, parcel_tracks) if show_status_panel else None
         help_lines = HELP_LINES if show_help_panel else None
         overlay = draw_overlay(frame, tracks, parcel_tracks, state_text, status_lines=status_lines, help_lines=help_lines)
+        topdown = draw_topdown(odom)
         cv2.imshow("g1_light_tracking GUI", overlay)
+        cv2.imshow("g1_light_tracking Top-Down", topdown)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):

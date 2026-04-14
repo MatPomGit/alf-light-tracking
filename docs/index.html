@@ -29,7 +29,7 @@
       color:var(--text);
       line-height:1.6;
     }
-    .wrap{max-width:1180px;margin:0 auto;padding:24px 18px 64px}
+    .wrap{max-width:1320px;margin:0 auto;padding:24px 18px 64px}
     .hero,.section,.sidebar-card{
       background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.02));
       border:1px solid var(--border);
@@ -38,9 +38,9 @@
     }
     .hero{padding:28px}
     h1,h2,h3{line-height:1.2}
-    h1{margin:0 0 10px;font-size:2.2rem}
-    h2{margin:0 0 18px;font-size:1.5rem}
-    h3{margin:20px 0 10px;font-size:1.1rem}
+    h1{margin:0 0 10px;font-size:2.35rem}
+    h2{margin:0 0 18px;font-size:1.6rem}
+    h3{margin:20px 0 10px;font-size:1.12rem}
     p,li{color:var(--text)}
     .muted{color:var(--muted)}
     .pill{
@@ -50,7 +50,7 @@
     }
     .pill.ok{border-color:rgba(126,231,135,.35);background:rgba(126,231,135,.10)}
     .pill.warn{border-color:rgba(255,209,102,.35);background:rgba(255,209,102,.10)}
-    .layout{display:grid;grid-template-columns:280px 1fr;gap:18px;margin-top:22px}
+    .layout{display:grid;grid-template-columns:290px 1fr;gap:18px;margin-top:22px}
     .sidebar{position:sticky;top:16px;height:fit-content}
     .sidebar-card{padding:16px}
     .tablist{display:flex;flex-direction:column;gap:8px}
@@ -74,26 +74,35 @@
     .actions{display:flex;flex-wrap:wrap;gap:10px}
     .btn{
       border:1px solid var(--border);background:var(--panel3);color:var(--text);
-      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600
+      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;text-decoration:none;display:inline-block
     }
     .btn.primary{background:rgba(110,168,254,.16);border-color:rgba(110,168,254,.45)}
     .btn.ok{background:rgba(126,231,135,.10);border-color:rgba(126,231,135,.35)}
     .btn.warn{background:rgba(255,209,102,.10);border-color:rgba(255,209,102,.35)}
+    .btn:hover{filter:brightness(1.08)}
     .console{
       margin-top:14px;background:#09101f;border:1px solid var(--border);border-radius:16px;
       padding:14px;min-height:170px;max-height:320px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
       font-size:.93rem
     }
     .console-line{margin:0 0 6px;white-space:pre-wrap}
-    .diagram-wrap{display:grid;grid-template-columns:1fr 320px;gap:16px}
+    .diagram-wrap{display:grid;grid-template-columns:1fr 340px;gap:16px}
     svg{width:100%;height:auto;background:linear-gradient(180deg,#0e152d,#0a1123);border:1px solid var(--border);border-radius:18px}
     .node{cursor:pointer}
     .node rect{fill:#121b38;stroke:#4e69b8;stroke-width:2}
     .node.active rect{fill:#16325f;stroke:#7ee787}
-    .node text{fill:#eef3ff;font-size:14px;font-weight:700}
-    .edge{stroke:#6a7dbb;stroke-width:2.2;marker-end:url(#arrow)}
+    .node text{fill:#eef3ff;font-size:17px;font-weight:700}
+    .edge{stroke:#6a7dbb;stroke-width:2.6;marker-end:url(#arrow)}
     .detail{background:var(--code);border:1px solid var(--border);border-radius:16px;padding:14px}
     .small{font-size:.92rem}
+    table{
+      width:100%;border-collapse:collapse;margin-top:10px;
+      background:rgba(255,255,255,.02);border-radius:12px;overflow:hidden
+    }
+    th,td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+    th{text-align:left;background:rgba(255,255,255,.04)}
+    .file-buttons{display:flex;flex-wrap:wrap;gap:10px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
     footer{margin-top:36px;color:var(--muted)}
     @media (max-width: 980px){
       .layout{grid-template-columns:1fr}
@@ -108,7 +117,8 @@
       <h1>g1_light_tracking</h1>
       <p class="muted">
         Dokumentacja repozytorium systemu percepcji, śledzenia i logiki misji dla robota intra-logistycznego.
-        Strona została podzielona na zakładki, zawiera interaktywny diagram przepływu modułów oraz panel uruchamiania przykładowych sekwencji.
+        Strona została podzielona na zakładki, zawiera interaktywny diagram przepływu modułów, panel uruchamiania sekwencji
+        oraz dokładny opis komunikacji ROS 2.
       </p>
       <div>
         <span class="pill">ROS 2</span>
@@ -130,8 +140,11 @@
           <div class="tablist">
             <button class="tab-button active" data-tab="overview">Przegląd</button>
             <button class="tab-button" data-tab="architecture">Architektura</button>
+            <button class="tab-button" data-tab="ros2">ROS 2 / node-y / msg</button>
             <button class="tab-button" data-tab="sequences">Sekwencje uruchamiania</button>
             <button class="tab-button" data-tab="diagram">Diagram modułów</button>
+            <button class="tab-button" data-tab="files">Pliki repozytorium</button>
+            <button class="tab-button" data-tab="calibration">Kalibracja kamery</button>
             <button class="tab-button" data-tab="dependencies">Zależności</button>
             <button class="tab-button" data-tab="versioning">Wersjonowanie</button>
           </div>
@@ -175,6 +188,70 @@
           </div>
         </section>
 
+        <section id="ros2" class="section">
+          <h2>Komunikacja ROS 2, struktura node-ów i wiadomości</h2>
+          <h3>Główne node-y</h3>
+          <table>
+            <thead><tr><th>Node</th><th>Rola</th><th>Główne wejścia</th><th>Główne wyjścia</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">perception_node</td><td>Detekcja 2D obiektów i markerów.</td><td>/camera/image_raw, /camera/camera_info</td><td>/perception/detections</td></tr>
+              <tr><td class="mono">localization_node</td><td>Wzbogacenie o pozycję 3D i bbox.</td><td>/perception/detections, /camera/camera_info</td><td>/localization/targets</td></tr>
+              <tr><td class="mono">tracking_node</td><td>Śledzenie w czasie i utrzymanie track_id.</td><td>/localization/targets</td><td>/tracking/targets</td></tr>
+              <tr><td class="mono">parcel_track_node</td><td>Wiązanie QR do kartonu i agregacja przesyłki.</td><td>/tracking/targets</td><td>/tracking/parcel_bindings, /tracking/parcel_tracks</td></tr>
+              <tr><td class="mono">mission_node</td><td>Maszyna stanów misji i wybór aktywnego celu.</td><td>/tracking/targets, /tracking/parcel_tracks</td><td>/mission/target, /mission/state, /mission/parcel_info</td></tr>
+              <tr><td class="mono">control_node</td><td>Generowanie uproszczonych komend ruchu.</td><td>/mission/target</td><td>/cmd_vel</td></tr>
+              <tr><td class="mono">debug_node</td><td>Diagnostyka i logowanie stanu.</td><td>wiele topików</td><td>logi / podgląd</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Najważniejsze topiki</h3>
+          <table>
+            <thead><tr><th>Topik</th><th>Typ wiadomości</th><th>Znaczenie</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">/perception/detections</td><td>Detection2D</td><td>Surowe detekcje 2D z percepcji.</td></tr>
+              <tr><td class="mono">/localization/targets</td><td>LocalizedTarget</td><td>Detekcje uzupełnione o pozycję 3D i bbox.</td></tr>
+              <tr><td class="mono">/tracking/targets</td><td>TrackedTarget</td><td>Obiekty śledzone w czasie.</td></tr>
+              <tr><td class="mono">/tracking/parcel_bindings</td><td>ParcelTrackBinding</td><td>Powiązanie QR z konkretnym kartonem.</td></tr>
+              <tr><td class="mono">/tracking/parcel_tracks</td><td>ParcelTrack</td><td>Spójny obiekt logistyczny przesyłki.</td></tr>
+              <tr><td class="mono">/mission/target</td><td>MissionTarget</td><td>Aktywny cel dla sterowania.</td></tr>
+              <tr><td class="mono">/mission/state</td><td>MissionState</td><td>Stan maszyny stanów misji.</td></tr>
+              <tr><td class="mono">/mission/parcel_info</td><td>ParcelInfo</td><td>Wyodrębnione informacje logistyczne.</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Wiadomości <code>msg/</code></h3>
+          <table>
+            <thead><tr><th>Plik</th><th>Rola</th><th>Kluczowe pola</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">Detection2D.msg</td><td>Detekcja 2D</td><td>target_type, class_name, confidence, bbox, center_u/v, payload, color_label</td></tr>
+              <tr><td class="mono">LocalizedTarget.msg</td><td>Obiekt z pozycją 3D</td><td>position, dimensions, bbox, payload, source_method</td></tr>
+              <tr><td class="mono">TrackedTarget.msg</td><td>Śledzony obiekt</td><td>track_id, position, bbox, missed_frames, is_confirmed</td></tr>
+              <tr><td class="mono">ParcelTrackBinding.msg</td><td>Powiązanie QR z kartonem</td><td>qr_track_id, parcel_box_track_id, qr_payload, association_score</td></tr>
+              <tr><td class="mono">ParcelTrack.msg</td><td>Widok przesyłki</td><td>shipment_id, pickup_zone, dropoff_zone, mass_kg, logistics_state, has_qr</td></tr>
+              <tr><td class="mono">ParcelInfo.msg</td><td>Dane logistyczne</td><td>shipment_id, pickup_zone, dropoff_zone, parcel_type, mass_kg</td></tr>
+              <tr><td class="mono">MissionTarget.msg</td><td>Cel sterowania</td><td>mode, target_type, position, color_label, payload</td></tr>
+              <tr><td class="mono">MissionState.msg</td><td>Stan logiki</td><td>state, previous_state, active_parcel_box_track_id, reason</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Łańcuch komunikacji</h3>
+          <pre><code>/camera/image_raw
+  -> perception_node
+    -> /perception/detections (Detection2D)
+      -> localization_node
+        -> /localization/targets (LocalizedTarget)
+          -> tracking_node
+            -> /tracking/targets (TrackedTarget)
+              -> parcel_track_node
+                -> /tracking/parcel_bindings (ParcelTrackBinding)
+                -> /tracking/parcel_tracks (ParcelTrack)
+                  -> mission_node
+                    -> /mission/state (MissionState)
+                    -> /mission/target (MissionTarget)
+                      -> control_node
+                        -> /cmd_vel</code></pre>
+        </section>
+
         <section id="sequences" class="section">
           <h2>Sekwencje uruchamiania</h2>
           <p>Kliknięcie przycisku nie uruchamia kodu lokalnie z poziomu przeglądarki. Pokazuje natomiast przygotowaną sekwencję poleceń oraz opis kroków.</p>
@@ -192,58 +269,67 @@
           <h2>Interaktywny diagram przepływu modułów</h2>
           <div class="diagram-wrap">
             <div>
-              <svg viewBox="0 0 980 520" role="img" aria-label="Diagram przepływu modułów">
+              <svg viewBox="0 0 1260 700" role="img" aria-label="Diagram przepływu modułów">
                 <defs>
-                  <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-                    <path d="M0,0 L10,5 L0,10 z" fill="#6a7dbb"></path>
+                  <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+                    <path d="M0,0 L12,6 L0,12 z" fill="#6a7dbb"></path>
                   </marker>
                 </defs>
 
-                <g class="edge"><line x1="115" y1="100" x2="255" y2="100"/></g>
-                <g class="edge"><line x1="355" y1="100" x2="495" y2="100"/></g>
-                <g class="edge"><line x1="595" y1="100" x2="735" y2="100"/></g>
-                <g class="edge"><line x1="835" y1="100" x2="915" y2="100"/></g>
-
-                <g class="edge"><line x1="575" y1="160" x2="575" y2="235"/></g>
-                <g class="edge"><line x1="575" y1="295" x2="575" y2="375"/></g>
+                <g class="edge"><line x1="150" y1="120" x2="340" y2="120"/></g>
+                <g class="edge"><line x1="500" y1="120" x2="690" y2="120"/></g>
+                <g class="edge"><line x1="850" y1="120" x2="1040" y2="120"/></g>
+                <g class="edge"><line x1="1165" y1="120" x2="1165" y2="235"/></g>
+                <g class="edge"><line x1="1165" y1="295" x2="1165" y2="410"/></g>
+                <g class="edge"><line x1="1165" y1="470" x2="1165" y2="585"/></g>
 
                 <g class="node" data-node="camera">
-                  <rect x="20" y="60" rx="18" ry="18" width="95" height="80"></rect>
-                  <text x="67" y="100" text-anchor="middle">Kamera</text>
+                  <rect x="30" y="70" rx="20" ry="20" width="120" height="100"></rect>
+                  <text x="90" y="115" text-anchor="middle">Kamera</text>
                 </g>
 
                 <g class="node" data-node="perception">
-                  <rect x="255" y="50" rx="18" ry="18" width="100" height="100"></rect>
-                  <text x="305" y="92" text-anchor="middle">Perception</text>
-                  <text x="305" y="114" text-anchor="middle">Node</text>
+                  <rect x="340" y="55" rx="20" ry="20" width="160" height="130"></rect>
+                  <text x="420" y="110" text-anchor="middle">Perception</text>
+                  <text x="420" y="138" text-anchor="middle">Node</text>
                 </g>
 
                 <g class="node" data-node="localization">
-                  <rect x="495" y="50" rx="18" ry="18" width="100" height="100"></rect>
-                  <text x="545" y="92" text-anchor="middle">Localization</text>
-                  <text x="545" y="114" text-anchor="middle">Node</text>
+                  <rect x="690" y="55" rx="20" ry="20" width="160" height="130"></rect>
+                  <text x="770" y="110" text-anchor="middle">Localization</text>
+                  <text x="770" y="138" text-anchor="middle">Node</text>
                 </g>
 
                 <g class="node" data-node="tracking">
-                  <rect x="735" y="50" rx="18" ry="18" width="100" height="100"></rect>
-                  <text x="785" y="92" text-anchor="middle">Tracking</text>
-                  <text x="785" y="114" text-anchor="middle">Node</text>
+                  <rect x="1040" y="55" rx="20" ry="20" width="180" height="130"></rect>
+                  <text x="1130" y="110" text-anchor="middle">Tracking</text>
+                  <text x="1130" y="138" text-anchor="middle">Node</text>
                 </g>
 
                 <g class="node" data-node="parceltrack">
-                  <rect x="865" y="50" rx="18" ry="18" width="95" height="100"></rect>
-                  <text x="912" y="92" text-anchor="middle">Parcel</text>
-                  <text x="912" y="114" text-anchor="middle">Track</text>
+                  <rect x="1040" y="235" rx="20" ry="20" width="250" height="60"></rect>
+                  <text x="1165" y="271" text-anchor="middle">Parcel Track Node</text>
                 </g>
 
                 <g class="node" data-node="mission">
-                  <rect x="495" y="235" rx="18" ry="18" width="160" height="60"></rect>
-                  <text x="575" y="271" text-anchor="middle">Mission Node</text>
+                  <rect x="1040" y="410" rx="20" ry="20" width="250" height="60"></rect>
+                  <text x="1165" y="446" text-anchor="middle">Mission Node</text>
                 </g>
 
                 <g class="node" data-node="control">
-                  <rect x="495" y="375" rx="18" ry="18" width="160" height="60"></rect>
-                  <text x="575" y="411" text-anchor="middle">Control Node</text>
+                  <rect x="1040" y="585" rx="20" ry="20" width="250" height="60"></rect>
+                  <text x="1165" y="621" text-anchor="middle">Control Node</text>
+                </g>
+
+                <g class="node" data-node="debug">
+                  <rect x="340" y="340" rx="20" ry="20" width="180" height="90"></rect>
+                  <text x="430" y="390" text-anchor="middle">Debug Node</text>
+                </g>
+
+                <g class="node" data-node="standalone">
+                  <rect x="40" y="500" rx="20" ry="20" width="260" height="120"></rect>
+                  <text x="170" y="555" text-anchor="middle">Standalone CLI / GUI</text>
+                  <text x="170" y="585" text-anchor="middle">bez topiców ROS 2</text>
                 </g>
               </svg>
             </div>
@@ -254,6 +340,82 @@
               </p>
             </div>
           </div>
+        </section>
+
+        <section id="files" class="section">
+          <h2>Przyciski otwierające omawiane pliki</h2>
+          <p>Przyciski poniżej otwierają najważniejsze pliki repozytorium bezpośrednio z tej dokumentacji.</p>
+          <div class="file-buttons">
+            <a class="btn primary" href="../README.md" target="_blank" rel="noopener">README.md</a>
+            <a class="btn" href="../package.xml" target="_blank" rel="noopener">package.xml</a>
+            <a class="btn" href="../CMakeLists.txt" target="_blank" rel="noopener">CMakeLists.txt</a>
+            <a class="btn" href="../setup.py" target="_blank" rel="noopener">setup.py</a>
+            <a class="btn" href="../VERSION" target="_blank" rel="noopener">VERSION</a>
+            <a class="btn" href="../launch/prod.launch.py" target="_blank" rel="noopener">launch/prod.launch.py</a>
+            <a class="btn" href="../config/perception.yaml" target="_blank" rel="noopener">config/perception.yaml</a>
+            <a class="btn" href="../config/localization.yaml" target="_blank" rel="noopener">config/localization.yaml</a>
+            <a class="btn" href="../config/tracking.yaml" target="_blank" rel="noopener">config/tracking.yaml</a>
+            <a class="btn" href="../config/parcel_track.yaml" target="_blank" rel="noopener">config/parcel_track.yaml</a>
+            <a class="btn" href="../config/mission.yaml" target="_blank" rel="noopener">config/mission.yaml</a>
+            <a class="btn" href="../config/control.yaml" target="_blank" rel="noopener">config/control.yaml</a>
+            <a class="btn" href="../config/camera_calibration.yaml" target="_blank" rel="noopener">config/camera_calibration.yaml</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/perception_node.py" target="_blank" rel="noopener">perception_node.py</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/localization_node.py" target="_blank" rel="noopener">localization_node.py</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/tracking_node.py" target="_blank" rel="noopener">tracking_node.py</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/parcel_track_node.py" target="_blank" rel="noopener">parcel_track_node.py</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/mission_node.py" target="_blank" rel="noopener">mission_node.py</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/control_node.py" target="_blank" rel="noopener">control_node.py</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/debug_node.py" target="_blank" rel="noopener">debug_node.py</a>
+            <a class="btn ok" href="../g1_light_tracking/nodes/camera_calibration_node.py" target="_blank" rel="noopener">camera_calibration_node.py</a>
+            <a class="btn warn" href="../msg/Detection2D.msg" target="_blank" rel="noopener">Detection2D.msg</a>
+            <a class="btn warn" href="../msg/LocalizedTarget.msg" target="_blank" rel="noopener">LocalizedTarget.msg</a>
+            <a class="btn warn" href="../msg/TrackedTarget.msg" target="_blank" rel="noopener">TrackedTarget.msg</a>
+            <a class="btn warn" href="../msg/ParcelTrackBinding.msg" target="_blank" rel="noopener">ParcelTrackBinding.msg</a>
+            <a class="btn warn" href="../msg/ParcelTrack.msg" target="_blank" rel="noopener">ParcelTrack.msg</a>
+            <a class="btn warn" href="../msg/ParcelInfo.msg" target="_blank" rel="noopener">ParcelInfo.msg</a>
+            <a class="btn warn" href="../msg/MissionTarget.msg" target="_blank" rel="noopener">MissionTarget.msg</a>
+            <a class="btn warn" href="../msg/MissionState.msg" target="_blank" rel="noopener">MissionState.msg</a>
+            <a class="btn" href="../g1_light_tracking/standalone/cli_app.py" target="_blank" rel="noopener">standalone/cli_app.py</a>
+            <a class="btn" href="../g1_light_tracking/standalone/gui_app.py" target="_blank" rel="noopener">standalone/gui_app.py</a>
+            <a class="btn" href="../g1_light_tracking/standalone/pipeline.py" target="_blank" rel="noopener">standalone/pipeline.py</a>
+            <a class="btn" href="../g1_light_tracking/standalone/profiles.py" target="_blank" rel="noopener">standalone/profiles.py</a>
+            <a class="btn" href="../scripts/version_bump.py" target="_blank" rel="noopener">scripts/version_bump.py</a>
+            <a class="btn" href="../scripts/install_git_hooks.sh" target="_blank" rel="noopener">scripts/install_git_hooks.sh</a>
+            <a class="btn" href="../scripts/camera_calibration_node" target="_blank" rel="noopener">scripts/camera_calibration_node</a>
+          </div>
+        </section>
+
+
+        <section id="calibration" class="section">
+          <h2>Kalibracja kamery</h2>
+          <p>
+            Repozytorium zawiera osobny moduł poprawnej kalibracji kamery oparty o planszę szachownicy.
+            Moduł zbiera próbki narożników, estymuje intrinsics przez <code>cv2.calibrateCamera</code>,
+            publikuje <code>CameraInfo</code> oraz zapisuje wynik do pliku YAML.
+          </p>
+          <div class="grid">
+            <div class="card">
+              <h3>Pliki</h3>
+              <ul>
+                <li><code>g1_light_tracking/nodes/camera_calibration_node.py</code></li>
+                <li><code>scripts/camera_calibration_node</code></li>
+                <li><code>config/camera_calibration.yaml</code></li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Wejścia / wyjścia</h3>
+              <ul>
+                <li>Wejście: <code>/camera/image_raw</code></li>
+                <li>Wyjście: <code>/camera/camera_info_calibrated</code></li>
+                <li>Podgląd: <code>/debug/calibration_preview</code></li>
+                <li>Plik wynikowy: <code>calibration/camera_intrinsics.yaml</code></li>
+              </ul>
+            </div>
+          </div>
+          <pre><code>ros2 run g1_light_tracking camera_calibration_node --ros-args --params-file config/camera_calibration.yaml</code></pre>
+          <p class="muted">
+            W GUI standalone dostępne jest dodatkowe okno <code>Top-Down</code>, które pokazuje lokalny podgląd odometrii w rzucie z góry.
+          </p>
         </section>
 
         <section id="dependencies" class="section">
@@ -421,6 +583,14 @@ sudo apt install libzbar0</code></pre>
       control: {
         title: "Control Node",
         desc: "Zamienia aktywny cel z logiki misji na uproszczone komendy sterowania ruchem."
+      },
+      debug: {
+        title: "Debug Node",
+        desc: "Zbiera diagnostykę i logi z najważniejszych etapów działania systemu."
+      },
+      standalone: {
+        title: "Standalone CLI / GUI",
+        desc: "Tryb uruchamiania bez topiców ROS 2. Cały pipeline działa lokalnie w jednej aplikacji."
       }
     };
 
