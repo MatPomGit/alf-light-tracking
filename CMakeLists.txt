@@ -19,6 +19,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TrackedTarget.msg"
   "msg/ParcelTrackBinding.msg"
   "msg/ParcelTrack.msg"
+  "msg/MissionState.msg"
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
 )
 

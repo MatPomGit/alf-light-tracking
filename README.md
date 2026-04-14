@@ -128,3 +128,26 @@ Priorytety decyzji dla przesyłek:
 - mniejsza odległość `z`
 
 To sprawia, że logika misji bazuje na pełnym obiekcie przesyłki, a nie na rozproszonych komunikatach.
+
+
+## Prosta maszyna stanów misji
+
+Dodano:
+- `msg/MissionState.msg`
+- rozszerzony `mission_node`
+
+Obsługiwane stany:
+- `search`
+- `approach_person`
+- `receive_parcel`
+- `verify_qr`
+- `navigate`
+- `align`
+- `drop`
+
+`mission_node` publikuje teraz:
+- `MissionTarget` jako aktywny cel sterowania,
+- `MissionState` jako stan logiki wysokiego poziomu.
+
+To daje już sensowny szkielet procesu:
+`search -> approach_person -> receive_parcel -> verify_qr -> navigate -> align -> drop`.

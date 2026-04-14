@@ -1,0 +1,9 @@
+builtin_interfaces/Time stamp
+string state
+string previous_state
+string active_parcel_box_track_id
+string active_shipment_id
+string reason
+bool has_active_parcel
+bool has_drop_target
+bool is_terminal
