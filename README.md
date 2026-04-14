@@ -79,3 +79,17 @@ Dodano `association_node`, który:
 - publikuje stabilne wiązanie `ParcelTrackBinding`.
 
 Dzięki temu treść QR może być przypisana do konkretnego `parcel_box_track_id`, co jest podstawą do dalszego śledzenia tej samej przesyłki w czasie.
+
+
+## Rzeczywisty bbox w śledzeniu
+
+`LocalizedTarget.msg` i `TrackedTarget.msg` zostały rozszerzone o:
+- `x_min`
+- `y_min`
+- `x_max`
+- `y_max`
+
+Dzięki temu:
+- tracker utrzymuje rzeczywisty obszar obiektu w obrazie,
+- `association_node` używa prawdziwego bbox-a kartonu,
+- wiązanie `QR -> parcel_box_track_id` nie opiera się już na sztucznej aproksymacji wokół środka.

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 import math
 import time
+from typing import Optional
 import numpy as np
 
 
@@ -20,11 +20,13 @@ class TrackState:
     missed_frames: int = 0
     created_time: float = field(default_factory=time.time)
     updated_time: float = field(default_factory=time.time)
-    # state cache
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
-    # 6-state constant velocity model [x y z vx vy vz]
+    x_min: float = 0.0
+    y_min: float = 0.0
+    x_max: float = 0.0
+    y_max: float = 0.0
     state: Optional[np.ndarray] = None
     cov: Optional[np.ndarray] = None
 
@@ -48,7 +50,7 @@ def distance_uv(track: TrackState, u: float, v: float) -> float:
     return math.sqrt((track.center_u - u) ** 2 + (track.center_v - v) ** 2)
 
 
-def init_kalman_state(x: float, y: float, z: float) -> tuple[np.ndarray, np.ndarray]:
+def init_kalman_state(x: float, y: float, z: float):
     state = np.array([[x], [y], [z], [0.0], [0.0], [0.0]], dtype=float)
     cov = np.eye(6, dtype=float) * 1.0
     cov[3:, 3:] *= 10.0
@@ -87,11 +89,11 @@ def update_kalman(track: TrackState, meas_x: float, meas_y: float, meas_z: float
     ], dtype=float)
     R = np.eye(3, dtype=float) * measurement_noise_pos
     z = np.array([[meas_x], [meas_y], [meas_z]], dtype=float)
-    y = z - H @ track.state
+    innovation = z - H @ track.state
     S = H @ track.cov @ H.T + R
     K = track.cov @ H.T @ np.linalg.inv(S)
     I = np.eye(6, dtype=float)
-    track.state = track.state + K @ y
+    track.state = track.state + K @ innovation
     track.cov = (I - K @ H) @ track.cov
     track.x = float(track.state[0, 0])
     track.y = float(track.state[1, 0])

@@ -62,6 +62,10 @@ class LocalizationNode(Node):
         t.confidence = det.confidence
         t.center_u = det.center_u
         t.center_v = det.center_v
+        t.x_min = det.x_min
+        t.y_min = det.y_min
+        t.x_max = det.x_max
+        t.y_max = det.y_max
         t.color_label = det.color_label
         t.payload = det.payload
         return t

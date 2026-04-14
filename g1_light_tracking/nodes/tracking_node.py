@@ -105,6 +105,10 @@ class TrackingNode(Node):
             z=float(msg.position.z),
             center_u=float(msg.center_u),
             center_v=float(msg.center_v),
+            x_min=float(msg.x_min),
+            y_min=float(msg.y_min),
+            x_max=float(msg.x_max),
+            y_max=float(msg.y_max),
             confidence=float(msg.confidence),
             color_label=msg.color_label,
             payload=msg.payload,
@@ -132,9 +136,14 @@ class TrackingNode(Node):
             track.y = (1.0 - a) * track.y + a * meas_y
             track.z = (1.0 - a) * track.z + a * meas_z
 
-        a_uv = self.ema_alpha
-        track.center_u = (1.0 - a_uv) * track.center_u + a_uv * float(msg.center_u)
-        track.center_v = (1.0 - a_uv) * track.center_v + a_uv * float(msg.center_v)
+        a = self.ema_alpha
+        track.center_u = (1.0 - a) * track.center_u + a * float(msg.center_u)
+        track.center_v = (1.0 - a) * track.center_v + a * float(msg.center_v)
+        track.x_min = (1.0 - a) * track.x_min + a * float(msg.x_min)
+        track.y_min = (1.0 - a) * track.y_min + a * float(msg.y_min)
+        track.x_max = (1.0 - a) * track.x_max + a * float(msg.x_max)
+        track.y_max = (1.0 - a) * track.y_max + a * float(msg.y_max)
+
         track.confidence = max(track.confidence * 0.7, float(msg.confidence))
         track.color_label = msg.color_label or track.color_label
         track.payload = msg.payload or track.payload
@@ -158,6 +167,10 @@ class TrackingNode(Node):
         out.dimensions = src_msg.dimensions
         out.center_u = float(track.center_u)
         out.center_v = float(track.center_v)
+        out.x_min = float(track.x_min)
+        out.y_min = float(track.y_min)
+        out.x_max = float(track.x_max)
+        out.y_max = float(track.y_max)
         out.color_label = track.color_label
         out.payload = track.payload
         out.source_method = track.source_method

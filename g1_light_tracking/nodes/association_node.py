@@ -83,15 +83,11 @@ class AssociationNode(Node):
             self.try_bind_qr(qr, now)
 
     def estimate_box_bbox(self, box_msg: TrackedTarget):
-        # tracking message does not carry bbox; approximate a box support region around the center.
-        # This is a lightweight MVP fallback until bbox is added to tracked messages.
-        half_w = 80.0
-        half_h = 80.0
         return (
-            float(box_msg.center_u - half_w),
-            float(box_msg.center_v - half_h),
-            float(box_msg.center_u + half_w),
-            float(box_msg.center_v + half_h),
+            float(box_msg.x_min),
+            float(box_msg.y_min),
+            float(box_msg.x_max),
+            float(box_msg.y_max),
         )
 
     def publish_binding(self, qr_msg: TrackedTarget, parcel_box_track_id: str, binding: BindingState):

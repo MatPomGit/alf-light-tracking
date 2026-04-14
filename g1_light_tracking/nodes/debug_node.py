@@ -28,7 +28,7 @@ class DebugNode(Node):
 
     def on_tracked(self, msg: TrackedTarget):
         self.get_logger().debug(
-            f"TRK id={msg.track_id} type={msg.target_type} xyz=({msg.position.x:.2f},{msg.position.y:.2f},{msg.position.z:.2f}) src={msg.source_method} confirmed={msg.is_confirmed} missed={msg.missed_frames}"
+            f"TRK id={msg.track_id} type={msg.target_type} xyz=({msg.position.x:.2f},{msg.position.y:.2f},{msg.position.z:.2f}) bbox=({msg.x_min:.1f},{msg.y_min:.1f},{msg.x_max:.1f},{msg.y_max:.1f}) src={msg.source_method} confirmed={msg.is_confirmed} missed={msg.missed_frames}"
         )
 
     def on_binding(self, msg: ParcelTrackBinding):
