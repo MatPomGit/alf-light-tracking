@@ -217,6 +217,8 @@
               <tr><td class="mono">/mission/target</td><td>MissionTarget</td><td>Aktywny cel dla sterowania.</td></tr>
               <tr><td class="mono">/mission/state</td><td>MissionState</td><td>Stan maszyny stanów misji.</td></tr>
               <tr><td class="mono">/mission/parcel_info</td><td>ParcelInfo</td><td>Wyodrębnione informacje logistyczne.</td></tr>
+              <tr><td class="mono">/tracking/targets</td><td>TrackedTarget</td><td>Pozycje celów nanoszone na globalny widok top-down.</td></tr>
+              <tr><td class="mono">/tracking/parcel_tracks</td><td>ParcelTrack</td><td>Pozycje przesyłek nanoszone na globalny widok top-down.</td></tr>
               <tr><td class="mono">/odom</td><td>nav_msgs/Odometry</td><td>Rzeczywista odometria robota; viewer może dodatkowo pobierać położenie globalne z map->base_link przez TF.</td></tr>
             </tbody>
           </table>
@@ -549,9 +551,9 @@ sudo apt install libzbar0</code></pre>
         "",
         "Uruchamiane elementy:",
         "- subskrypcja /odom",
-        "- rysowanie trajektorii w układzie globalnym (map), gdy TF jest dostępny",
+        "- rysowanie trajektorii w układzie globalnym (map), gdy TF jest dostępny\n        - siatka metryczna i skala świata",
         "- fallback do /odom, gdy TF nie jest dostępny\n        - jednoczesny podgląd globalny i lokalny",
-        "- niezależne okno diagnostyczne OpenCV"
+        "- nakładanie pozycji celów i przesyłek na widok globalny\n        - kolorowanie klas obiektów\n        - legenda w oknie top-down\n        - niezależne okno diagnostyczne OpenCV"
       ]
     };
 

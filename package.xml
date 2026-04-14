@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>g1_light_tracking</name>
-  <version>0.4.2</version>
+  <version>0.4.1</version>
   <description>ROS 2 ament_python package for MVP intralogistics perception with OpenCV, YOLOv8n, QR, AprilTag hooks, parcel localization, and light-guided zones.</description>
   <maintainer email="matpomianek@gmail.com">Mateusz Pomianek</maintainer>
   <license>Apache-2.0</license>

@@ -1031,3 +1031,52 @@ Domyślna konfiguracja:
 - `global_frame: map`
 - `base_frame: base_link`
 - `use_global_frame: true`
+
+
+## 28. Siatka metryczna i nakładanie celów na globalny widok top-down
+
+`topdown_odom_viewer_node` został dalej rozbudowany o:
+- siatkę świata w metrach,
+- oznaczenia skali i osi,
+- nakładanie pozycji obiektów z:
+  - `/tracking/targets`
+  - `/tracking/parcel_tracks`
+  - `/mission/target`
+
+Na widoku globalnym są teraz rysowane:
+- trajektoria robota,
+- pozycja robota i kierunek,
+- cele śledzone (`TrackedTarget`),
+- przesyłki (`ParcelTrack`),
+- aktywny cel misji (`MissionTarget`).
+
+Nowe parametry:
+- `tracked_topic`
+- `parcel_track_topic`
+- `mission_target_topic`
+- `grid_spacing_m`
+- `major_grid_every`
+- `draw_targets`
+- `draw_parcels`
+- `draw_mission_target`
+
+
+## 29. Kolorowanie klas i legenda w top-down preview
+
+Widok top-down został rozszerzony o:
+- różne kolory dla różnych typów obiektów,
+- legendę rysowaną bezpośrednio w oknie.
+
+Przykładowe klasy kolorowania:
+- `person`
+- `parcel_box`
+- `shelf`
+- `light_spot`
+- `qr`
+- `apriltag`
+- `planar_surface`
+- `parcel_track`
+- `mission_target`
+
+Nowy parametr:
+- `draw_legend`
