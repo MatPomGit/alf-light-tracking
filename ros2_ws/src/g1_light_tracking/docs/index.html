@@ -502,6 +502,15 @@ bash scripts/install_git_hooks.sh</code></pre>
           <button class="seq-btn" data-seq="verify-tests">Testy</button>
         </div>
 
+        <h3>Konflikt targetów CMake</h3>
+        <p>W tej wersji repo usunięto konflikt pomiędzy generowaniem interfejsów ROS 2 a instalacją pakietu Pythona. W praktyce oznacza to, że po wcześniejszym błędzie typu <code>ament_cmake_python_copy_g1_light_tracking already exists</code> należy wykonać pełne czyszczenie katalogów <code>build/</code>, <code>install/</code> i <code>log/</code> przed kolejnym buildem.</p>
+
+        <div class="button-row">
+          <button class="seq-btn" data-seq="clean-build">Clean build</button>
+          <button class="seq-btn" data-seq="build">Build</button>
+          <button class="seq-btn" data-seq="verify-tests">Testy</button>
+        </div>
+
         <h3>Dalsze kroki</h3>
         <ol>
           <li>utrzymywać nowy kontrakt wiadomości jako jedyne źródło prawdy dla kolejnych modułów,</li>
@@ -537,7 +546,7 @@ const sequences = {
     '$ colcon build --packages-select g1_light_tracking',
     '$ source install/setup.bash',
     '',
-    'Build i aktywacja środowiska dla pakietu.'
+    'Kanoniczny build pakietu z katalogu workspace.'
   ],
   prod: [
     '$ cd ros2_ws',
@@ -595,12 +604,20 @@ const sequences = {
     '',
     'Top-down i diagnostyka odometrii.'
   ],
+  'clean-build': [
+    '$ cd ros2_ws',
+    '$ rm -rf build install log',
+    '$ colcon build --packages-select g1_light_tracking',
+    '$ source install/setup.bash',
+    '',
+    'Pełne czyszczenie artefaktów po konflikcie targetów CMake.'
+  ],
   'verify-tests': [
     '$ cd ros2_ws',
     '$ source install/setup.bash',
     '$ python3 -m pytest src/g1_light_tracking/test -v',
     '',
-    'Szybka weryfikacja testów pakietu.'
+    'Kanoniczna forma uruchomienia testów pakietu.'
   ]
 };
 
