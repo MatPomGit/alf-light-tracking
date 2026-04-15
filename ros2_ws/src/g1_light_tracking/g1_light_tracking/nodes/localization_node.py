@@ -1,3 +1,13 @@
+"""ROS 2 node zamieniający detekcje 2D na przybliżone obserwacje 3D.
+
+Node subskrybuje `Detection2D`, dane kamery i opcjonalnie mapę głębi. Na tej podstawie
+wyznacza pozycję celu w układzie kamery lub robota, dodaje metodę estymacji (`source_method`)
+i publikuje wynik jako `LocalizedTarget`.
+
+Ten etap nadal pracuje na pojedynczych obserwacjach. Nie stabilizuje tożsamości obiektów
+pomiędzy klatkami i nie rozwiązuje asocjacji wieloobiektowej — za to odpowiada tracking.
+"""
+
 import numpy as np
 import rclpy
 from rclpy.node import Node

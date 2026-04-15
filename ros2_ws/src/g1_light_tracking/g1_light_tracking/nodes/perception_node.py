@@ -1,3 +1,14 @@
+"""ROS 2 node odpowiedzialny za etap percepcji 2D.
+
+Node odbiera obraz z kamery i publikuje zunifikowane detekcje w postaci `Detection2D`.
+Łączy kilka źródeł informacji: klasyczne wykrywanie plamki światła, dekodowanie QR,
+wykrywanie markerów AprilTag oraz opcjonalnie model YOLO dla obiektów ogólnych.
+
+Celem modułu nie jest jeszcze estymacja 3D ani utrzymanie tożsamości w czasie.
+PerceptionNode dostarcza jedynie chwilowy obraz sceny w układzie pikselowym,
+który następne moduły zamieniają na pozycje przestrzenne i stabilne tracki.
+"""
+
 from typing import List, Optional
 import cv2
 import numpy as np

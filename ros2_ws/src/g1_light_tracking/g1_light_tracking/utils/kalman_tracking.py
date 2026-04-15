@@ -1,3 +1,10 @@
+"""Pomocnicze struktury i operacje filtru Kalmana używanego przez tracking.
+
+Model stanu zakłada pozycję 3D i prędkość liniową. Funkcje w tym module odpowiadają za
+inicjalizację, predykcję i aktualizację stanu oraz za metryki geometryczne pomocne
+podczas dopasowywania obserwacji do torów.
+"""
+
 from dataclasses import dataclass, field
 import math
 import time

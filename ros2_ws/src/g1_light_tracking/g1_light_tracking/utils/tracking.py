@@ -1,3 +1,9 @@
+"""Pomocnicze struktury i funkcje do prostego trackingu bez filtru Kalmana.
+
+Ten moduł opisuje minimalny stan toru oraz metryki dopasowania używane tam, gdzie wystarcza
+lekki model śledzenia oparty na wygładzaniu i bramkowaniu odległości.
+"""
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 import math

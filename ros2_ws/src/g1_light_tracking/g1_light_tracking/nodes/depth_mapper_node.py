@@ -1,3 +1,12 @@
+"""ROS 2 node ekstrakcji prostych wskazówek nawigacyjnych z obrazu głębi.
+
+Node analizuje mapę głębi i estymuje, czy przed robotem jest wolna przestrzeń oraz w którą
+stronę warto skręcić. Wynik jest publikowany jako `DepthNavHint` i może być użyty przez
+`control_node` do bardziej ostrożnego podejścia do celu.
+
+To lekka warstwa reaktywna. Nie buduje trwałej mapy świata i nie planuje trajektorii.
+"""
+
 from __future__ import annotations
 
 import math

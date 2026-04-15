@@ -1,3 +1,10 @@
+"""ROS 2 node do kalibracji intrinsics kamery na podstawie wzorca szachownicy.
+
+Node zbiera próbki narożników, pilnuje minimalnego zróżnicowania między kolejnymi ujęciami,
+a po zgromadzeniu wymaganej liczby obserwacji uruchamia `cv2.calibrateCamera`. Wynik może zostać
+zapisany do YAML oraz opublikowany jako `CameraInfo` do dalszych etapów pipeline’u.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

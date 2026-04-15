@@ -1,3 +1,9 @@
+"""Node wizualizacyjny prezentujący odometrię w rzucie z góry.
+
+Służy do szybkiej diagnostyki trajektorii wyliczanej przez moduły odometrii / SLAM. Nie wpływa
+na pipeline percepcji ani sterowanie.
+"""
+
 from __future__ import annotations
 
 import math

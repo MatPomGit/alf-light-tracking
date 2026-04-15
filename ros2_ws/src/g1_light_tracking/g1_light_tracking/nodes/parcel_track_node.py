@@ -1,3 +1,13 @@
+"""ROS 2 node agregujący stan logistyczny przesyłki.
+
+Node scala ogólne tracki obiektów z odczytami QR. Jego zadaniem jest przypisanie markera QR
+do odpowiadającego mu kartonu, a następnie zbudowanie ustrukturyzowanego widoku przesyłki
+(`ParcelTrack`) zawierającego identyfikator, strefy, typ przesyłki i bieżący stan procesu.
+
+Moduł stanowi warstwę domenową ponad ogólnym trackingiem: zamiast abstrakcyjnych obiektów
+robot otrzymuje już pojęcie konkretnej paczki i jej statusu.
+"""
+
 import time
 from typing import Dict, Optional
 import rclpy

@@ -1,3 +1,10 @@
+"""ROS 2 node diagnostyczny wypisujący strumienie wiadomości w czytelnej formie.
+
+Node subskrybuje najważniejsze tematy pipeline’u i loguje ich zawartość. Nie zmienia danych
+i nie bierze udziału w sterowaniu — jego rolą jest obserwowalność systemu podczas strojenia,
+uruchomień integracyjnych i analiz błędów.
+"""
+
 import rclpy
 from rclpy.node import Node
 

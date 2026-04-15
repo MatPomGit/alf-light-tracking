@@ -1,3 +1,13 @@
+"""ROS 2 node wysokopoziomowej logiki zadania.
+
+MissionNode obserwuje tracki i stan przesyłek, wybiera cel misji oraz publikuje dwa rodzaje
+informacji: bieżący stan automatu (`MissionState`) oraz docelowy obiekt do śledzenia / podejścia
+(`MissionTarget`). W praktyce jest to cienka warstwa decyzyjna nad percepcją i trackingiem.
+
+To tutaj zapada decyzja, czy robot ma być bezczynny, czy ma podążać za wykrytym celem,
+czy też przesyłka osiągnęła stan gotowości do przekazania.
+"""
+
 import time
 import rclpy
 from rclpy.node import Node

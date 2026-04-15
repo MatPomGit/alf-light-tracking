@@ -1,3 +1,14 @@
+"""ROS 2 node generujący uproszczone komendy ruchu.
+
+Node tłumaczy `MissionTarget` oraz opcjonalne wskazówki z mapy głębi (`DepthNavHint`)
+na komendy `geometry_msgs/Twist`. Implementacja jest celowo prosta: sterowanie opiera się
+głównie na błędzie bocznym w obrazie i odległości do celu, a wskazówki głębi korygują prędkość
+oraz skręt w pobliżu przeszkód.
+
+Moduł nie jest pełnym regulatorem ruchu mobilnego. To referencyjny kontroler demonstracyjny,
+który ułatwia integrację całego pipeline’u end-to-end.
+"""
+
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist

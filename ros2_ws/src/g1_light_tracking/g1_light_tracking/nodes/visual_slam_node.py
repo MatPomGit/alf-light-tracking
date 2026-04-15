@@ -1,3 +1,11 @@
+"""Lekki, eksperymentalny visual odometry / visual SLAM node.
+
+Moduł używa cech ORB oraz dopasowań między kolejnymi klatkami do oszacowania względnego ruchu
+kamery. Jeśli dostępna jest głębia, próbuje dodatkowo ustalić skalę translacji. Publikuje
+odometrię i ścieżkę, ale należy go traktować jako komponent diagnostyczny lub badawczy,
+a nie produkcyjny system SLAM.
+"""
+
 from __future__ import annotations
 
 import math

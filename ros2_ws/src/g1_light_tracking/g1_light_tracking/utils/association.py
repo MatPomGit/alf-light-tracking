@@ -1,3 +1,10 @@
+"""Narzędzia do wiązania odczytu QR z wykrytym kartonem.
+
+Moduł zawiera prosty model punktacji oparty o odległość środka QR od środka bboxa kartonu
+oraz premię za znajdowanie się markera wewnątrz bboxa. Dzięki temu warstwa domenowa może
+przypisać kod do najbardziej prawdopodobnego obiektu przesyłki.
+"""
+
 from dataclasses import dataclass, field
 import math
 import time

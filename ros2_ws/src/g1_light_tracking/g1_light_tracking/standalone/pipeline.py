@@ -1,3 +1,12 @@
+"""Implementacja pipeline’u działającego poza ROS 2.
+
+Plik zawiera uproszczony silnik percepcji i trackingu używany przez aplikacje standalone
+(CLI oraz GUI). To wygodna warstwa do szybkich eksperymentów lokalnych: pozwala sprawdzić
+detekcję, profile funkcjonalne i podstawową logikę bez uruchamiania całego workspace ROS.
+
+Logika nie jest kopią 1:1 node’ów ROS, ale zachowuje podobny podział odpowiedzialności.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -1,3 +1,14 @@
+"""ROS 2 node utrzymujący tożsamość obiektów w czasie.
+
+TrackingNode odbiera obserwacje `LocalizedTarget` i dopasowuje je do istniejących torów
+według semantyki, położenia 3D, położenia w obrazie i geometrii bboxów. Dla wybranych klas
+może używać prostego filtru Kalmana, a dodatkowo potrafi kompensować globalny ruch kamery
+na podstawie sąsiednich klatek obrazu.
+
+Wyjściem modułu są wiadomości `TrackedTarget`, które stanowią stabilniejszy opis sceny
+i są podstawą dla wiązania QR->karton, logiki misji oraz sterowania.
+"""
+
 import time
 from typing import Dict, List, Optional, Tuple
 
