@@ -21,6 +21,8 @@ from g1_light_tracking.msg import (
 )
 
 
+# TODO: Promote the implicit state logic into an explicit finite-state machine
+# with transition guards and metrics once handover / pickup behaviors grow.
 class MissionNode(Node):
     def __init__(self):
         super().__init__('mission_node')
@@ -33,6 +35,8 @@ class MissionNode(Node):
         self.declare_parameter('color_dropoff_values', ['blue', 'red'])
         self.declare_parameter('prefer_identified_parcels', True)
         self.declare_parameter('parcel_timeout_sec', 3.0)
+        # TODO: Add operator override / supervisory commands so missions can be
+        # paused, resumed or forced into a recovery state from an HMI layer.
         self.declare_parameter('state_hold_sec', 1.0)
 
         self.pickup_colors = set(self.get_parameter('color_pickup_values').value)

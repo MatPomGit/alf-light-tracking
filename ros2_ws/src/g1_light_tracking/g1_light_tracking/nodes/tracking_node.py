@@ -33,6 +33,9 @@ from g1_light_tracking.utils.kalman_tracking import (
 from g1_light_tracking.utils.motion_compensation import GlobalMotionCompensator
 
 
+# TODO: Consider replacing the current reference tracker with a strategy
+# interface so ByteTrack, SORT-like and domain-specific trackers can be A/B
+# tested behind the same TrackedTarget publisher.
 class TrackingNode(Node):
     def __init__(self):
         super().__init__('tracking_node')
@@ -73,6 +76,8 @@ class TrackingNode(Node):
         self.declare_parameter('gmc_lk_win_size', 21)
         self.declare_parameter('gmc_lk_max_level', 3)
         self.declare_parameter('gmc_homography_ransac_thresh', 3.0)
+        # TODO: Publish tracker health metrics such as association count, lost
+        # tracks and average track age to simplify regression analysis.
         self.declare_parameter('ignore_gmc_for_marker_types', ['qr', 'apriltag'])
 
         self.association_distance_m = float(self.get_parameter('association_distance_m').value)

@@ -23,6 +23,10 @@ def _mode_in(*mode_names: str):
 def generate_launch_description() -> LaunchDescription:
     # All launch files resolve YAMLs from the installed package share directory so the
     # same launcher works both from the source tree and after `colcon build`.
+    # TODO: Add a single mode-to-topology manifest so launch composition lives in
+    # one declarative table instead of being spread across separate node lists.
+    # That would make it easier to add future modes such as simulation-only or
+    # hardware-in-the-loop without duplicating launch conditions.
     config_dir = os.path.join(get_package_share_directory('g1_light_tracking'), 'config')
 
     mode_arg = DeclareLaunchArgument(
@@ -56,6 +60,9 @@ def generate_launch_description() -> LaunchDescription:
         ),
     ]
 
+    # TODO: Introduce health checks / lifecycle gating before starting dependent nodes.
+    # Right now launch ordering is static; a future version could wait for camera,
+    # SLAM or adapter readiness before enabling mission and control.
     # Modern stack stays the canonical processing pipeline. In hybrid mode it remains
     # active and legacy is only used as an extra perception source.
     modern_nodes = [

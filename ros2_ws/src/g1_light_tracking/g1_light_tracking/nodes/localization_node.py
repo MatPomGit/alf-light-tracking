@@ -22,6 +22,8 @@ from g1_light_tracking.utils.geometry import (
 )
 
 
+# TODO: Fuse CameraInfo and TF transforms here to move from image-relative
+# localization toward a better grounded camera-to-robot coordinate estimate.
 class LocalizationNode(Node):
     def __init__(self):
         super().__init__('localization_node')
@@ -41,6 +43,8 @@ class LocalizationNode(Node):
         self.declare_parameter('floor_z_in_base', 0.0)
         self.declare_parameter('qr_size_m', 0.08)
         self.declare_parameter('apriltag_size_m', 0.10)
+        # TODO: Add temporal filtering / outlier rejection for depth samples so
+        # occasional sensor spikes do not perturb downstream tracking.
         self.declare_parameter('parcel_box_dims_m', [0.30, 0.20, 0.18])
 
         self.enable_depth_assist = bool(self.get_parameter('enable_depth_assist').value)

@@ -36,6 +36,8 @@ except Exception:
     AprilTagDetector = None
 
 
+# TODO: Add detector plugin support so classical CV, ONNX and TensorRT backends
+# can be swapped without rewriting the ROS-facing node contract.
 class PerceptionNode(Node):
     def __init__(self):
         super().__init__('perception_node')
@@ -52,6 +54,8 @@ class PerceptionNode(Node):
         self.declare_parameter('enable_apriltag', True)
         self.declare_parameter('enable_light_spot', True)
         self.declare_parameter('light_threshold', 240)
+        # TODO: Add runtime-reconfigurable ROI / color presets so operators can
+        # retune the detector live for new warehouse lighting conditions.
         self.declare_parameter('target_classes', ['person', 'box', 'package', 'shelf', 'bookcase', 'table'])
 
         self.detection_topic = self.get_parameter('detection_topic').value

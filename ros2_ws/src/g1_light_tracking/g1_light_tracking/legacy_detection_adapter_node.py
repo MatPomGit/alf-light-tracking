@@ -41,6 +41,9 @@ class LegacyDetectionAdapterNode(Node):
         self.declare_parameter('min_confidence', 0.0)
         self.declare_parameter('publish_detection2d', True)
         self.declare_parameter('publish_tracked_target', True)
+        # TODO: Add adaptive calibration parameters loaded from CameraInfo so the
+        # adapter can estimate x/z more accurately than the current fixed pinhole
+        # approximation used during migration.
         self.declare_parameter('log_invalid_payloads', True)
 
         self.legacy_detection_topic = str(self.get_parameter('legacy_detection_topic').value)
@@ -63,6 +66,9 @@ class LegacyDetectionAdapterNode(Node):
         # keeps that wire format and performs normalization locally.
         self.create_subscription(String, self.legacy_detection_topic, self.on_detection, 20)
 
+        # TODO: Expose diagnostics counters (accepted / rejected / downgraded
+        # payloads) on a status topic or via diagnostics_msgs for easier migration
+        # monitoring in production deployments.
         self.get_logger().info(
             'Bridging legacy JSON detections from '
             f'{self.legacy_detection_topic} to {self.detection_topic} and {self.tracked_topic}'

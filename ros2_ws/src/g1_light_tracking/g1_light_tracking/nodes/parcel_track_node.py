@@ -28,6 +28,8 @@ class BindingState:
         self.last_update_time = time.time()
 
 
+# TODO: Extend parcel binding with multi-hypothesis association so temporary
+# occlusions or overlapping boxes do not immediately collapse a shipment match.
 class ParcelTrackNode(Node):
     def __init__(self):
         super().__init__('parcel_track_node')
@@ -38,6 +40,8 @@ class ParcelTrackNode(Node):
         self.declare_parameter('max_qr_to_box_center_px', 140.0)
         self.declare_parameter('qr_inside_box_bonus', 0.35)
         self.declare_parameter('max_binding_age_sec', 3.0)
+        # TODO: Read parcel identity priors from an external manifest or WMS feed
+        # so shipment_id inference can be validated against operational data.
         self.declare_parameter('min_confirmed_matches', 2)
 
         self.max_track_age_sec = float(self.get_parameter('max_track_age_sec').value)

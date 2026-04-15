@@ -16,6 +16,9 @@ from geometry_msgs.msg import Twist
 from g1_light_tracking.msg import MissionTarget, DepthNavHint
 
 
+# TODO: Replace this reference controller with a pluggable motion policy layer
+# once the robot interface is stable enough to support more advanced tracking or
+# model-predictive control strategies.
 class ControlNode(Node):
     def __init__(self):
         super().__init__('control_node')
@@ -28,6 +31,8 @@ class ControlNode(Node):
         self.declare_parameter('use_depth_navigation', True)
         self.declare_parameter('min_safe_clearance_m', 0.70)
         self.declare_parameter('obstacle_stop_clearance_m', 0.45)
+        # TODO: Add acceleration limiting and command smoothing to reduce jerk
+        # when the mission target oscillates near the image center.
         self.declare_parameter('depth_turn_gain', 0.60)
 
         self.linear_speed = float(self.get_parameter('linear_speed').value)

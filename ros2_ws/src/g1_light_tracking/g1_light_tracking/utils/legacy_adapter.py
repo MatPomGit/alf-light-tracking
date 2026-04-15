@@ -49,6 +49,9 @@ def _finite_or(value: float, fallback: float) -> float:
     return value if math.isfinite(value) else fallback
 
 
+# TODO: Support additional legacy payload schemas and version tags. Today the
+# normalizer accepts one flexible JSON shape; explicit schema versioning would
+# make long-term compatibility safer as more historic producers are onboarded.
 def _compute_half_extent(area: float, radius: float) -> float:
     # Old payloads sometimes expose only area or radius. We turn either representation
     # into a conservative square bbox so downstream consumers always get image extents.
@@ -68,6 +71,9 @@ def parse_legacy_payload(data: str) -> dict[str, Any]:
     return payload
 
 
+# TODO: Replace heuristic depth inference with optional fusion from depth maps,
+# stereo or SLAM pose once those signals are available during the final legacy
+# retirement phase.
 def normalize_legacy_payload(
     payload: dict[str, Any],
     *,
