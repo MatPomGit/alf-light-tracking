@@ -31,7 +31,24 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs nav_msgs sensor_msgs
 )
 
-ament_python_install_package(${PROJECT_NAME})
+# Do not use ament_python_install_package(${PROJECT_NAME}) here.
+# This package also generates ROS interfaces with rosidl_generate_interfaces(${PROJECT_NAME} ...),
+# which creates Python-related targets for the same package name. Using both mechanisms in one
+# package leads to duplicate custom targets such as:
+# - ament_cmake_python_copy_g1_light_tracking
+# - ament_cmake_python_build_g1_light_tracking_egg
+# and breaks CMake configure on ROS 2 Humble.
+#
+# Install the Python package directory directly into the ROS Python install location instead.
+ament_get_python_install_dir(PYTHON_INSTALL_DIR)
+
+install(
+  DIRECTORY g1_light_tracking
+  DESTINATION ${PYTHON_INSTALL_DIR}
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
+)
+
 
 install(PROGRAMS
   scripts/perception_node
