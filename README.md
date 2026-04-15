@@ -276,4 +276,82 @@ Każdy z tych wariantów instaluje hook `pre-commit`, który uruchamia `scripts/
 - launchery: `ros2_ws/src/g1_light_tracking/launch/`
 - konfiguracje: `ros2_ws/src/g1_light_tracking/config/`
 - profile standalone: `ros2_ws/src/g1_light_tracking/profiles/`
+## Stan repo po ostatnich poprawkach
 
+Aktualna wersja repo zawiera już poprawki po przeglądzie błędów zgłoszonych dla warstwy lokalizacji i integracji legacy/modern. W praktyce oznacza to między innymi:
+
+- poprawione wywołania helperów geometrycznych w `localization_node`,
+- poprawne mapowanie narożników z `Detection2D.image_points`,
+- spójne ustawianie `track_id` w `ParcelTrack`,
+- ujednolicony typ macierzy kamery w `depth_mapper_node`,
+- uporządkowaną dokumentację uruchomienia i integracji warstwy legacy.
+
+Repo jest obecnie przygotowane tak, aby:
+- uruchamiać nowoczesny pipeline bez warstwy legacy,
+- uruchamiać tor legacy z adapterem do nowych wiadomości,
+- pracować w trybie hybrydowym podczas migracji.
+
+## Najczęściej używane polecenia
+
+Polecenia uruchamiaj od katalogu głównego repozytorium:
+
+```bash
+cd ros2_ws
+colcon build --packages-select g1_light_tracking
+source install/setup.bash
+```
+
+Uruchomienie głównych wariantów systemu:
+
+```bash
+# nowoczesny pipeline
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+
+# legacy z nową misją i sterowaniem
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy
+
+# tryb hybrydowy do migracji
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid with_legacy_camera:=true
+```
+
+Dodatkowe launchery pomocnicze:
+
+```bash
+# oryginalny launcher produkcyjny nowego pipeline'u
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking prod.launch.py
+
+# zachowany pełny stack legacy
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py
+
+# minimalny most legacy -> mission/control
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_modern_mission_bridge.launch.py
+```
+
+## Szybka weryfikacja po zmianach
+
+```bash
+cd ros2_ws
+source install/setup.bash
+python3 -m pytest src/g1_light_tracking/test -v
+```
+
+Jeżeli środowisko zawiera pełną instalację ROS 2 i zależności pakietu, można dodatkowo wykonać:
+
+```bash
+cd ros2_ws
+colcon build --packages-select g1_light_tracking
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+```

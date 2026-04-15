@@ -147,6 +147,7 @@ class ParcelTrackNode(Node):
         msg.stamp = box.stamp
         msg.frame_id = box.frame_id
         msg.parcel_box_track_id = box.track_id
+        msg.track_id = box.track_id
         msg.position = box.position
         msg.dimensions = box.dimensions
         msg.confidence = box.confidence

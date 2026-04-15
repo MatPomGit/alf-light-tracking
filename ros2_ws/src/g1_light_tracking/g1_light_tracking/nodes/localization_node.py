@@ -163,7 +163,7 @@ class LocalizationNode(Node):
         t = self.base_target(det)
         if self.camera_matrix is None:
             return t
-        xyz = pixel_to_floor_plane(self.camera_matrix, det.center_u, det.center_v, self.floor_z)
+        xyz = pixel_to_floor_plane(det.center_u, det.center_v, self.camera_matrix, self.floor_z)
         if xyz is not None:
             t.position.x, t.position.y, t.position.z = [float(v) for v in xyz]
             t.source_method = 'floor_projection'
@@ -183,12 +183,13 @@ class LocalizationNode(Node):
             t.source_method = source_method + '_depth'
             return t
 
-        if self.camera_matrix is None or not det.pnp_points_2d:
+        if self.camera_matrix is None or len(det.image_points) < 8:
             t.source_method = source_method + '_unavailable'
             return t
 
-        corners = [(pt.x, pt.y) for pt in det.pnp_points_2d]
-        result = solve_square_pnp(self.camera_matrix, self.dist_coeffs, corners, marker_size_m)
+        pts = det.image_points
+        corners = [(float(pts[i * 2]), float(pts[i * 2 + 1])) for i in range(4)]
+        result = solve_square_pnp(corners, self.camera_matrix, self.dist_coeffs, marker_size_m)
         if result is None:
             t.source_method = source_method + '_failed'
             return t
@@ -217,7 +218,7 @@ class LocalizationNode(Node):
         # When depth is missing we fall back to known-width geometry. It is coarse, but
         # sufficient for downstream ranking and steering in early integration phases.
         width_px = max(1.0, det.x_max - det.x_min)
-        z = estimate_depth_from_known_width(self.camera_matrix, width_px, self.parcel_dims[0]) if self.camera_matrix is not None else 1.5
+        z = estimate_depth_from_known_width(width_px, float(self.camera_matrix[0, 0]), self.parcel_dims[0]) if self.camera_matrix is not None else 1.5
         t.position.z = float(z)
         t.position.x = float((det.center_u - (self.camera_matrix[0, 2] if self.camera_matrix is not None else 320.0)) / 600.0)
         t.position.y = 0.0
@@ -239,7 +240,7 @@ class LocalizationNode(Node):
         # sufficient for downstream ranking and steering in early integration phases.
         width_px = max(1.0, det.x_max - det.x_min)
         nominal_width = 0.5 if det.target_type == 'person' else 0.8
-        z = estimate_depth_from_known_width(self.camera_matrix, width_px, nominal_width) if self.camera_matrix is not None else 2.0
+        z = estimate_depth_from_known_width(width_px, float(self.camera_matrix[0, 0]), nominal_width) if self.camera_matrix is not None else 2.0
         t.position.z = float(z)
         t.position.x = float((det.center_u - (self.camera_matrix[0, 2] if self.camera_matrix is not None else 320.0)) / 600.0)
         t.position.y = 0.0

@@ -66,7 +66,7 @@ class DepthMapperNode(Node):
         self.timer = self.create_timer(0.2, self.process)
 
     def cam_cb(self, msg: CameraInfo):
-        self.camera_matrix = np.array(msg.k, dtype=np.float32).reshape(3, 3)
+        self.camera_matrix = np.array(msg.k, dtype=np.float64).reshape(3, 3)
 
     def odom_cb(self, msg: Odometry):
         self.latest_odom = msg

@@ -207,6 +207,7 @@
         <button class="tab-button" data-tab="deps">Zależności i build</button>
         <button class="tab-button" data-tab="files">Najważniejsze pliki</button>
         <button class="tab-button" data-tab="versioning">Wersjonowanie</button>
+        <button class="tab-button" data-tab="status">Stan po poprawkach</button>
       </div>
     </aside>
 
@@ -473,6 +474,43 @@ bash scripts/install_git_hooks.sh</code></pre>
           i aktualizuje <code>VERSION</code>, <code>setup.py</code> oraz <code>package.xml</code>.
         </p>
       </section>
+    
+      <section class="section panel" id="status">
+        <h2>Stan po poprawkach</h2>
+        <p>Aktualna wersja repo zawiera już poprawki w obszarze lokalizacji 3D, wiązania śledzonych obiektów i dokumentacji uruchomieniowej. Bazą docelową pozostaje tor <code>modern</code>, a komponenty <code>legacy</code> są utrzymywane jako warstwa kompatybilności i etap migracyjny.</p>
+
+        <div class="callout success">
+          <strong>Potwierdzone poprawki:</strong>
+          <ul>
+            <li>skorygowane wywołania helperów geometrycznych w <code>nodes/localization_node.py</code>,</li>
+            <li>parsowanie <code>Detection2D.image_points</code> dla estymacji PnP,</li>
+            <li>spójne ustawianie <code>track_id</code> w wiadomości <code>ParcelTrack</code>,</li>
+            <li>ujednolicenie typu macierzy kamery w <code>depth_mapper_node.py</code>,</li>
+            <li>zsynchronizowane opisy README i polecenia uruchomienia.</li>
+          </ul>
+        </div>
+
+        <h3>Co jest aktualnym punktem wejścia</h3>
+        <p>Za główny launcher należy obecnie uznawać <code>ros2_ws/src/g1_light_tracking/launch/unified_system.launch.py</code>. Pozostałe launchery pozostają dostępne, ale pełnią role wyspecjalizowane: produkcyjne, legacy, diagnostyczne albo migracyjne.</p>
+
+        <h3>Rekomendowane polecenia</h3>
+        <div class="button-row">
+          <button class="seq-btn" data-seq="build">Build</button>
+          <button class="seq-btn" data-seq="unified-modern">Modern</button>
+          <button class="seq-btn" data-seq="unified-legacy">Legacy</button>
+          <button class="seq-btn" data-seq="unified-hybrid">Hybrid</button>
+          <button class="seq-btn" data-seq="verify-tests">Testy</button>
+        </div>
+
+        <h3>Dalsze kroki</h3>
+        <ol>
+          <li>utrzymywać nowy kontrakt wiadomości jako jedyne źródło prawdy dla kolejnych modułów,</li>
+          <li>zawężać użycie legacy do replayu, demonstracji i mostów sprzętowych,</li>
+          <li>stopniowo wygaszać ścieżki JSON tam, gdzie nowe wiadomości pokrywają już funkcjonalność,</li>
+          <li>utrzymywać jeden opis uruchomienia w README i tej stronie HTML, aby nie tworzyć rozjazdów.</li>
+        </ol>
+      </section>
+
     </main>
   </div>
 
@@ -556,6 +594,13 @@ const sequences = {
     '$ ros2 launch g1_light_tracking topdown_odom.launch.py',
     '',
     'Top-down i diagnostyka odometrii.'
+  ],
+  'verify-tests': [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ python3 -m pytest src/g1_light_tracking/test -v',
+    '',
+    'Szybka weryfikacja testów pakietu.'
   ]
 };
 

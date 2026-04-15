@@ -407,4 +407,74 @@ Skrypt instaluje `pre-commit`, który aktualizuje:
 - `docs/index.html` — dokumentacja HTML,
 - `docs/architecture.md` — szerszy opis przepływu danych,
 - docstringi w `g1_light_tracking/nodes/`, `g1_light_tracking/utils/` i `g1_light_tracking/vision/`.
+## Stan pakietu po ostatnich poprawkach
 
+Pakiet został doprowadzony do stanu, w którym obecny tor `modern` pozostaje bazą docelową, a komponenty legacy działają jako warstwa kompatybilności i etap migracyjny. Ostatnie poprawki objęły głównie:
+
+- korekty wywołań funkcji geometrycznych w `nodes/localization_node.py`,
+- poprawne wykorzystanie `Detection2D.image_points` do PnP,
+- dopisanie brakującego `track_id` w `nodes/parcel_track_node.py`,
+- ujednolicenie precyzji `CameraInfo.k` w `nodes/depth_mapper_node.py`,
+- dalsze uporządkowanie dokumentacji i ścieżek uruchomieniowych.
+
+## Przykłady uruchomienia
+
+Wszystkie poniższe polecenia zakładają, że pracujesz z katalogu głównego workspace'u `ros2_ws/`.
+
+### Build i aktywacja środowiska
+
+```bash
+cd ros2_ws
+colcon build --packages-select g1_light_tracking
+source install/setup.bash
+```
+
+### Główny launcher zunifikowany
+
+```bash
+# tryb nowoczesny
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+
+# tryb legacy
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy
+
+# tryb hybrydowy
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid with_legacy_camera:=true
+```
+
+### Pozostałe użyteczne launchery
+
+```bash
+# klasyczny nowy pipeline
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking prod.launch.py
+
+# pełny zachowany stack legacy
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py
+
+# replay CSV w turtlesim
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py csv_file:=/pelna/sciezka/do/detekcji.csv playback_rate:=1.0 loop:=true
+
+# most legacy do nowej misji i sterowania
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_modern_mission_bridge.launch.py
+```
+
+## Dalszy kierunek migracji
+
+Docelowy kierunek pozostaje bez zmian: pełne przejście na aktualny pipeline z wiadomościami `Detection2D`, `LocalizedTarget`, `TrackedTarget` i `ParcelTrack`. Warstwa legacy powinna być stopniowo ograniczana do:
+- źródeł testowych,
+- replayu danych historycznych,
+- mostów wymaganych tylko przez specyficzny sprzęt lub środowiska demonstracyjne.

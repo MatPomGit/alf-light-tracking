@@ -58,9 +58,6 @@ def pixel_to_floor_plane(u, v, camera_matrix, floor_z=0.0):
     scale = max(0.1, abs((1.0 - floor_z) / y))
     return (float(x * scale), float(scale), float(floor_z))
 
-def bbox_center(x1, y1, x2, y2):
-    return ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
-
 def estimate_depth_from_known_width(pixel_width: float, focal_x: float, real_width_m: float):
     if pixel_width <= 1.0 or focal_x <= 1.0 or real_width_m <= 0.0:
         return None
