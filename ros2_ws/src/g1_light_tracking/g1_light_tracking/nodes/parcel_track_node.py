@@ -95,6 +95,8 @@ class ParcelTrackNode(Node):
         if best_box is None or best_score < 0.0:
             return
 
+        # If the same QR keeps matching the same box, we strengthen the binding instead
+        # of rebuilding it from scratch. This reduces flicker in logistics state outputs.
         current = self.bindings_by_qr.get(qr_msg.track_id)
         if current and current.parcel_box_track_id == best_box.track_id:
             current.hits += 1
@@ -128,6 +130,8 @@ class ParcelTrackNode(Node):
         self.binding_pub.publish(out)
 
     def publish_if_possible(self, parcel_box_track_id: str):
+        # ParcelTrack is published even for partially observed parcels because higher-level
+        # mission logic may still benefit from a box without a confirmed QR yet.
         box = self.box_tracks.get(parcel_box_track_id)
         if box is None:
             return

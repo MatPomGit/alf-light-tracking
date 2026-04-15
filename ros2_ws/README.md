@@ -1,45 +1,88 @@
 # ros2_ws
 
-`ros2_ws` jest workspace’em ROS 2 używanym do budowania i uruchamiania pakietu `g1_light_tracking`.
+`ros2_ws/` jest workspace'em ROS 2 dla pakietu `g1_light_tracking`. To z tego katalogu wykonuje się build przez `colcon`, aktywację środowiska i uruchamianie launcherów ROS 2.
 
-W praktyce jest to cienka warstwa organizacyjna nad samym pakietem. Zawiera standardowy układ katalogów dla `colcon`, umożliwia budowanie wiadomości ROS 2 i instalację skryptów wykonywalnych, a po `source install/setup.bash` udostępnia launchery oraz node’y jako normalne elementy środowiska ROS.
+## Struktura workspace'u
 
-## Struktura
+- `src/g1_light_tracking/` — źródła pakietu,
+- `build/` — artefakty kompilacji generowane przez `colcon`,
+- `install/` — wynik instalacji workspace'u,
+- `log/` — logi builda.
 
-- `src/g1_light_tracking/` — kod źródłowy pakietu.
-- `install/`, `build/`, `log/` — katalogi generowane po budowaniu workspace, niewersjonowane.
+W samym pakiecie najważniejsze katalogi to:
 
-## Budowanie
+- `src/g1_light_tracking/launch/`
+- `src/g1_light_tracking/config/`
+- `src/g1_light_tracking/msg/`
+- `src/g1_light_tracking/docs/`
 
-```bash
-cd ros2_ws
-colcon build
-```
+## Build
 
-Jeżeli budujesz tylko ten pakiet w większym środowisku, możesz ograniczyć build do niego:
+Z katalogu `ros2_ws/`:
 
 ```bash
 colcon build --packages-select g1_light_tracking
 ```
 
-## Aktywacja środowiska
+Lub cały workspace:
 
 ```bash
-cd ros2_ws
+colcon build
+```
+
+## Aktywacja środowiska
+
+Po każdym buildzie i w każdej nowej sesji terminala:
+
+```bash
 source install/setup.bash
 ```
 
-To polecenie musi zostać wykonane w każdej nowej sesji terminala przed uruchamianiem `ros2 launch` albo `ros2 run`.
+## Najważniejsze launchery
 
-## Uruchomienie
+Wszystkie polecenia poniżej wykonuj z katalogu `ros2_ws/` po `source install/setup.bash`.
 
-Standardowy launcher produkcyjno-demonstracyjny:
+### Domyślny launcher nowoczesny
 
 ```bash
 ros2 launch g1_light_tracking prod.launch.py
 ```
 
-Launcher diagnostyczny dla podglądu odometrii z góry:
+### Launcher zunifikowany
+
+```bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+```
+
+Przykłady:
+
+```bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid with_legacy_camera:=true
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy with_unitree_bridges:=true
+```
+
+### Launcher legacy
+
+```bash
+ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py
+```
+
+### Legacy turtlesim / CSV replay
+
+```bash
+ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py csv_file:=/pelna/sciezka/do/detekcji.csv
+```
+
+### Legacy JSON -> nowa misja / sterowanie
+
+```bash
+ros2 launch g1_light_tracking legacy_modern_mission_bridge.launch.py
+```
+
+### Top-down / odometria
 
 ```bash
 ros2 launch g1_light_tracking topdown_odom.launch.py
@@ -47,22 +90,22 @@ ros2 launch g1_light_tracking topdown_odom.launch.py
 
 ## Dokumentacja
 
-Dokumentacja HTML znajduje się w:
-- `src/g1_light_tracking/docs/index.html`
+Pliki dokumentacyjne znajdują się tutaj:
 
-Dodatkowo opis architektury i modułów znajdziesz w:
-- `src/g1_light_tracking/docs/architecture.md`
 - `src/g1_light_tracking/README.md`
+- `src/g1_light_tracking/docs/index.html`
+- `src/g1_light_tracking/docs/architecture.md`
 
+Jeżeli otwierasz dokumentację HTML bezpośrednio z systemu plików, plik wejściowy to:
 
-## Scalony wariant kompatybilności
+- `ros2_ws/src/g1_light_tracking/docs/index.html`
 
-Repo zawiera teraz także zachowaną warstwę kompatybilności ze starszym projektem `j2s-light_tracking-ros2-g1-ros2-light-tracking`.
-Starszy pipeline nie zastępuje obecnych node’ów. Został dołożony obok nich jako osobny zestaw komponentów:
+## Testy
 
-- legacy launcher: `ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py`
-- turtlesim / CSV replay: `ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py csv_file:=<plik.csv>`
-- legacy node’y: `d435i_node`, `light_spot_detector_node`, `g1_light_follower_node`, `unitree_cmd_vel_bridge_node`, `arm_skill_bridge_node`, `csv_detection_replay_node`, `turtlesim_cmd_vel_bridge_node`
-- konfiguracje legacy: `config/legacy_light_perception.yaml`, `config/legacy_light_control.yaml`, `config/legacy_bridge.yaml`
+Aby uruchomić testy, przejdź do katalogu pakietu:
 
-Podejście jest celowo zachowawcze: nowy pipeline ROS 2 pozostaje bazą docelową, a starszy projekt służy jako warstwa integracyjna, adaptery sprzętowe i środowisko demonstracyjne.
+```bash
+cd src/g1_light_tracking
+pytest
+```
+

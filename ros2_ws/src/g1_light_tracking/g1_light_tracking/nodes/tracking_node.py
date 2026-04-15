@@ -97,6 +97,8 @@ class TrackingNode(Node):
         self.create_subscription(LocalizedTarget, self.get_parameter('localized_topic').value, self.target_cb, 50)
         self.create_subscription(Image, self.get_parameter('motion_source_topic').value, self.image_cb, 10)
 
+        # Tracks live in-memory because this node solves short-horizon temporal identity
+        # rather than long-term map management.
         self.tracks: Dict[str, TrackState] = {}
         self.next_id = 1
         self.last_cleanup_time = time.time()
@@ -114,6 +116,8 @@ class TrackingNode(Node):
         self.last_motion = None
 
     def image_cb(self, msg: Image):
+        # Global motion compensation is estimated from a debug image stream so moving
+        # cameras do not immediately fragment tracks into new IDs every frame.
         if not self.enable_gmc:
             return
         try:
@@ -138,6 +142,8 @@ class TrackingNode(Node):
         return specific_map.get(target_type, float(self.get_parameter('min_confidence_default').value))
 
     def target_cb(self, msg: LocalizedTarget):
+        # Early confidence gating prevents weak one-off observations from polluting the
+        # tracker state and creating churn in mission logic.
         if float(msg.confidence) < self.confidence_threshold(msg.target_type):
             return
 
@@ -156,6 +162,8 @@ class TrackingNode(Node):
         self.cleanup_tracks(now)
 
     def prepare_compensated_measurement(self, msg: LocalizedTarget) -> dict:
+        # Compensation is applied in image space before association because legacy and
+        # modern detectors both carry bbox geometry, whereas 3D estimates may be noisier.
         u = float(msg.center_u)
         v = float(msg.center_v)
         x_min = float(msg.x_min)
@@ -188,6 +196,8 @@ class TrackingNode(Node):
         }
 
     def uses_kalman(self, target_type: str) -> bool:
+        # Not every class benefits from motion filtering. Stable but sparse markers such as
+        # QR or AprilTag are better treated as direct observations.
         return target_type in self.kalman_target_types
 
     def predict_and_age_tracks(self, now: float):

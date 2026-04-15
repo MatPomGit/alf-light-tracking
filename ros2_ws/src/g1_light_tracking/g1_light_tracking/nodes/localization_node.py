@@ -83,6 +83,8 @@ class LocalizationNode(Node):
         return age <= self.depth_timeout_sec
 
     def depth_xyz_from_detection(self, det: Detection2D):
+        # Depth is sampled from a reduced ROI around the center instead of the full bbox
+        # to avoid edge pixels and mixed-depth backgrounds near object borders.
         if self.camera_matrix is None or not self.depth_available():
             return None
         depth = self.latest_depth
@@ -120,6 +122,8 @@ class LocalizationNode(Node):
         return x, y, z
 
     def det_cb(self, det: Detection2D):
+        # Dispatch by semantic type keeps each localization strategy simple: markers use
+        # geometry, boxes use width priors, and lights use floor projection heuristics.
         target = None
         if det.target_type == 'light_spot':
             target = self.localize_light(det)
@@ -206,6 +210,8 @@ class LocalizationNode(Node):
             t.source_method = 'depth_box'
             return t
 
+        # When depth is missing we fall back to known-width geometry. It is coarse, but
+        # sufficient for downstream ranking and steering in early integration phases.
         width_px = max(1.0, det.x_max - det.x_min)
         z = estimate_depth_from_known_width(self.camera_matrix, width_px, self.parcel_dims[0]) if self.camera_matrix is not None else 1.5
         t.position.z = float(z)
@@ -225,6 +231,8 @@ class LocalizationNode(Node):
             t.source_method = 'depth_bbox'
             return t
 
+        # When depth is missing we fall back to known-width geometry. It is coarse, but
+        # sufficient for downstream ranking and steering in early integration phases.
         width_px = max(1.0, det.x_max - det.x_min)
         nominal_width = 0.5 if det.target_type == 'person' else 0.8
         z = estimate_depth_from_known_width(self.camera_matrix, width_px, nominal_width) if self.camera_matrix is not None else 2.0

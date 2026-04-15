@@ -1,131 +1,236 @@
 # g1_light_tracking
 
-Pakiet ROS 2 dla eksperymentalnego pipeline'u percepcji, trackingu i logiki misji w zadaniach intra-logistycznych.
+`g1_light_tracking` to pakiet ROS 2 łączący percepcję obrazu, lokalizację 3D, tracking, logikę domenową przesyłek i sterowanie. Po ostatnich zmianach zawiera również warstwę kompatybilności legacy oraz zunifikowany launcher przełączający tryby `modern`, `legacy` i `hybrid`.
 
-Pakiet jest zaprojektowany jako ciąg kolejnych etapów przetwarzania. Każdy etap ma wąską odpowiedzialność i publikuje jawny typ wiadomości ROS 2. Taki układ upraszcza debugowanie: można niezależnie sprawdzać jakość detekcji, lokalizacji, trackingu albo decyzji misji bez konieczności analizowania całego systemu naraz.
+## Co robi pakiet
 
-## Główne cele pakietu
+Pakiet rozdziela odpowiedzialność na kilka etapów:
 
-- wykrywanie obiektów istotnych dla zadania w obrazie kamery,
-- lokalizacja tych obiektów w 3D,
-- utrzymywanie stabilnych tożsamości między klatkami,
-- powiązanie QR z odpowiadającym mu kartonem,
-- publikacja stanu przesyłki i celu misji,
-- demonstracyjne sterowanie robota na podstawie celu i głębi.
+1. wykrycie obiektu w obrazie,
+2. estymacja jego położenia 3D,
+3. utrzymanie tożsamości w czasie,
+4. powiązanie danych logistycznych,
+5. wybór celu misji,
+6. wygenerowanie uproszczonej komendy sterowania.
 
-## Pipeline i odpowiedzialności node'ów
+Taki układ upraszcza debugowanie i integrację. Można podmienić źródło detekcji, zostawiając bez zmian tracking, albo podłączyć inny kontroler, zachowując resztę pipeline'u.
 
-### `perception_node`
-Warstwa percepcji 2D. Odpowiada za:
-- detekcję obiektów ogólnych przez YOLO,
-- odczyt QR,
-- wykrywanie AprilTagów,
-- wykrywanie plamki światła,
-- publikację zunifikowanych obserwacji jako `Detection2D`.
+## Struktura pakietu
 
-To jedyny etap, który pracuje wyłącznie w układzie obrazu. Nie utrzymuje historii obiektów i nie estymuje jeszcze położenia przestrzennego.
-
-### `localization_node`
-Warstwa przejścia z 2D do 3D. Na podstawie kamery, głębi i heurystyk estymuje pozycję celu. Publikuje `LocalizedTarget` z polem `source_method`, które mówi, skąd pochodzi estymacja. To ważne podczas debugowania jakości danych.
-
-### `tracking_node`
-Warstwa stabilizacji w czasie. Łączy nowe obserwacje z istniejącymi torami, wygładza ich stan i pilnuje liczników trafień / zgubień. Dla wybranych klas używa filtru Kalmana, a opcjonalnie kompensuje ruch kamery między klatkami. Publikuje `TrackedTarget`.
-
-### `parcel_track_node`
-Warstwa domenowa logistyki. Wiąże track QR z trackiem kartonu i tworzy z nich logiczny obiekt przesyłki. Publikuje `ParcelTrack` i `ParcelTrackBinding`, dzięki czemu można śledzić zarówno finalny stan paczki, jak i proces wiązania.
-
-### `mission_node`
-Wysokopoziomowa logika zadania. Na podstawie tracków i przesyłek wybiera aktywny cel, określa stan automatu oraz publikuje `MissionState`, `MissionTarget` i `ParcelInfo`.
-
-### `control_node`
-Referencyjny kontroler. Przekształca `MissionTarget` na komendy `Twist`. Gdy dostępne są wskazówki z głębi, potrafi ograniczyć ruch do przodu i skorygować skręt.
-
-### `depth_mapper_node`
-Lekka analiza obrazu głębi pod kątem reaktywnej nawigacji. Nie planuje ścieżki, ale publikuje prostą sugestię bezpieczeństwa i kierunku omijania (`DepthNavHint`).
-
-### Pozostałe node'y
-- `debug_node` — obserwowalność i logowanie komunikatów.
-- `camera_calibration_node` — kalibracja intrinsics na podstawie szachownicy.
-- `visual_slam_node` — eksperymentalny visual odometry / SLAM.
-- `topdown_odom_viewer_node` — diagnostyczna wizualizacja odometrii.
-
-## Najważniejsze wiadomości ROS 2
-
-- `Detection2D` — chwilowa obserwacja w układzie obrazu.
-- `LocalizedTarget` — obserwacja z przybliżoną pozycją 3D.
-- `TrackedTarget` — stabilny tor obiektu w czasie.
-- `ParcelTrackBinding` — wynik przypisania QR do kartonu.
-- `ParcelTrack` — ustrukturyzowany stan przesyłki.
-- `MissionState` — stan logiki zadania.
-- `MissionTarget` — aktualny cel przekazywany do sterowania.
-- `DepthNavHint` — pomocnicza wskazówka z mapy głębi.
-
-## Struktura katalogów
+Od katalogu `ros2_ws/src/g1_light_tracking/`:
 
 ```text
-ros2_ws/src/g1_light_tracking/
-├── CMakeLists.txt              # budowanie wiadomości ROS 2 i instalacja zasobów
-├── package.xml                 # zależności pakietu
-├── setup.py                    # instalacja części pythonowej
+.
+├── CMakeLists.txt
+├── package.xml
+├── setup.py
+├── VERSION
+├── config/
+├── docs/
 ├── g1_light_tracking/
-│   ├── nodes/                  # implementacje node'ów ROS 2
-│   ├── standalone/             # wariant uruchamiany poza ROS 2
-│   └── utils/                  # logika pomocnicza i algorytmy
-├── config/                     # parametry YAML dla node'ów
-├── launch/                     # launchery ROS 2
-├── msg/                        # własne typy wiadomości
-├── profiles/                   # profile funkcjonalne trybu standalone
-├── scripts/                    # skrypty uruchomieniowe / pomocnicze
-└── test/                       # testy jednostkowe
+│   ├── nodes/
+│   ├── standalone/
+│   ├── utils/
+│   └── vision/
+├── launch/
+├── msg/
+├── profiles/
+├── scripts/
+└── test/
 ```
 
-## Konfiguracja
+## Najważniejsze node'y nowoczesnego pipeline'u
 
-Konfiguracja node'ów znajduje się w `config/`. Parametry są rozdzielone per moduł, co ułatwia strojenie:
+### `perception_node`
 
-- `perception.yaml` — progi i przełączniki percepcji,
-- `localization.yaml` — parametry estymacji 3D,
-- `tracking.yaml` — bramkowanie, potwierdzanie tracków i filtr Kalmana,
-- `parcel_track.yaml` — zasady wiązania QR z kartonem,
-- `mission.yaml` — logika wyboru celu i stany zadania,
-- `control.yaml` — prędkości i zachowanie sterowania,
-- `depth_mapper.yaml` — progi bezpieczeństwa oparte o głębię.
+Wejście:
 
+- `sensor_msgs/Image` z kamery RGB
 
-## Warstwa kompatybilności legacy
+Wyjście:
 
-Po scaleniu ze starszym repozytorium pakiet zawiera także tor zgodności wstecznej.
-Node `legacy_detection_adapter_node` odbiera historyczne JSON-y z `/light_tracking/detection_json`
-i publikuje ich odpowiednik jako `Detection2D` oraz `TrackedTarget`. Dzięki temu starsze
-źródła danych mogą zasilać nową logikę misji i nowe narzędzia debugujące bez przepisywania
-całego PoC naraz.
+- `/perception/detections` jako `Detection2D`
 
-Najważniejsze pliki tej warstwy:
-- `g1_light_tracking/legacy_detection_adapter_node.py`
-- `g1_light_tracking/utils/legacy_adapter.py`
-- `config/legacy_adapter.yaml`
-- `launch/legacy_modern_mission_bridge.launch.py`
+Rola:
 
-## Build
+- wykrywanie obiektów 2D,
+- odczyt QR,
+- wykrywanie AprilTagów,
+- wykrywanie plamki światła.
 
-```bash
-cd ros2_ws
-colcon build
-source install/setup.bash
-```
+### `localization_node`
 
-## Testy jednostkowe
+Wejście:
 
-Testy utili można uruchamiać bez pełnego środowiska ROS 2:
+- `/perception/detections`
+- opcjonalnie dane głębi
 
-```bash
-cd ros2_ws/src/g1_light_tracking
-pytest
-```
+Wyjście:
 
-Istniejące testy skupiają się na stabilnej, deterministycznej logice domenowej i geometrycznej. Dobre kolejne rozszerzenie to testy integracyjne topic-to-topic dla kluczowych node'ów.
+- `/localization/targets` jako `LocalizedTarget`
 
-## Uruchomienie
+Rola:
+
+- przejście z 2D do 3D,
+- estymacja XYZ,
+- oznaczenie metody lokalizacji.
+
+### `tracking_node`
+
+Wejście:
+
+- `/localization/targets`
+- opcjonalnie źródła debug / kalibracja ruchu
+
+Wyjście:
+
+- `/tracking/targets` jako `TrackedTarget`
+- `/tracking/global_motion_debug`
+
+Rola:
+
+- asocjacja między klatkami,
+- filtr Kalmana,
+- global motion compensation,
+- ograniczanie false positives.
+
+### `parcel_track_node`
+
+Wejście:
+
+- `/tracking/targets`
+
+Wyjście:
+
+- `/tracking/parcel_bindings`
+- `/tracking/parcel_tracks`
+
+Rola:
+
+- wiązanie QR z kartonami,
+- budowa logicznego obiektu przesyłki.
+
+### `mission_node`
+
+Wejście:
+
+- `/tracking/targets`
+- `/tracking/parcel_tracks`
+
+Wyjście:
+
+- `/mission/state`
+- `/mission/target`
+- `/mission/parcel_info`
+
+Rola:
+
+- wybór aktywnego celu,
+- zarządzanie stanem zadania,
+- publikacja informacji domenowych.
+
+### `control_node`
+
+Wejście:
+
+- `/mission/target`
+- opcjonalnie `/navigation/depth_hint`
+
+Wyjście:
+
+- komendy ruchu typu `Twist`
+
+Rola:
+
+- referencyjne sterowanie robota na podstawie celu misji,
+- ograniczanie ruchu do przodu przy sygnałach z głębi.
+
+### `depth_mapper_node`
+
+Rola:
+
+- analiza obrazu głębi,
+- budowa lokalnych wskazówek bezpieczeństwa,
+- publikacja `DepthNavHint`.
+
+### `visual_slam_node`
+
+Rola:
+
+- eksperymentalna estymacja ruchu z obrazu,
+- publikacja odometrii i ścieżki dla diagnostyki / top-down.
+
+## Node'y warstwy legacy i kompatybilności
+
+Po scaleniu repozytoriów w pakiecie są też dodatkowe komponenty:
+
+- `d435i_node`
+- `light_spot_detector_node`
+- `g1_light_follower_node`
+- `unitree_cmd_vel_bridge_node`
+- `arm_skill_bridge_node`
+- `csv_detection_replay_node`
+- `turtlesim_cmd_vel_bridge_node`
+- `legacy_detection_adapter_node`
+
+### `legacy_detection_adapter_node`
+
+To kluczowy element łączenia starego i nowego świata. Czyta legacy JSON z topicu:
+
+- `/light_tracking/detection_json`
+
+I publikuje nowe wiadomości na:
+
+- `/perception/detections`
+- opcjonalnie `/tracking/targets`
+
+Dzięki temu można uruchomić starą ścieżkę percepcji i zasilać aktualny pipeline misji oraz sterowania bez przepisywania wszystkiego naraz.
+
+## Własne wiadomości ROS 2
+
+Pakiet definiuje między innymi:
+
+- `Detection2D.msg`
+- `LocalizedTarget.msg`
+- `TrackedTarget.msg`
+- `ParcelTrackBinding.msg`
+- `ParcelTrack.msg`
+- `ParcelInfo.msg`
+- `MissionTarget.msg`
+- `MissionState.msg`
+- `DepthNavHint.msg`
+
+Pliki znajdują się w katalogu `msg/`.
+
+## Konfiguracje
+
+Najważniejsze pliki w `config/`:
+
+- `perception.yaml`
+- `localization.yaml`
+- `tracking.yaml`
+- `parcel_track.yaml`
+- `mission.yaml`
+- `control.yaml`
+- `depth_mapper.yaml`
+- `visual_slam.yaml`
+- `camera_calibration.yaml`
+- `topdown_odom.yaml`
+
+Pliki legacy:
+
+- `legacy_adapter.yaml`
+- `legacy_bridge.yaml`
+- `legacy_light_control.yaml`
+- `legacy_light_perception.yaml`
+
+## Launchery
+
+Wszystkie ścieżki poniżej są względem katalogu pakietu i odpowiadają rzeczywistym plikom w `launch/`.
+
+### `launch/prod.launch.py`
+
+Pełny nowoczesny pipeline:
 
 ```bash
 cd ros2_ws
@@ -133,66 +238,173 @@ source install/setup.bash
 ros2 launch g1_light_tracking prod.launch.py
 ```
 
-Dodatkowy launcher diagnostyczny:
+### `launch/unified_system.launch.py`
+
+Główny zunifikowany punkt wejścia:
 
 ```bash
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+```
+
+Przykłady uruchomienia:
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid with_legacy_camera:=true
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy with_unitree_bridges:=true
+```
+
+### `launch/legacy_light_tracking_stack.launch.py`
+
+Pełen zestaw legacy:
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py
+```
+
+### `launch/legacy_light_tracking_turtlesim.launch.py`
+
+Wariant demonstracyjny z CSV replay i turtlesim:
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py csv_file:=/pelna/sciezka/do/detekcji.csv
+```
+
+Przykład z dodatkowymi parametrami:
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py \
+  csv_file:=/pelna/sciezka/do/detekcji.csv \
+  playback_rate:=2.0 \
+  loop:=false
+```
+
+### `launch/legacy_modern_mission_bridge.launch.py`
+
+Minimalne połączenie starej percepcji z nową misją i sterowaniem:
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking legacy_modern_mission_bridge.launch.py
+```
+
+### `launch/topdown_odom.launch.py`
+
+Diagnostyka odometrii i wizualizacja top-down:
+
+```bash
+cd ros2_ws
+source install/setup.bash
 ros2 launch g1_light_tracking topdown_odom.launch.py
 ```
 
-## Tryb standalone
+## Standalone
 
-Pakiet zawiera też uproszczony tryb poza ROS 2, przydatny do szybkich eksperymentów lokalnych. Kod tego wariantu znajduje się w `g1_light_tracking/standalone/` i może działać z profilami z katalogu `profiles/`.
+Polecenia standalone wykonuj z katalogu pakietu `ros2_ws/src/g1_light_tracking/`.
 
-Zależności dla tego trybu:
-
-```bash
-pip install -r requirements-standalone.txt
-```
-
-## Zależności Pythona
-
-Środowisko pomocnicze dla node'ów Pythona:
+### CLI
 
 ```bash
-pip install -r requirements-ros-python.txt
+python3 -m g1_light_tracking.standalone.cli_app --camera 0 --model yolov8n.pt --profile full_logistics
 ```
 
-`pyzbar` zwykle wymaga zainstalowanej biblioteki systemowej `zbar`.
+### GUI
 
-## Jak czytać kod
+```bash
+python3 -m g1_light_tracking.standalone.gui_app --camera 0 --model yolov8n.pt --profile debug_perception
+```
 
-Najwygodniejsza kolejność czytania implementacji jest następująca:
+Dostępne profile znajdują się w katalogu `profiles/`:
 
-1. `msg/` — zobacz kontrakty wiadomości.
-2. `launch/prod.launch.py` — zobacz jak node’y są spięte.
-3. `g1_light_tracking/nodes/perception_node.py` → `localization_node.py` → `tracking_node.py`.
-4. `parcel_track_node.py` i `mission_node.py` — logika domenowa.
-5. `control_node.py` — końcowe sterowanie.
-6. `utils/` — szczegóły heurystyk i pomocnicze algorytmy.
+- `full_logistics.json`
+- `debug_perception.json`
+- `light_only.json`
+- `marker_only.json`
+- `qr_only.json`
+
+## Instalacja zależności pythonowych
+
+Z katalogu pakietu:
+
+```bash
+python3 -m pip install -r requirements-ros-python.txt
+python3 -m pip install -r requirements-standalone.txt
+python3 -m pip install -r requirements-compat.txt
+```
+
+Dodatkowo:
+
+```bash
+sudo apt install libzbar0
+```
+
+## Testy
+
+Z katalogu pakietu:
+
+```bash
+pytest
+```
+
+Przykłady:
+
+```bash
+pytest test/test_association.py
+pytest test/test_kalman_tracking.py
+pytest test/test_legacy_adapter.py
+```
+
+## Jak repozytoria zostały scalone
+
+Scalenie wykonano tak, aby aktualny pakiet pozostał bazą docelową, a starszy projekt został dołączony jako warstwa kompatybilności. Oznacza to w praktyce:
+
+- nowoczesne node'y i własne wiadomości ROS 2 nie zostały zastąpione,
+- komponenty legacy zostały dodane obok jako osobne entrypointy i launchery,
+- konfiguracje starszego stosu otrzymały osobne pliki `legacy_*.yaml`,
+- adapter `legacy_detection_adapter_node` tłumaczy historyczny JSON na aktualne wiadomości `Detection2D` i opcjonalnie `TrackedTarget`,
+- `launch/unified_system.launch.py` spina oba światy w jednym punkcie wejścia.
+
+Taki sposób scalenia minimalizuje ryzyko regresji i pozwala stopniowo wygaszać starszy tor bez utraty działających funkcjonalności.
+
+## Dalsze kroki do pełnej migracji na aktualne repozytorium
+
+1. Zmienić wszystkie nowe integracje tak, aby publikowały bezpośrednio `Detection2D`, `LocalizedTarget` albo inne aktualne wiadomości ROS 2, bez pośredniego JSON.
+2. Ograniczyć publikację `/tracking/targets` do `tracking_node`, a legacy traktować tylko jako dodatkowe źródło wejścia 2D.
+3. Przenieść potrzebne heurystyki ze starego detektora światła do `perception_node`, tak aby utrzymać jedną warstwę percepcji.
+4. Ujednolicić bridge'e sprzętowe tak, aby publikowały dokładnie te topiki i typy wiadomości, których oczekuje obecny pipeline.
+5. Dodać testy integracyjne launch oraz smoke-test `colcon build` dla trybów `modern`, `legacy` i `hybrid`.
+6. Oznaczyć node'y legacy jako przestarzałe dopiero wtedy, gdy nowy pipeline przejmie ich pełną funkcję operacyjną.
 
 ## Hook wersjonowania
 
-Z katalogu głównego repo:
+Wariant lokalny z katalogu pakietu:
 
 ```bash
-bash install_git_hooks.sh
+bash scripts/install_git_hooks.sh
 ```
 
-Lub z katalogu `ros2_ws/`:
+Skrypt instaluje `pre-commit`, który aktualizuje:
 
-```bash
-bash install_git_hooks.sh
-```
+- `VERSION`
+- `setup.py`
+- `package.xml`
 
+## Gdzie czytać dalej
 
-## Scalony wariant kompatybilności
+- `docs/index.html` — dokumentacja HTML,
+- `docs/architecture.md` — szerszy opis przepływu danych,
+- docstringi w `g1_light_tracking/nodes/`, `g1_light_tracking/utils/` i `g1_light_tracking/vision/`.
 
-Repo zawiera teraz także zachowaną warstwę kompatybilności ze starszym projektem `j2s-light_tracking-ros2-g1-ros2-light-tracking`.
-Starszy pipeline nie zastępuje obecnych node’ów. Został dołożony obok nich jako osobny zestaw komponentów:
-
-- legacy launcher: `ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py`
-- turtlesim / CSV replay: `ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py csv_file:=<plik.csv>`
-- legacy node’y: `d435i_node`, `light_spot_detector_node`, `g1_light_follower_node`, `unitree_cmd_vel_bridge_node`, `arm_skill_bridge_node`, `csv_detection_replay_node`, `turtlesim_cmd_vel_bridge_node`
-- konfiguracje legacy: `config/legacy_light_perception.yaml`, `config/legacy_light_control.yaml`, `config/legacy_bridge.yaml`
-
-Podejście jest celowo zachowawcze: nowy pipeline ROS 2 pozostaje bazą docelową, a starszy projekt służy jako warstwa integracyjna, adaptery sprzętowe i środowisko demonstracyjne.

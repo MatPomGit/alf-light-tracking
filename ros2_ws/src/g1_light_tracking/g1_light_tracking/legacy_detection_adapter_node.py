@@ -27,6 +27,8 @@ from g1_light_tracking.utils.legacy_adapter import parse_legacy_payload, normali
 class LegacyDetectionAdapterNode(Node):
     def __init__(self) -> None:
         super().__init__('legacy_detection_adapter_node')
+        # Parameters are deliberately explicit because this node is used as a transition
+        # layer between the historical JSON topic names and the modern ROS 2 contracts.
         self.declare_parameter('legacy_detection_topic', '/light_tracking/detection_json')
         self.declare_parameter('detection_topic', '/perception/detections')
         self.declare_parameter('tracked_topic', '/tracking/targets')
@@ -57,6 +59,8 @@ class LegacyDetectionAdapterNode(Node):
 
         self.det_pub = self.create_publisher(Detection2D, self.detection_topic, 20)
         self.track_pub = self.create_publisher(TrackedTarget, self.tracked_topic, 20)
+        # The legacy producer already publishes JSON as plain strings, so the adapter
+        # keeps that wire format and performs normalization locally.
         self.create_subscription(String, self.legacy_detection_topic, self.on_detection, 20)
 
         self.get_logger().info(
@@ -65,6 +69,9 @@ class LegacyDetectionAdapterNode(Node):
         )
 
     def on_detection(self, msg: String) -> None:
+        # Payload parsing and normalization happen before any ROS message is constructed.
+        # That way both Detection2D and TrackedTarget are generated from the same source
+        # of truth and stay numerically consistent.
         try:
             payload = parse_legacy_payload(msg.data)
             det = normalize_legacy_payload(
@@ -86,8 +93,16 @@ class LegacyDetectionAdapterNode(Node):
             return
 
         stamp = self.get_clock().now().to_msg()
+        # Detection2D is the preferred migration target because it feeds the modern
+        # localization and tracking stages without bypassing them.
+        # Detection2D is the preferred migration path because it lets the modern
+        # localization and tracking nodes stay in charge of downstream semantics.
         if self.publish_detection2d:
             self.det_pub.publish(self._build_detection_msg(det, stamp))
+        # Publishing TrackedTarget remains optional. It exists mainly for pure legacy
+        # mode where localization/tracking nodes may be intentionally absent.
+        # TrackedTarget publishing is optional and exists mainly for pure legacy mode,
+        # where mission/control may need data even without modern tracking enabled.
         if self.publish_tracked_target:
             self.track_pub.publish(self._build_tracked_target_msg(det, stamp))
 

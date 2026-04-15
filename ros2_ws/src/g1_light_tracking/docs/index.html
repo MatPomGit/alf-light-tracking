@@ -1,415 +1,580 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>g1_light_tracking — dokumentacja repozytorium</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>g1_light_tracking - dokumentacja</title>
   <style>
-    :root{
-      --bg:#0b1020; --panel:#121935; --panel2:#1a2347; --panel3:#10182f;
-      --text:#eaf0ff; --muted:#a8b4d9; --accent:#6ea8fe; --accent2:#7ee787;
-      --warn:#ffd166; --code:#0f1530; --border:#2b3766; --shadow:0 18px 50px rgba(0,0,0,.28);
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #22c55e;
+      --warn: #f59e0b;
+      --border: #334155;
+      --code: #0b1220;
     }
-    *{box-sizing:border-box} html{scroll-behavior:smooth}
-    body{margin:0;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,var(--bg),#0f1630);color:var(--text);line-height:1.6}
-    .wrap{max-width:1360px;margin:0 auto;padding:24px 18px 64px}
-    .hero,.section,.sidebar-card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.02));border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow)}
-    .hero{padding:28px}
-    h1,h2,h3{line-height:1.2} h1{margin:0 0 10px;font-size:2.35rem} h2{margin:0 0 18px;font-size:1.6rem} h3{margin:20px 0 10px;font-size:1.12rem}
-    .muted{color:var(--muted)}
-    .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(110,168,254,.12);border:1px solid rgba(110,168,254,.35);color:#dbe8ff;margin:4px 8px 0 0;font-size:.92rem}
-    .pill.ok{border-color:rgba(126,231,135,.35);background:rgba(126,231,135,.10)}
-    .layout{display:grid;grid-template-columns:300px 1fr;gap:18px;margin-top:22px}
-    .sidebar{position:sticky;top:16px;height:fit-content}
-    .sidebar-card{padding:16px}
-    .tablist{display:flex;flex-direction:column;gap:8px}
-    .tab-button{width:100%;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:var(--panel3);color:var(--text);cursor:pointer;font-weight:600}
-    .tab-button.active{background:rgba(110,168,254,.16);border-color:rgba(110,168,254,.45)}
-    .section{padding:22px;display:none}
-    .section.active{display:block}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
-    .card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:18px;padding:16px}
-    pre{background:var(--code);border:1px solid var(--border);border-radius:16px;padding:14px;overflow:auto;white-space:pre-wrap}
-    code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-    .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
-    .flow .step{background:var(--code);border:1px solid var(--border);border-radius:16px;padding:14px;text-align:center;font-weight:700}
-    .actions,.file-buttons{display:flex;flex-wrap:wrap;gap:10px}
-    .btn{border:1px solid var(--border);background:var(--panel3);color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer;text-decoration:none;display:inline-block;font-weight:600}
-    .btn.primary{background:rgba(110,168,254,.16);border-color:rgba(110,168,254,.45)}
-    .btn.ok{background:rgba(126,231,135,.10);border-color:rgba(126,231,135,.35)}
-    .btn.warn{background:rgba(255,209,102,.10);border-color:rgba(255,209,102,.35)}
-    .console{margin-top:14px;background:#09101f;border:1px solid var(--border);border-radius:16px;padding:14px;min-height:170px;max-height:320px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.93rem}
-    .console-line{margin:0 0 6px;white-space:pre-wrap}
-    .diagram-wrap{display:grid;grid-template-columns:1fr 340px;gap:16px}
-    svg{width:100%;height:auto;background:linear-gradient(180deg,#0e152d,#0a1123);border:1px solid var(--border);border-radius:18px}
-    .node{cursor:pointer}.node rect{fill:#121b38;stroke:#4e69b8;stroke-width:2}.node.active rect{fill:#16325f;stroke:#7ee787}.node text{fill:#eef3ff;font-size:17px;font-weight:700}.edge{stroke:#6a7dbb;stroke-width:2.6;marker-end:url(#arrow)}
-    .detail{background:var(--code);border:1px solid var(--border);border-radius:16px;padding:14px}
-    table{width:100%;border-collapse:collapse;margin-top:10px;background:rgba(255,255,255,.02);border-radius:12px;overflow:hidden}
-    th,td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top} th{text-align:left;background:rgba(255,255,255,.04)}
-    .graphs{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
-    .graphbox{background:var(--code);border:1px solid var(--border);border-radius:18px;padding:16px}
-    .legend-row{display:flex;align-items:center;gap:10px;margin:6px 0}
-    .legend-dot{width:12px;height:12px;border-radius:50%}
-    footer{margin-top:36px;color:var(--muted)}
-    @media (max-width:980px){.layout{grid-template-columns:1fr}.sidebar{position:static}.diagram-wrap{grid-template-columns:1fr}}
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #0b1120 0%, #111827 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .hero, .panel {
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+    }
+    .hero {
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    h1, h2, h3 { margin-top: 0; }
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    h2 { font-size: 1.4rem; margin-bottom: 12px; }
+    h3 { font-size: 1.05rem; margin-bottom: 8px; }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #d6f4ff;
+      font-size: 0.92rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+    }
+    .sidebar {
+      position: sticky;
+      top: 20px;
+      align-self: start;
+      padding: 18px;
+    }
+    .tablist { display: grid; gap: 8px; }
+    .tab-button {
+      width: 100%;
+      text-align: left;
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+    .tab-button:hover, .tab-button.active {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.12);
+    }
+    .section {
+      display: none;
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+    .section.active { display: block; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    code {
+      background: rgba(15, 23, 42, 0.95);
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: #dbeafe;
+    }
+    pre {
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: rgba(30, 41, 59, 0.9); }
+    .actions, .link-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      color: var(--text);
+      border: 1px solid var(--border);
+      background: #0f172a;
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+    .btn.primary { border-color: var(--accent); }
+    .btn.ok { border-color: var(--accent-2); }
+    .btn.warn { border-color: var(--warn); }
+    .console {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #050b16;
+      padding: 12px;
+      min-height: 130px;
+    }
+    .console-line { font-family: ui-monospace, monospace; color: #d1fae5; margin: 0 0 6px; }
+    footer {
+      color: var(--muted);
+      font-size: 0.95rem;
+      padding: 10px 2px 30px;
+    }
+    @media (max-width: 1024px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+    }
   </style>
 </head>
 <body>
 <div class="wrap">
-  <section class="hero">
+  <section class="hero panel">
     <h1>g1_light_tracking</h1>
-    <p class="muted">
-      Dokumentacja repozytorium systemu percepcji, śledzenia i logiki misji dla robota intra-logistycznego.
-      Dokumentacja została przeniesiona do katalogu <code>docs/</code> i rozszerzona o dodatkowe grafy zależności, opisy architektury oraz rozdział o global motion compensation.
+    <p>
+      Dokumentacja pakietu ROS 2 po scaleniu architektury nowoczesnej i warstwy kompatybilności legacy.
+      Ten plik jest punktem wejścia do opisu struktury repo, node'ów, wiadomości, launcherów,
+      trybów pracy i przykładowych poleceń uruchomieniowych.
     </p>
-    <div>
-      <span class="pill">ROS 2</span>
-      <span class="pill">Python</span>
-      <span class="pill">OpenCV</span>
-      <span class="pill">YOLOv8n</span>
-      <span class="pill ok">Global Top-Down</span>
-      <span class="pill ok">Optical Flow / Homography</span>
+    <p class="muted">
+      Katalog tego pliku: <code>ros2_ws/src/g1_light_tracking/docs/index.html</code>.
+      Wszystkie ścieżki w sekcjach poniżej zostały zapisane jawnie względem katalogu głównego repo albo względem katalogu pakietu.
+    </p>
+    <div class="chips">
+      <span class="chip">ROS 2</span>
+      <span class="chip">Python</span>
+      <span class="chip">Perception</span>
+      <span class="chip">Tracking</span>
+      <span class="chip">Legacy compatibility</span>
+      <span class="chip">Unified launcher</span>
     </div>
   </section>
 
   <div class="layout">
-    <aside class="sidebar">
-      <div class="sidebar-card">
-        <h2>Nawigacja</h2>
-        <div class="tablist">
-          <button class="tab-button active" data-tab="overview">Przegląd</button>
-          <button class="tab-button" data-tab="repo_paths">Ścieżki repo</button>
-          <button class="tab-button" data-tab="architecture">Architektura</button>
-          <button class="tab-button" data-tab="ros2">ROS 2 / node-y / msg</button>
-          <button class="tab-button" data-tab="graphs">Grafy zależności</button>
-          <button class="tab-button" data-tab="gmc">Global motion compensation</button>
-          <button class="tab-button" data-tab="vslam">Wizyjny SLAM</button>
-          <button class="tab-button" data-tab="depth">Kamera głębi</button>
-          <button class="tab-button" data-tab="sequences">Sekwencje uruchamiania</button>
-          <button class="tab-button" data-tab="diagram">Diagram modułów</button>
-          <button class="tab-button" data-tab="files">Pliki repozytorium</button>
-          <button class="tab-button" data-tab="dependencies">Zależności</button>
-          <button class="tab-button" data-tab="legacy_bridge">Legacy bridge</button>
-          <button class="tab-button" data-tab="versioning">Wersjonowanie</button>
-        </div>
+    <aside class="sidebar panel">
+      <h2>Nawigacja</h2>
+      <div class="tablist">
+        <button class="tab-button active" data-tab="overview">Przegląd</button>
+        <button class="tab-button" data-tab="paths">Ścieżki i katalogi</button>
+        <button class="tab-button" data-tab="architecture">Architektura i przepływ</button>
+        <button class="tab-button" data-tab="nodes">Node'y i topiki</button>
+        <button class="tab-button" data-tab="messages">Wiadomości ROS 2</button>
+        <button class="tab-button" data-tab="launchers">Launchery i komendy</button>
+        <button class="tab-button" data-tab="legacy">Legacy i adapter</button>
+        <button class="tab-button" data-tab="merge">Jak scalono repo</button>
+        <button class="tab-button" data-tab="modes">Tryby unified</button>
+        <button class="tab-button" data-tab="standalone">Standalone</button>
+        <button class="tab-button" data-tab="deps">Zależności i build</button>
+        <button class="tab-button" data-tab="files">Najważniejsze pliki</button>
+        <button class="tab-button" data-tab="versioning">Wersjonowanie</button>
       </div>
     </aside>
 
     <main>
-
-      <section id="repo_paths" class="section">
-        <h2>Ścieżki w repozytorium</h2>
+      <section id="overview" class="section panel active">
+        <h2>Przegląd</h2>
         <p>
-          Właściwy pakiet ROS 2 znajduje się w:
-          <code>src/g1_light_tracking/</code>
+          Repozytorium zawiera warstwowy system dla robota i środowisk testowych. Aktualny tor nowoczesny prowadzi od obrazu przez
+          detekcję 2D, lokalizację 3D, tracking, logikę przesyłek i misji aż do uproszczonego sterowania. Równolegle dostępny jest tor legacy,
+          który może działać samodzielnie albo zasilać nowy pipeline przez adapter.
         </p>
+        <div class="grid">
+          <div class="card"><h3>Nowoczesny pipeline</h3><p><code>perception → localization → tracking → parcel_track → mission → control</code></p></div>
+          <div class="card"><h3>Rozszerzenia</h3><p><code>depth_mapper_node</code>, <code>visual_slam_node</code>, <code>debug_node</code>, <code>topdown_odom_viewer_node</code></p></div>
+          <div class="card"><h3>Legacy compatibility</h3><p>Detektor światła, bridge'e Unitree, replay CSV, turtlesim, adapter JSON → nowe msg.</p></div>
+          <div class="card"><h3>Główny punkt wejścia</h3><p><code>launch/unified_system.launch.py</code> z trybami <code>modern</code>, <code>legacy</code>, <code>hybrid</code>.</p></div>
+        </div>
+      </section>
+
+      <section id="paths" class="section panel">
+        <h2>Ścieżki i katalogi</h2>
+        <p>Najważniejsze ścieżki od katalogu głównego repozytorium:</p>
+        <ul>
+          <li><code>ros2_ws/</code> — workspace ROS 2</li>
+          <li><code>ros2_ws/src/g1_light_tracking/</code> — katalog pakietu</li>
+          <li><code>ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/</code> — node'y nowoczesne</li>
+          <li><code>ros2_ws/src/g1_light_tracking/g1_light_tracking/utils/</code> — logika pomocnicza</li>
+          <li><code>ros2_ws/src/g1_light_tracking/g1_light_tracking/vision/</code> — warstwa detekcji / typy vision</li>
+          <li><code>ros2_ws/src/g1_light_tracking/launch/</code> — launchery</li>
+          <li><code>ros2_ws/src/g1_light_tracking/config/</code> — konfiguracje YAML</li>
+          <li><code>ros2_ws/src/g1_light_tracking/msg/</code> — wiadomości ROS 2</li>
+          <li><code>ros2_ws/src/g1_light_tracking/docs/</code> — dokumentacja</li>
+          <li><code>ros2_ws/src/g1_light_tracking/profiles/</code> — profile standalone</li>
+        </ul>
         <p class="muted">
-          Wszystkie przyciski otwierające pliki w tej dokumentacji odnoszą się do plików znajdujących się względem katalogu pakietu.
+          Uwaga: wewnątrz dokumentacji HTML linki do plików są względne względem katalogu <code>docs/</code>.
+          Dlatego np. README pakietu jest pod linkiem <code>../README.md</code>, a plik konfiguracji trackingu pod <code>../config/tracking.yaml</code>.
         </p>
       </section>
 
-      <section id="overview" class="section active">
-        <h2>Przegląd projektu</h2>
-        <p>Repozytorium dostarcza architekturę dla robota, który wykrywa człowieka, karton, QR, AprilTagi i plamkę światła, a następnie wiąże dane percepcyjne z obiektem logistycznym <code>ParcelTrack</code>.</p>
-        <div class="grid">
-          <div class="card"><h3>Percepcja</h3><p>YOLO, QR, AprilTag, plamka światła, kolor.</p></div>
-          <div class="card"><h3>Tracking</h3><p>Kalman + utwardzenie przeciw false positives + kompensacja ruchu globalnego.</p></div>
-          <div class="card"><h3>Logistyka</h3><p>Wiązanie QR z kartonem i budowa <code>ParcelTrack</code>.</p></div>
-          <div class="card"><h3>Top-down</h3><p>Widok globalny z siatką metryczną, legendą oraz nakładaniem celów.</p></div>
-        </div>
+      <section id="architecture" class="section panel">
+        <h2>Architektura i przepływ danych</h2>
+        <pre><code>RGB image
+  -> perception_node
+    -> /perception/detections (Detection2D)
+      -> localization_node
+        -> /localization/targets (LocalizedTarget)
+          -> tracking_node
+            -> /tracking/targets (TrackedTarget)
+              -> parcel_track_node
+                -> /tracking/parcel_bindings
+                -> /tracking/parcel_tracks (ParcelTrack)
+                  -> mission_node
+                    -> /mission/state
+                    -> /mission/target
+                      -> control_node</code></pre>
+        <p>
+          Równolegle mogą działać dodatkowe źródła danych i diagnostyka:
+        </p>
+        <ul>
+          <li><code>depth_mapper_node</code> publikuje <code>DepthNavHint</code> dla sterowania.</li>
+          <li><code>visual_slam_node</code> publikuje estymację ruchu i ścieżkę.</li>
+          <li><code>topdown_odom_viewer_node</code> wizualizuje odometrię, tracki i cele.</li>
+          <li><code>legacy_detection_adapter_node</code> wstrzykuje dane z toru legacy do nowego modelu wiadomości.</li>
+        </ul>
       </section>
 
-      <section id="architecture" class="section">
-        <h2>Architektura modułów</h2>
-        <div class="grid">
-          <div class="card"><h3>perception_node</h3><p>Detekcja 2D: YOLO, QR, AprilTag, plamka światła.</p></div>
-          <div class="card"><h3>localization_node</h3><p>Pozycja 3D, bbox, propagacja do dalszych etapów.</p></div>
-          <div class="card"><h3>tracking_node</h3><p>Tracking w czasie, filtr Kalmana, gating bbox oraz GMC.</p></div>
-          <div class="card"><h3>parcel_track_node</h3><p>Kojarzenie QR do kartonu i publikacja <code>ParcelTrack</code>.</p></div>
-          <div class="card"><h3>mission_node</h3><p>Maszyna stanów wysokiego poziomu.</p></div>
-          <div class="card"><h3>topdown_odom_viewer_node</h3><p>Widok globalny z /odom, TF, siatką i nakładkami.</p></div>
-        </div>
-      </section>
-
-      <section id="ros2" class="section">
-        <h2>Komunikacja ROS 2, struktura node-ów i wiadomości</h2>
+      <section id="nodes" class="section panel">
+        <h2>Node'y i topiki</h2>
         <table>
-          <thead><tr><th>Node</th><th>Rola</th><th>Wejścia</th><th>Wyjścia</th></tr></thead>
+          <thead><tr><th>Node</th><th>Wejścia</th><th>Wyjścia</th><th>Rola</th></tr></thead>
           <tbody>
-            <tr><td><code>perception_node</code></td><td>Detekcja 2D obiektów.</td><td>/camera/image_raw</td><td>/perception/detections</td></tr>
-            <tr><td><code>localization_node</code></td><td>Pozycja 3D i bbox.</td><td>/perception/detections</td><td>/localization/targets</td></tr>
-            <tr><td><code>tracking_node</code></td><td>Tracking, Kalman, GMC, filtracja FP.</td><td>/localization/targets, /debug/calibration_preview</td><td>/tracking/targets, /tracking/global_motion_debug</td></tr>
-            <tr><td><code>parcel_track_node</code></td><td>Wiązanie QR i agregacja przesyłki.</td><td>/tracking/targets</td><td>/tracking/parcel_bindings, /tracking/parcel_tracks</td></tr>
-            <tr><td><code>mission_node</code></td><td>Maszyna stanów misji.</td><td>/tracking/targets, /tracking/parcel_tracks</td><td>/mission/target, /mission/state</td></tr>
-            <tr><td><code>topdown_odom_viewer_node</code></td><td>Widok globalny i nakładki.</td><td>/odom, /tracking/targets, /tracking/parcel_tracks, /mission/target, TF</td><td>okno OpenCV</td></tr>
+            <tr><td><code>perception_node</code></td><td>kamera RGB</td><td><code>/perception/detections</code></td><td>Detekcja 2D, QR, AprilTag, plamka światła.</td></tr>
+            <tr><td><code>localization_node</code></td><td><code>/perception/detections</code>, opcjonalnie depth</td><td><code>/localization/targets</code></td><td>Estymacja 3D i metody lokalizacji.</td></tr>
+            <tr><td><code>tracking_node</code></td><td><code>/localization/targets</code></td><td><code>/tracking/targets</code>, <code>/tracking/global_motion_debug</code></td><td>Asocjacja, Kalman, GMC, stabilizacja tracków.</td></tr>
+            <tr><td><code>parcel_track_node</code></td><td><code>/tracking/targets</code></td><td><code>/tracking/parcel_bindings</code>, <code>/tracking/parcel_tracks</code></td><td>Wiązanie QR z kartonem.</td></tr>
+            <tr><td><code>mission_node</code></td><td><code>/tracking/targets</code>, <code>/tracking/parcel_tracks</code></td><td><code>/mission/state</code>, <code>/mission/target</code>, <code>/mission/parcel_info</code></td><td>Logika celu i automatu zadania.</td></tr>
+            <tr><td><code>control_node</code></td><td><code>/mission/target</code>, opcjonalnie <code>/navigation/depth_hint</code></td><td>komendy ruchu</td><td>Referencyjne sterowanie.</td></tr>
+            <tr><td><code>depth_mapper_node</code></td><td>obraz depth</td><td><code>/navigation/depth_hint</code> i mapowanie pomocnicze</td><td>Reaktywna wskazówka nawigacyjna.</td></tr>
+            <tr><td><code>visual_slam_node</code></td><td>RGB, opcjonalnie depth</td><td><code>/visual_slam/odom</code>, <code>/visual_slam/path</code>, <code>/visual_slam/debug_image</code></td><td>VO / SLAM eksperymentalny.</td></tr>
+            <tr><td><code>legacy_detection_adapter_node</code></td><td><code>/light_tracking/detection_json</code></td><td><code>/perception/detections</code>, opcjonalnie <code>/tracking/targets</code></td><td>Most między starym JSON a nowymi msg.</td></tr>
+            <tr><td><code>light_spot_detector_node</code></td><td>kamera legacy</td><td><code>/light_tracking/detection_json</code></td><td>Detekcja legacy plamki światła.</td></tr>
           </tbody>
         </table>
-        <h3>Wiadomości</h3>
+      </section>
+
+      <section id="messages" class="section panel">
+        <h2>Wiadomości ROS 2</h2>
+        <p>Pliki wiadomości znajdują się w katalogu <code>../msg/</code>.</p>
         <table>
-          <thead><tr><th>Plik msg</th><th>Przeznaczenie</th></tr></thead>
+          <thead><tr><th>Plik</th><th>Zastosowanie</th></tr></thead>
           <tbody>
-            <tr><td><code>Detection2D.msg</code></td><td>Surowe detekcje 2D.</td></tr>
-            <tr><td><code>LocalizedTarget.msg</code></td><td>Detekcja z pozycją 3D.</td></tr>
-            <tr><td><code>TrackedTarget.msg</code></td><td>Śledzony obiekt z track_id.</td></tr>
-            <tr><td><code>ParcelTrackBinding.msg</code></td><td>Powiązanie QR z kartonem.</td></tr>
-            <tr><td><code>ParcelTrack.msg</code></td><td>Obiekt logistyczny przesyłki.</td></tr>
-            <tr><td><code>MissionTarget.msg</code></td><td>Cel sterowania.</td></tr>
-            <tr><td><code>MissionState.msg</code></td><td>Stan logiki wysokiego poziomu.</td></tr>
+            <tr><td><code>Detection2D.msg</code></td><td>Surowa obserwacja w układzie obrazu.</td></tr>
+            <tr><td><code>LocalizedTarget.msg</code></td><td>Obserwacja 2D rozszerzona o pozycję 3D.</td></tr>
+            <tr><td><code>TrackedTarget.msg</code></td><td>Stabilny tor z <code>track_id</code>.</td></tr>
+            <tr><td><code>ParcelTrackBinding.msg</code></td><td>Wynik skojarzenia QR z kartonem.</td></tr>
+            <tr><td><code>ParcelTrack.msg</code></td><td>Stan logiczny przesyłki.</td></tr>
+            <tr><td><code>ParcelInfo.msg</code></td><td>Dane domenowe publikowane przez logikę misji.</td></tr>
+            <tr><td><code>MissionTarget.msg</code></td><td>Cel dla warstwy sterowania.</td></tr>
+            <tr><td><code>MissionState.msg</code></td><td>Stan wysokopoziomowego automatu.</td></tr>
+            <tr><td><code>DepthNavHint.msg</code></td><td>Pomocnicza wskazówka dla sterowania od warstwy depth.</td></tr>
           </tbody>
         </table>
       </section>
 
-      <section id="graphs" class="section">
-        <h2>Dodatkowe grafy zależności</h2>
-        <div class="graphs">
-          <div class="graphbox">
-            <h3>Graf zależności danych</h3>
-            <pre><code>Image
- └─> Detection2D
-      └─> LocalizedTarget
-           └─> TrackedTarget
-                ├─> ParcelTrackBinding
-                ├─> ParcelTrack
-                └─> MissionTarget / MissionState</code></pre>
-            <p class="muted">Pokazuje przepływ reprezentacji danych od obrazu do logiki misji.</p>
-          </div>
-          <div class="graphbox">
-            <h3>Graf zależności modułów runtime</h3>
-            <pre><code>perception_node
-  -> localization_node
-    -> tracking_node
-      -> parcel_track_node
-        -> mission_node
-          -> control_node
-
-/odom + TF
-  -> topdown_odom_viewer_node</code></pre>
-            <p class="muted">Pokazuje zależności uruchomieniowe między node’ami.</p>
-          </div>
-          <div class="graphbox">
-            <h3>Graf debug / diagnostyka</h3>
-            <pre><code>/debug/calibration_preview
-  -> tracking_node (GMC source)
-
- /tracking/global_motion_debug
-  -> debug / tuning GMC
-
- /tracking/targets
- /tracking/parcel_tracks
- /mission/target
- /odom + TF
-  -> topdown_odom_viewer_node</code></pre>
-            <p class="muted">Pokazuje skąd pochodzą dane diagnostyczne i wizualizacyjne.</p>
-          </div>
-        </div>
-      </section>
-
-      <section id="gmc" class="section">
-        <h2>Global motion compensation</h2>
-        <p>
-          Tracking wykorzystuje teraz kompensację ruchu globalnego obrazu opartą o:
-        </p>
-        <ul>
-          <li>detekcję punktów charakterystycznych,</li>
-          <li>optical flow Lucas-Kanade,</li>
-          <li>homografię estymowaną metodą RANSAC,</li>
-          <li>fallback do medianowego przesunięcia, gdy homografia nie jest wystarczająco pewna.</li>
-        </ul>
-        <pre><code>/debug/calibration_preview (Image)
-  -> tracking_node
-    -> GlobalMotionCompensator
-      -> /tracking/global_motion_debug
-      -> compensated bbox / compensated center_u,v</code></pre>
-        <p class="muted">
-          Dzięki temu śledzenie jest znacznie mniej wrażliwe na kołysanie głowy robota podczas chodzenia.
-        </p>
-      </section>
-
-
-      <section id="depth" class="section">
-        <h2>Kamera głębi: auto-detekcja, mapowanie i nawigacja</h2>
-        <p>
-          Oprogramowanie automatycznie sprawdza, czy napływają aktualne klatki z kamery głębi.
-          Jeżeli tak, uruchamia tor depth-aware:
-        </p>
-        <ul>
-          <li><strong>LocalizationNode</strong> używa depth ROI w obrębie detekcji do lepszej estymacji XYZ.</li>
-          <li><strong>DepthMapperNode</strong> buduje lokalną siatkę zajętości <code>OccupancyGrid</code>.</li>
-          <li><strong>ControlNode</strong> wykorzystuje <code>DepthNavHint</code> do omijania przeszkód i modulacji prędkości.</li>
-        </ul>
-        <pre><code>/camera/depth/image_raw
-  -> localization_node (depth-assisted XYZ)
-  -> depth_mapper_node
-       -> /mapping/local_depth_grid
-       -> /navigation/depth_hint
-            -> control_node</code></pre>
-        <p class="muted">
-          Gdy depth nie jest dostępny, system automatycznie wraca do trybu RGB-only i zachowuje dotychczasowe działanie.
-        </p>
-      </section>
-
-
-      <section id="vslam" class="section">
-        <h2>Wizyjny SLAM / Visual Odometry</h2>
-        <p>Repozytorium zostało rozszerzone o <code>visual_slam_node</code>, który poprawia nawigację przez estymację ruchu robota na podstawie obrazu.</p>
-        <ul>
-          <li><strong>Monocular VO</strong>: ORB + dopasowanie cech + essential matrix + <code>recoverPose</code>.</li>
-          <li><strong>RGB-D VO</strong>: ORB + głębia + <code>solvePnPRansac</code>, gdy depth jest dostępny.</li>
-          <li>Publikowane topiki:
-            <ul>
-              <li><code>/visual_slam/odom</code></li>
-              <li><code>/visual_slam/path</code></li>
-              <li><code>/visual_slam/debug_image</code></li>
-            </ul>
-          </li>
-        </ul>
-      </section>
-
-      <section id="sequences" class="section">
-        <h2>Sekwencje uruchamiania</h2>
-        <div class="card"><h3>Scalony wariant kompatybilności</h3><p>Repo obejmuje teraz również zachowaną warstwę kompatybilności ze starszym projektem JSON/Unitree. Jest ona uruchamiana osobnymi launcherami <code>legacy_light_tracking_stack.launch.py</code> i <code>legacy_light_tracking_turtlesim.launch.py</code>, bez naruszania obecnego pipeline'u percepcja → lokalizacja → tracking → misja.</p></div>
+      <section id="launchers" class="section panel">
+        <h2>Launchery i komendy</h2>
+        <p>Wszystkie poniższe polecenia wykonuj z katalogu <code>ros2_ws/</code> po wcześniejszym buildzie i po <code>source install/setup.bash</code>.</p>
         <div class="actions">
-          <button class="btn primary" data-seq="ros-full">Pełny pipeline ROS 2</button>
-          <button class="btn ok" data-seq="ros-topdown">ROS2 /odom top-down</button>
-          <button class="btn ok" data-seq="standalone-cli">Standalone CLI</button>
-          <button class="btn ok" data-seq="standalone-gui">Standalone GUI</button>
+          <button class="btn primary" data-seq="build">Build i source</button>
+          <button class="btn ok" data-seq="prod">prod.launch.py</button>
+          <button class="btn ok" data-seq="unified-modern">unified: modern</button>
+          <button class="btn ok" data-seq="unified-legacy">unified: legacy</button>
+          <button class="btn ok" data-seq="unified-hybrid">unified: hybrid</button>
+          <button class="btn warn" data-seq="legacy-stack">legacy stack</button>
+          <button class="btn warn" data-seq="legacy-csv">legacy turtlesim / CSV</button>
+          <button class="btn" data-seq="bridge">legacy-modern bridge</button>
+          <button class="btn" data-seq="topdown">topdown odom</button>
         </div>
         <div id="sequenceConsole" class="console"></div>
       </section>
 
-      <section id="legacy_bridge" class="section">
-        <h2>Legacy bridge: JSON -&gt; Detection2D / TrackedTarget</h2>
+      <section id="legacy" class="section panel">
+        <h2>Legacy i adapter</h2>
         <p>
-          Po scaleniu repozytoriów starsza ścieżka nadal publikuje obserwacje jako JSON na
-          <code>/light_tracking/detection_json</code>. Nowy adapter <code>legacy_detection_adapter_node</code>
-          mapuje je równolegle na:
+          Warstwa legacy została zachowana obok nowoczesnej architektury. Nie nadpisuje obecnych funkcjonalności.
+          Jej rola to kompatybilność ze starszym projektem, integracje sprzętowe i środowiska demonstracyjne.
         </p>
-        <ul>
-          <li><code>/perception/detections</code> jako <code>Detection2D</code>,</li>
-          <li><code>/tracking/targets</code> jako przybliżony <code>TrackedTarget</code>.</li>
-        </ul>
-        <pre><code>legacy detector / csv replay
-  -> /light_tracking/detection_json (String / JSON)
-      -> legacy_detection_adapter_node
-          -> /perception/detections (Detection2D)
-          -> /tracking/targets (TrackedTarget)</code></pre>
+        <pre><code>light_spot_detector_node or csv_detection_replay_node
+  -> /light_tracking/detection_json
+    -> legacy_detection_adapter_node
+      -> /perception/detections
+      -> optionally /tracking/targets
+        -> mission_node
+          -> control_node</code></pre>
+        <p>
+          W trybie <code>legacy</code> adapter może publikować także przybliżone <code>TrackedTarget</code>.
+          W trybie <code>hybrid</code> publikuje tylko <code>Detection2D</code>, żeby nie dublować tracków z <code>tracking_node</code>.
+        </p>
+      </section>
+
+
+      <section id="merge" class="section panel">
+        <h2>Jak scalono repozytoria i co dalej</h2>
+        <p>
+          Scalenie zostało wykonane zachowawczo. Aktualne repozytorium pozostało bazą docelową,
+          a elementy starszego projektu zostały dołożone jako osobna warstwa kompatybilności.
+          Dzięki temu nie nadpisano gotowych node'ów, wiadomości, konfiguracji ani launcherów
+          z obecnego pakietu.
+        </p>
+        <table>
+          <thead><tr><th>Obszar</th><th>Jak został scalony</th><th>Dlaczego tak</th></tr></thead>
+          <tbody>
+            <tr><td>Node'y nowoczesne</td><td>Pozostawione bez zastępowania w <code>../g1_light_tracking/nodes/</code>.</td><td>To jest docelowy pipeline produkcyjny i nie wolno było utracić istniejących funkcjonalności.</td></tr>
+            <tr><td>Node'y legacy</td><td>Dodane obok jako osobne entrypointy w katalogu <code>../g1_light_tracking/</code>.</td><td>Pozwala to uruchamiać stare źródła danych bez przepisywania wszystkiego jednocześnie.</td></tr>
+            <tr><td>Konfiguracje</td><td>Pliki starszego stosu dostały prefiks <code>legacy_*</code> w katalogu <code>../config/</code>.</td><td>Uniknięto nadpisywania aktualnych parametrów i rozjazdów nazw.</td></tr>
+            <tr><td>Integracja danych</td><td>Dodano <code>legacy_detection_adapter_node</code> i logikę w <code>../g1_light_tracking/utils/legacy_adapter.py</code>.</td><td>Adapter tłumaczy JSON na <code>Detection2D</code> i opcjonalnie <code>TrackedTarget</code>, więc nowa logika może konsumować stare wejścia.</td></tr>
+            <tr><td>Uruchamianie</td><td>Dodano <code>../launch/unified_system.launch.py</code> oraz launchery pomocnicze legacy.</td><td>Jeden punkt wejścia upraszcza migrację, testy A/B i tryb hybrydowy.</td></tr>
+            <tr><td>Zależności sprzętowe</td><td>Mosty Unitree i kamera legacy są opcjonalne oraz uruchamiane warunkowo.</td><td>Repo działa też bez pełnego środowiska sprzętowego, co ułatwia rozwój i CI.</td></tr>
+          </tbody>
+        </table>
+        <h3>Rzeczywista sekwencja merge'u</h3>
+        <ol>
+          <li>Utrzymano aktualny model wiadomości z katalogu <code>../msg/</code> jako jedyny kontrakt docelowy.</li>
+          <li>Przeniesiono starsze node'y jako warstwę kompatybilności, zamiast podmieniać obecne moduły.</li>
+          <li>Dodano osobne pliki <code>legacy_*.yaml</code>, żeby stare parametry nie nadpisały nowego strojenia.</li>
+          <li>Dodano adapter legacy JSON → nowe wiadomości oraz tryby <code>legacy</code> i <code>hybrid</code>.</li>
+          <li>Wpięto legacy źródła do nowego <code>mission_node</code> i <code>control_node</code> przez launcher unified.</li>
+          <li>Rozbudowano dokumentację tak, żeby każda ścieżka i komenda odpowiadała aktualnej strukturze repo.</li>
+        </ol>
+        <h3>Dalsze kroki, aby w pełni przejść na aktualne repozytorium</h3>
+        <ol>
+          <li><strong>Przestać traktować JSON jako kontrakt główny.</strong> Wszystkie nowe integracje powinny publikować od razu <code>Detection2D</code> albo <code>LocalizedTarget</code>, a adapter legacy powinien zostać tylko przejściowym mostem.</li>
+          <li><strong>Wygasić dublujące źródła tracków.</strong> Docelowo tylko <code>tracking_node</code> powinien publikować <code>/tracking/targets</code>; tryb hybrydowy jest po to, aby testować migrację bez równoległych ID z legacy.</li>
+          <li><strong>Przenieść heurystyki starego detektora do nowego etapu percepcji.</strong> Najlepszym miejscem jest <code>../g1_light_tracking/nodes/perception_node.py</code>, a nie osobny tor JSON.</li>
+          <li><strong>Zastąpić bridge'e sprzętowe spójnymi adapterami ROS 2.</strong> Mosty Unitree i legacy kamery powinny docelowo publikować te same topiki, które zużywa nowoczesny pipeline.</li>
+          <li><strong>Domknąć build i testy integracyjne.</strong> Poza <code>pytest</code> trzeba dodać testy launch, smoke-test <code>colcon build</code> i scenariusze dla trybów <code>modern</code>, <code>legacy</code>, <code>hybrid</code>.</li>
+          <li><strong>Oznaczyć komponenty do deprecacji.</strong> Gdy nowe źródła danych osiągną pełne pokrycie funkcjonalne, legacy node'y powinny zostać oznaczone jako deprecated w README i launcherach.</li>
+          <li><strong>Zmienić domyślną ścieżkę operacyjną zespołu.</strong> Dokumentacja, instrukcje wdrożeniowe i skrypty developerskie powinny wskazywać <code>unified_system.launch.py mode:=modern</code> jako jedyny tryb domyślny.</li>
+        </ol>
         <p class="muted">
-          Dzięki temu starszy pipeline może zasilać nową logikę misji oraz nowe moduły lokalizacji i trackingu,
-          bez naruszania zgodności wstecznej. Adapter jest włączony w launcherach legacy i turtlesim.
+          Praktycznie: pełna migracja jest zakończona dopiero wtedy, gdy <code>legacy_detection_adapter_node</code>,
+          <code>light_spot_detector_node</code> i pozostałe bridge'e nie są już potrzebne do codziennego uruchamiania,
+          a wszystkie wejścia systemu trafiają bezpośrednio do obecnego modelu wiadomości.
         </p>
       </section>
 
-
-      <section id="diagram" class="section">
-        <h2>Interaktywny diagram modułów</h2>
-        <div class="diagram-wrap">
-          <div>
-            <svg viewBox="0 0 1260 700">
-              <defs><marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#6a7dbb"></path></marker></defs>
-              <g class="edge"><line x1="150" y1="120" x2="340" y2="120"/></g>
-              <g class="edge"><line x1="500" y1="120" x2="690" y2="120"/></g>
-              <g class="edge"><line x1="850" y1="120" x2="1040" y2="120"/></g>
-              <g class="edge"><line x1="1165" y1="120" x2="1165" y2="235"/></g>
-              <g class="edge"><line x1="1165" y1="295" x2="1165" y2="410"/></g>
-              <g class="node" data-node="camera"><rect x="30" y="70" rx="20" ry="20" width="120" height="100"></rect><text x="90" y="115" text-anchor="middle">Kamera</text></g>
-              <g class="node" data-node="perception"><rect x="340" y="55" rx="20" ry="20" width="160" height="130"></rect><text x="420" y="110" text-anchor="middle">Perception</text><text x="420" y="138" text-anchor="middle">Node</text></g>
-              <g class="node" data-node="localization"><rect x="690" y="55" rx="20" ry="20" width="160" height="130"></rect><text x="770" y="110" text-anchor="middle">Localization</text><text x="770" y="138" text-anchor="middle">Node</text></g>
-              <g class="node" data-node="tracking"><rect x="1040" y="55" rx="20" ry="20" width="180" height="130"></rect><text x="1130" y="110" text-anchor="middle">Tracking</text><text x="1130" y="138" text-anchor="middle">Node</text></g>
-              <g class="node" data-node="parceltrack"><rect x="1040" y="235" rx="20" ry="20" width="250" height="60"></rect><text x="1165" y="271" text-anchor="middle">Parcel Track Node</text></g>
-              <g class="node" data-node="mission"><rect x="1040" y="410" rx="20" ry="20" width="250" height="60"></rect><text x="1165" y="446" text-anchor="middle">Mission Node</text></g>
-            </svg>
-          </div>
-          <div class="detail"><h3 id="diagramTitle">Kliknij moduł</h3><p id="diagramDesc">Opis pojawi się tutaj.</p></div>
-        </div>
+      <section id="modes" class="section panel">
+        <h2>Tryby unified</h2>
+        <p>Launcher <code>../launch/unified_system.launch.py</code> przełącza cały system między trzema trybami.</p>
+        <table>
+          <thead><tr><th>Tryb</th><th>Co uruchamia</th><th>Kiedy używać</th></tr></thead>
+          <tbody>
+            <tr><td><code>modern</code></td><td>pełny nowoczesny pipeline + depth + visual SLAM + debug</td><td>Domyślne uruchomienie systemu.</td></tr>
+            <tr><td><code>legacy</code></td><td>legacy detector + adapter + nowy <code>mission_node</code> i <code>control_node</code></td><td>Integracja ze starym źródłem danych.</td></tr>
+            <tr><td><code>hybrid</code></td><td>pełny nowoczesny pipeline plus legacy detector jako dodatkowe źródło <code>Detection2D</code></td><td>Strojenie i migracja krok po kroku.</td></tr>
+          </tbody>
+        </table>
+        <pre><code>ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid with_legacy_camera:=true
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy with_unitree_bridges:=true</code></pre>
       </section>
 
-      <section id="files" class="section">
-        <h2>Pliki repozytorium</h2>
-        <div class="file-buttons">
-          <a class="btn primary" href="../README.md" target="_blank" rel="noopener">README.md</a>
+      <section id="standalone" class="section panel">
+        <h2>Standalone</h2>
+        <p>Polecenia standalone wykonuj z katalogu pakietu <code>ros2_ws/src/g1_light_tracking/</code>.</p>
+        <pre><code>python3 -m g1_light_tracking.standalone.cli_app --camera 0 --model yolov8n.pt --profile full_logistics
+python3 -m g1_light_tracking.standalone.gui_app --camera 0 --model yolov8n.pt --profile debug_perception</code></pre>
+        <p>Dostępne profile z katalogu <code>../profiles/</code>:</p>
+        <ul>
+          <li><code>full_logistics</code></li>
+          <li><code>debug_perception</code></li>
+          <li><code>light_only</code></li>
+          <li><code>marker_only</code></li>
+          <li><code>qr_only</code></li>
+        </ul>
+      </section>
+
+      <section id="deps" class="section panel">
+        <h2>Zależności i build</h2>
+        <p>Instalacja zależności pythonowych z katalogu pakietu <code>ros2_ws/src/g1_light_tracking/</code>:</p>
+        <pre><code>python3 -m pip install -r requirements-ros-python.txt
+python3 -m pip install -r requirements-standalone.txt
+python3 -m pip install -r requirements-compat.txt
+sudo apt install libzbar0</code></pre>
+        <p>Build workspace z katalogu <code>ros2_ws/</code>:</p>
+        <pre><code>colcon build --packages-select g1_light_tracking
+source install/setup.bash</code></pre>
+      </section>
+
+      <section id="files" class="section panel">
+        <h2>Najważniejsze pliki</h2>
+        <div class="link-list">
+          <a class="btn primary" href="../README.md" target="_blank" rel="noopener">README pakietu</a>
           <a class="btn" href="../package.xml" target="_blank" rel="noopener">package.xml</a>
           <a class="btn" href="../CMakeLists.txt" target="_blank" rel="noopener">CMakeLists.txt</a>
           <a class="btn" href="../setup.py" target="_blank" rel="noopener">setup.py</a>
-          <a class="btn" href="../VERSION" target="_blank" rel="noopener">VERSION</a>
+          <a class="btn" href="architecture.md" target="_blank" rel="noopener">architecture.md</a>
+          <a class="btn ok" href="../launch/unified_system.launch.py" target="_blank" rel="noopener">launch/unified_system.launch.py</a>
+          <a class="btn ok" href="../launch/prod.launch.py" target="_blank" rel="noopener">launch/prod.launch.py</a>
+          <a class="btn ok" href="../config/tracking.yaml" target="_blank" rel="noopener">config/tracking.yaml</a>
+          <a class="btn ok" href="../config/legacy_adapter.yaml" target="_blank" rel="noopener">config/legacy_adapter.yaml</a>
           <a class="btn ok" href="../g1_light_tracking/nodes/tracking_node.py" target="_blank" rel="noopener">tracking_node.py</a>
-          <a class="btn ok" href="../g1_light_tracking/utils/motion_compensation.py" target="_blank" rel="noopener">motion_compensation.py</a>
-          <a class="btn ok" href="../g1_light_tracking/nodes/topdown_odom_viewer_node.py" target="_blank" rel="noopener">topdown_odom_viewer_node.py</a>
-          <a class="btn ok" href="../g1_light_tracking/nodes/visual_slam_node.py" target="_blank" rel="noopener">visual_slam_node.py</a>
-          <a class="btn ok" href="../g1_light_tracking/nodes/depth_mapper_node.py" target="_blank" rel="noopener">depth_mapper_node.py</a>
-          <a class="btn ok" href="../g1_light_tracking/nodes/localization_node.py" target="_blank" rel="noopener">localization_node.py</a>
-          <a class="btn ok" href="../g1_light_tracking/nodes/control_node.py" target="_blank" rel="noopener">control_node.py</a>
-          <a class="btn warn" href="../config/tracking.yaml" target="_blank" rel="noopener">config/tracking.yaml</a>
-          <a class="btn warn" href="../config/topdown_odom.yaml" target="_blank" rel="noopener">config/topdown_odom.yaml</a>
-          <a class="btn warn" href="../config/visual_slam.yaml" target="_blank" rel="noopener">config/visual_slam.yaml</a>
-          <a class="btn warn" href="../config/depth_mapper.yaml" target="_blank" rel="noopener">config/depth_mapper.yaml</a>
-          <a class="btn warn" href="../config/localization.yaml" target="_blank" rel="noopener">config/localization.yaml</a>
-          <a class="btn warn" href="../config/control.yaml" target="_blank" rel="noopener">config/control.yaml</a>
+          <a class="btn ok" href="../g1_light_tracking/nodes/mission_node.py" target="_blank" rel="noopener">mission_node.py</a>
+          <a class="btn ok" href="../g1_light_tracking/legacy_detection_adapter_node.py" target="_blank" rel="noopener">legacy_detection_adapter_node.py</a>
         </div>
       </section>
 
-      <section id="dependencies" class="section">
-        <h2>Zależności</h2>
-        <pre><code>pip install -r requirements-standalone.txt
-pip install -r requirements-ros-python.txt
-sudo apt install libzbar0</code></pre>
-      </section>
-
-      <section id="versioning" class="section">
+      <section id="versioning" class="section panel">
         <h2>Wersjonowanie</h2>
-        <pre><code>bash scripts/install_git_hooks.sh</code></pre>
-        <p class="muted">Hook pre-commit zwiększa patch wersji przy każdym commicie.</p>
+        <p>Hook wersjonowania można zainstalować z trzech poziomów katalogów:</p>
+        <pre><code># z katalogu głównego repo
+bash install_git_hooks.sh
+
+# z katalogu ros2_ws/
+bash install_git_hooks.sh
+
+# z katalogu ros2_ws/src/g1_light_tracking/
+bash scripts/install_git_hooks.sh</code></pre>
+        <p class="muted">
+          Każdy wariant instaluje hook <code>pre-commit</code>, który uruchamia <code>scripts/version_bump.py</code>
+          i aktualizuje <code>VERSION</code>, <code>setup.py</code> oraz <code>package.xml</code>.
+        </p>
       </section>
     </main>
   </div>
 
-  <footer><p>Dokumentacja pakietu jest utrzymywana w katalogu <code>src/g1_light_tracking/docs/</code>.</p></footer>
+  <footer>
+    Dokumentacja HTML jest utrzymywana w katalogu <code>ros2_ws/src/g1_light_tracking/docs/</code>.
+  </footer>
 </div>
 
 <script>
 const tabButtons = document.querySelectorAll('.tab-button');
-const tabs = document.querySelectorAll('.section');
-tabButtons.forEach(btn => btn.addEventListener('click', () => {
-  const name = btn.dataset.tab;
-  tabButtons.forEach(b => b.classList.toggle('active', b === btn));
-  tabs.forEach(tab => tab.classList.toggle('active', tab.id === name));
-}));
+const sections = document.querySelectorAll('.section');
 
-const seq = {
-  "ros-full": ["$ cd ../../ && colcon build && source install/setup.bash && ros2 launch g1_light_tracking prod.launch.py","","Pełny pipeline ROS 2 z trackingiem, parcel trackingiem i misją."],
-  "ros-topdown": ["$ cd ../../ && source install/setup.bash && ros2 launch g1_light_tracking topdown_odom.launch.py","","Top-down z /odom, TF, siatką metryczną i nakładaniem obiektów."],
-  "standalone-cli": ["$ python3 -m g1_light_tracking.standalone.cli_app --camera 0 --model yolov8n.pt --profile full_logistics"],
-  "standalone-gui": ["$ python3 -m g1_light_tracking.standalone.gui_app --camera 0 --model yolov8n.pt --profile debug_perception"]
-};
-const consoleEl = document.getElementById('sequenceConsole');
-function renderSequence(key){
-  consoleEl.innerHTML = '';
-  (seq[key] || ['Brak danych']).forEach(line => {
-    const d = document.createElement('div');
-    d.className = 'console-line';
-    d.textContent = line;
-    consoleEl.appendChild(d);
-  });
-}
-document.querySelectorAll('[data-seq]').forEach(btn => btn.addEventListener('click', () => renderSequence(btn.dataset.seq)));
-renderSequence('ros-full');
-
-const moduleDetails = {
-  camera: {title:"Kamera", desc:"Źródło obrazu dla percepcji i pośrednio dla GMC."},
-  perception: {title:"Perception Node", desc:"Wykrywa obiekty 2D i markery."},
-  localization: {title:"Localization Node", desc:"Uzupełnia detekcje o pozycję 3D."},
-  tracking: {title:"Tracking Node", desc:"Tracking, Kalman, filtracja FP i GMC z optical flow / homografią."},
-  parceltrack: {title:"Parcel Track Node", desc:"Kojarzy QR z kartonem i buduje ParcelTrack."},
-  mission: {title:"Mission Node", desc:"Podejmuje decyzje wysokiego poziomu."}
-};
-document.querySelectorAll('.node').forEach(node => {
-  node.addEventListener('click', () => {
-    document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
-    node.classList.add('active');
-    const d = moduleDetails[node.dataset.node];
-    document.getElementById('diagramTitle').textContent = d.title;
-    document.getElementById('diagramDesc').textContent = d.desc;
+tabButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    tabButtons.forEach(b => b.classList.toggle('active', b === btn));
+    sections.forEach(section => section.classList.toggle('active', section.id === tab));
   });
 });
+
+const sequences = {
+  build: [
+    '$ cd ros2_ws',
+    '$ colcon build --packages-select g1_light_tracking',
+    '$ source install/setup.bash',
+    '',
+    'Build i aktywacja środowiska dla pakietu.'
+  ],
+  prod: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking prod.launch.py',
+    '',
+    'Pełny nowoczesny pipeline.'
+  ],
+  'unified-modern': [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=modern',
+    '',
+    'Zunifikowany launcher w trybie nowoczesnym.'
+  ],
+  'unified-legacy': [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy',
+    '',
+    'Legacy detector + adapter + nowa misja i sterowanie.'
+  ],
+  'unified-hybrid': [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid with_legacy_camera:=true',
+    '',
+    'Nowoczesny pipeline plus legacy jako dodatkowe źródło Detection2D.'
+  ],
+  'legacy-stack': [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py',
+    '',
+    'Pełny zachowany stack legacy.'
+  ],
+  'legacy-csv': [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py csv_file:=/pelna/sciezka/do/detekcji.csv playback_rate:=1.0 loop:=true',
+    '',
+    'Replay CSV w środowisku turtlesim.'
+  ],
+  bridge: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking legacy_modern_mission_bridge.launch.py',
+    '',
+    'Minimalny most między starą percepcją a nową misją.'
+  ],
+  topdown: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking topdown_odom.launch.py',
+    '',
+    'Top-down i diagnostyka odometrii.'
+  ]
+};
+
+const consoleEl = document.getElementById('sequenceConsole');
+function renderSequence(key) {
+  consoleEl.innerHTML = '';
+  (sequences[key] || ['Brak danych']).forEach(line => {
+    const div = document.createElement('div');
+    div.className = 'console-line';
+    div.textContent = line;
+    consoleEl.appendChild(div);
+  });
+}
+
+document.querySelectorAll('[data-seq]').forEach(btn => {
+  btn.addEventListener('click', () => renderSequence(btn.dataset.seq));
+});
+
+renderSequence('build');
 </script>
 </body>
 </html>

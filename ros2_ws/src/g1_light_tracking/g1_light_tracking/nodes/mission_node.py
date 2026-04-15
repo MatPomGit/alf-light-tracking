@@ -56,6 +56,8 @@ class MissionNode(Node):
         self.state_pub = self.create_publisher(MissionState, self.get_parameter('mission_state_topic').value, 20)
         self.parcel_pub = self.create_publisher(ParcelInfo, self.get_parameter('parcel_info_topic').value, 20)
 
+        # Mission subscribes both to raw tracked objects and parcel-level aggregates so
+        # it can operate during partial migration, even if parcel binding is incomplete.
         self.create_subscription(TrackedTarget, self.get_parameter('tracked_topic').value, self.on_tracked, 50)
         self.create_subscription(ParcelTrack, self.get_parameter('parcel_track_topic').value, self.on_parcel_track, 20)
 
@@ -81,6 +83,8 @@ class MissionNode(Node):
             self.parcel_pub.publish(p)
 
     def tick(self):
+        # The timer performs a full policy update: purge stale observations, select the
+        # best candidates, advance the finite-state machine and publish fresh outputs.
         self.cleanup_stale()
         best_parcel = self.select_best_parcel_track()
         light = self.select_first_target('light_spot')
@@ -103,6 +107,9 @@ class MissionNode(Node):
             self.state_since = time.time()
 
     def advance_state(self, parcel, light, shelf, person, planar):
+        # This finite-state machine is deliberately compact and readable. The project uses
+        # it as the canonical place for mission policy rather than distributing decisions
+        # across many nodes.
         # search -> approach_person -> receive_parcel -> verify_qr -> navigate -> align -> drop
         if self.current_state == 'search':
             if parcel is not None:
@@ -193,6 +200,8 @@ class MissionNode(Node):
         return mission
 
     def select_best_parcel_track(self):
+        # Parcel ranking prefers continuity first and then semantic quality signals such as
+        # QR identification and confirmation. That reduces target thrashing frame-to-frame.
         if not self.latest_parcel_tracks:
             return None
         candidates = list(self.latest_parcel_tracks.values())

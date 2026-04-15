@@ -50,6 +50,8 @@ def _finite_or(value: float, fallback: float) -> float:
 
 
 def _compute_half_extent(area: float, radius: float) -> float:
+    # Old payloads sometimes expose only area or radius. We turn either representation
+    # into a conservative square bbox so downstream consumers always get image extents.
     if math.isfinite(radius) and radius > 0.0:
         return max(radius, 2.0)
     if math.isfinite(area) and area > 0.0:
@@ -58,6 +60,8 @@ def _compute_half_extent(area: float, radius: float) -> float:
 
 
 def parse_legacy_payload(data: str) -> dict[str, Any]:
+    # Parsing is isolated in its own helper to keep validation reusable in tests and in
+    # the adapter node callback.
     payload = json.loads(data)
     if not isinstance(payload, dict):
         raise ValueError('Legacy detection payload must be a JSON object.')
@@ -86,6 +90,8 @@ def normalize_legacy_payload(
 
     center_u = _to_float(payload.get('x'))
     center_v = _to_float(payload.get('y'))
+    # Several historical producers used x/y directly for the image center. We accept
+    # that layout first and then fall back to newer field names when available.
     if not math.isfinite(center_u):
         center_u = _to_float(payload.get('center_u'), camera_cx)
     if not math.isfinite(center_v):
@@ -127,6 +133,8 @@ def normalize_legacy_payload(
     position_x = _finite_or(x_world, 0.0)
     position_y = _finite_or(y_world, _finite_or(y_local, 0.0))
     if not math.isfinite(x_world):
+        # A coarse pinhole conversion is better than leaving the target at zero because
+        # mission/control only need a roughly signed lateral offset during migration.
         # Convert pixel offset into a coarse lateral estimate in camera frame.
         position_x = (center_u - camera_cx) * position_z / max(camera_fx, 1e-6)
 

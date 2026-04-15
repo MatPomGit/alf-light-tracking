@@ -41,6 +41,8 @@ class ControlNode(Node):
         self.latest_depth_hint = None
 
         self.pub = self.create_publisher(Twist, self.get_parameter('cmd_vel_topic').value, 20)
+        # Control consumes the higher-level mission target instead of raw detections so
+        # motion logic stays decoupled from perception-specific heuristics.
         self.create_subscription(MissionTarget, self.get_parameter('mission_topic').value, self.cb, 20)
         self.create_subscription(DepthNavHint, self.get_parameter('depth_hint_topic').value, self.depth_cb, 20)
 
@@ -48,6 +50,8 @@ class ControlNode(Node):
         self.latest_depth_hint = msg
 
     def apply_depth_navigation(self, twist: Twist):
+        # Depth hints act as a lightweight safety layer, not as a full path planner. They
+        # only scale or veto the command computed from the mission target.
         hint = self.latest_depth_hint
         if not self.use_depth_navigation or hint is None or not hint.depth_available:
             return twist
@@ -62,6 +66,8 @@ class ControlNode(Node):
         return twist
 
     def cb(self, mission: MissionTarget):
+        # The reference policy is intentionally simple: align first in image space, then
+        # move forward only when the target is still farther than the stop threshold.
         twist = Twist()
         if mission.mode in ('idle', 'handover_ready'):
             self.pub.publish(twist)

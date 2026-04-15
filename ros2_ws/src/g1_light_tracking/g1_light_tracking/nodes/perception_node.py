@@ -68,6 +68,8 @@ class PerceptionNode(Node):
         self.create_subscription(Image, self.get_parameter('image_topic').value, self.image_cb, 10)
         self.create_subscription(CameraInfo, self.get_parameter('camera_info_topic').value, self.camera_info_cb, 10)
 
+        # Optional backends are loaded lazily so the node can still run in lighter
+        # environments where only QR, AprilTag or light-spot detection is needed.
         self.model = None
         if YOLO is not None:
             try:
@@ -88,9 +90,13 @@ class PerceptionNode(Node):
         self.last_camera_info = msg
 
     def image_cb(self, msg: Image):
+        # The node publishes one message per detection instead of a batch array, because
+        # the rest of the pipeline is written around independent observations with stamps.
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         detections: List[Detection2D] = []
 
+        # Light spot runs first because it is cheap and provides a robust fallback even
+        # when heavier detectors are unavailable on the target machine.
         if self.enable_light_spot:
             det = self.detect_light_spot(frame, msg)
             if det:
@@ -111,6 +117,8 @@ class PerceptionNode(Node):
         self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug, encoding='bgr8'))
 
     def build_det(self, image_msg: Image, target_type: str, class_name: str = ''):
+        # A single factory keeps headers and semantic fields consistent across all
+        # detection backends. That reduces subtle schema drift between detectors.
         det = Detection2D()
         det.stamp = image_msg.header.stamp
         det.frame_id = image_msg.header.frame_id
@@ -124,6 +132,8 @@ class PerceptionNode(Node):
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return None
+        # The brightest connected component is chosen intentionally. For this use case
+        # the control loop cares more about the dominant beacon than about every hotspot.
         contour = max(contours, key=cv2.contourArea)
         if cv2.contourArea(contour) < 20.0:
             return None
