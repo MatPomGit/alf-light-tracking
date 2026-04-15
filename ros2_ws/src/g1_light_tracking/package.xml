@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>g1_light_tracking</name>
-  <version>0.4.2</version>
+  <version>0.4.3</version>
   <description>ROS 2 hybrid package with Python nodes for perception, tracking, depth-aware navigation, top-down diagnostics and visual SLAM.</description>
   <maintainer email="matpomianek@gmail.com">Mateusz Pomianek</maintainer>
   <license>Apache-2.0</license>
