@@ -5,6 +5,12 @@ string state
 string previous_state
 string reason
 
+string active_parcel_box_track_id
+string active_shipment_id
+bool has_active_parcel
+bool has_drop_target
+bool is_terminal
+
 string track_id
 string parcel_box_track_id
 string qr_track_id

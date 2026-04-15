@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# ROS 2 / colcon
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# Runtime outputs
+*.log
+*.bag
+*.db3
+calibration/*.yaml
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 from pathlib import Path
 
 package_name = 'g1_light_tracking'
-version = Path('VERSION').read_text(encoding='utf-8').strip() if Path('VERSION').exists() else '0.4.0'
+version = Path('VERSION').read_text(encoding='utf-8').strip() if Path('VERSION').exists() else '0.4.3'
 
 setup(
     name=package_name,

@@ -253,6 +253,8 @@ class MissionNode(Node):
 
     def build_state_msg(self, parcel, light, shelf, person, planar) -> MissionState:
         msg = MissionState()
+        msg.stamp = self.get_clock().now().to_msg()
+        msg.frame_id = parcel.frame_id if parcel is not None else 'base_link'
         msg.state = self.current_state
         msg.previous_state = self.previous_state
         msg.active_parcel_box_track_id = self.active_parcel_box_track_id
@@ -261,6 +263,31 @@ class MissionNode(Node):
         msg.has_drop_target = (light is not None) or (planar is not None) or (shelf is not None)
         msg.is_terminal = (self.current_state == 'drop')
         msg.reason = self.describe_reason(parcel, light, shelf, person, planar)
+
+        if parcel is not None:
+            msg.track_id = parcel.parcel_box_track_id
+            msg.parcel_box_track_id = parcel.parcel_box_track_id
+            msg.qr_track_id = parcel.qr_track_id
+            msg.shipment_id = parcel.shipment_id
+            msg.pickup_zone = parcel.pickup_zone
+            msg.dropoff_zone = parcel.dropoff_zone
+            msg.parcel_type = parcel.parcel_type
+            msg.mass_kg = float(parcel.mass_kg)
+            msg.raw_payload = parcel.raw_payload
+            msg.has_qr = bool(parcel.has_qr)
+            msg.logistics_state = parcel.logistics_state
+            msg.is_confirmed = bool(parcel.is_confirmed)
+            msg.confidence = float(parcel.confidence)
+            msg.active_target_type = 'parcel_track'
+            msg.active_target_mode = self.current_state
+        else:
+            active_target = light or shelf or person or planar
+            if active_target is not None:
+                msg.track_id = active_target.track_id
+                msg.confidence = float(active_target.confidence)
+                msg.active_target_type = active_target.target_type
+                msg.active_target_mode = self.current_state
+
         return msg
 
     def describe_reason(self, parcel, light, shelf, person, planar) -> str:

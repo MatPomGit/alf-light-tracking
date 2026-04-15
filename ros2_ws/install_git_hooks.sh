@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
@@ -7,11 +7,11 @@ if [ -z "$REPO_ROOT" ]; then
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
 
-VERSION_BUMP="$SCRIPT_DIR/src/g1_light_tracking/scripts/version_bump.py"
 PKG_ROOT="$SCRIPT_DIR/src/g1_light_tracking"
+VERSION_BUMP="$PKG_ROOT/scripts/version_bump.py"
 
 if [ ! -f "$VERSION_BUMP" ]; then
-  echo "[git-hooks] Nie znaleziono: $VERSION_BUMP" >&2
+  echo "[git-hooks] Missing file: $VERSION_BUMP" >&2
   exit 1
 fi
 
@@ -21,7 +21,7 @@ mkdir -p "$HOOKS_DIR"
 
 cat > "$HOOK_FILE" <<EOF
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 python3 "$VERSION_BUMP"
 git add "$PKG_ROOT/VERSION" \
         "$PKG_ROOT/setup.py" \
@@ -29,5 +29,4 @@ git add "$PKG_ROOT/VERSION" \
 EOF
 
 chmod +x "$HOOK_FILE"
-echo "[git-hooks] Zainstalowano hook pre-commit: $HOOK_FILE"
-echo "[git-hooks] Używany version_bump.py: $VERSION_BUMP"
+echo "[git-hooks] Installed pre-commit hook: $HOOK_FILE"
