@@ -91,6 +91,21 @@ Konfiguracja node'ów znajduje się w `config/`. Parametry są rozdzielone per m
 - `control.yaml` — prędkości i zachowanie sterowania,
 - `depth_mapper.yaml` — progi bezpieczeństwa oparte o głębię.
 
+
+## Warstwa kompatybilności legacy
+
+Po scaleniu ze starszym repozytorium pakiet zawiera także tor zgodności wstecznej.
+Node `legacy_detection_adapter_node` odbiera historyczne JSON-y z `/light_tracking/detection_json`
+i publikuje ich odpowiednik jako `Detection2D` oraz `TrackedTarget`. Dzięki temu starsze
+źródła danych mogą zasilać nową logikę misji i nowe narzędzia debugujące bez przepisywania
+całego PoC naraz.
+
+Najważniejsze pliki tej warstwy:
+- `g1_light_tracking/legacy_detection_adapter_node.py`
+- `g1_light_tracking/utils/legacy_adapter.py`
+- `config/legacy_adapter.yaml`
+- `launch/legacy_modern_mission_bridge.launch.py`
+
 ## Build
 
 ```bash
@@ -168,3 +183,16 @@ Lub z katalogu `ros2_ws/`:
 ```bash
 bash install_git_hooks.sh
 ```
+
+
+## Scalony wariant kompatybilności
+
+Repo zawiera teraz także zachowaną warstwę kompatybilności ze starszym projektem `j2s-light_tracking-ros2-g1-ros2-light-tracking`.
+Starszy pipeline nie zastępuje obecnych node’ów. Został dołożony obok nich jako osobny zestaw komponentów:
+
+- legacy launcher: `ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py`
+- turtlesim / CSV replay: `ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py csv_file:=<plik.csv>`
+- legacy node’y: `d435i_node`, `light_spot_detector_node`, `g1_light_follower_node`, `unitree_cmd_vel_bridge_node`, `arm_skill_bridge_node`, `csv_detection_replay_node`, `turtlesim_cmd_vel_bridge_node`
+- konfiguracje legacy: `config/legacy_light_perception.yaml`, `config/legacy_light_control.yaml`, `config/legacy_bridge.yaml`
+
+Podejście jest celowo zachowawcze: nowy pipeline ROS 2 pozostaje bazą docelową, a starszy projekt służy jako warstwa integracyjna, adaptery sprzętowe i środowisko demonstracyjne.

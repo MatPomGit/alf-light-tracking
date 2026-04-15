@@ -53,3 +53,16 @@ Dokumentacja HTML znajduje się w:
 Dodatkowo opis architektury i modułów znajdziesz w:
 - `src/g1_light_tracking/docs/architecture.md`
 - `src/g1_light_tracking/README.md`
+
+
+## Scalony wariant kompatybilności
+
+Repo zawiera teraz także zachowaną warstwę kompatybilności ze starszym projektem `j2s-light_tracking-ros2-g1-ros2-light-tracking`.
+Starszy pipeline nie zastępuje obecnych node’ów. Został dołożony obok nich jako osobny zestaw komponentów:
+
+- legacy launcher: `ros2 launch g1_light_tracking legacy_light_tracking_stack.launch.py`
+- turtlesim / CSV replay: `ros2 launch g1_light_tracking legacy_light_tracking_turtlesim.launch.py csv_file:=<plik.csv>`
+- legacy node’y: `d435i_node`, `light_spot_detector_node`, `g1_light_follower_node`, `unitree_cmd_vel_bridge_node`, `arm_skill_bridge_node`, `csv_detection_replay_node`, `turtlesim_cmd_vel_bridge_node`
+- konfiguracje legacy: `config/legacy_light_perception.yaml`, `config/legacy_light_control.yaml`, `config/legacy_bridge.yaml`
+
+Podejście jest celowo zachowawcze: nowy pipeline ROS 2 pozostaje bazą docelową, a starszy projekt służy jako warstwa integracyjna, adaptery sprzętowe i środowisko demonstracyjne.

@@ -45,6 +45,14 @@ install(PROGRAMS
   scripts/depth_mapper_node
   scripts/visual_slam_node
   scripts/topdown_odom_viewer_node
+  scripts/d435i_node
+  scripts/light_spot_detector_node
+  scripts/g1_light_follower_node
+  scripts/unitree_cmd_vel_bridge_node
+  scripts/arm_skill_bridge_node
+  scripts/csv_detection_replay_node
+  scripts/legacy_detection_adapter_node
+  scripts/turtlesim_cmd_vel_bridge_node
   scripts/standalone_cli
   scripts/standalone_gui
   scripts/version_bump.py

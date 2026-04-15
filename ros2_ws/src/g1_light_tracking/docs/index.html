@@ -79,7 +79,6 @@
         <div class="tablist">
           <button class="tab-button active" data-tab="overview">Przegląd</button>
           <button class="tab-button" data-tab="repo_paths">Ścieżki repo</button>
-          <button class="tab-button" data-tab="merge">Porównanie i scalenie</button>
           <button class="tab-button" data-tab="architecture">Architektura</button>
           <button class="tab-button" data-tab="ros2">ROS 2 / node-y / msg</button>
           <button class="tab-button" data-tab="graphs">Grafy zależności</button>
@@ -90,6 +89,7 @@
           <button class="tab-button" data-tab="diagram">Diagram modułów</button>
           <button class="tab-button" data-tab="files">Pliki repozytorium</button>
           <button class="tab-button" data-tab="dependencies">Zależności</button>
+          <button class="tab-button" data-tab="legacy_bridge">Legacy bridge</button>
           <button class="tab-button" data-tab="versioning">Wersjonowanie</button>
         </div>
       </div>
@@ -105,79 +105,6 @@
         </p>
         <p class="muted">
           Wszystkie przyciski otwierające pliki w tej dokumentacji odnoszą się do plików znajdujących się względem katalogu pakietu.
-        </p>
-      </section>
-
-
-      <section id="merge" class="section">
-        <h2>Różnice względem załączonego projektu i plan scalenia</h2>
-        <p>
-          Ta sekcja porównuje aktualny pakiet <code>ros2_ws/src/g1_light_tracking/</code> z załączonym projektem
-          <code>j2s-light_tracking-ros2-g1-ros2-light-tracking/ros2/g1-ros2-light-tracking/src/g1_light_tracking/</code>.
-          Kluczowy wniosek jest prosty: <strong>aktualny pakiet powinien pozostać bazą docelową</strong>, a elementy z załączonego repo należy
-          dołączać jako adaptery i dodatkowe launchery. Nie należy scalać tych projektów przez proste nadpisanie plików, bo załączony projekt
-          ma prostszą architekturę, używa JSON-owych komunikatów i innego modelu builda.
-        </p>
-
-        <h3>Najważniejsze różnice architektoniczne</h3>
-        <table>
-          <thead><tr><th>Obszar</th><th>Aktualny pakiet</th><th>Załączony projekt</th><th>Wniosek integracyjny</th></tr></thead>
-          <tbody>
-            <tr><td>System build</td><td><code>ament_cmake</code> + <code>ament_cmake_python</code> + generowanie własnych <code>.msg</code></td><td><code>ament_python</code>, bez własnych wiadomości ROS 2</td><td>Zachować obecny model builda. Nie przełączać pakietu na <code>ament_python</code>.</td></tr>
-            <tr><td>Model danych</td><td>Jawne kontrakty: <code>Detection2D</code>, <code>LocalizedTarget</code>, <code>TrackedTarget</code>, <code>ParcelTrack</code>, <code>MissionState</code></td><td>Jeden strumień <code>std_msgs/String</code> z JSON-em na <code>/light_tracking/detection_json</code></td><td>Dodać warstwę kompatybilności JSON↔ROS2 msg zamiast psuć obecny kontrakt.</td></tr>
-            <tr><td>Architektura wykonawcza</td><td>Pipeline etapowy: percepcja → lokalizacja → tracking → parcel → mission → control</td><td>Mały PoC: kamera / replay CSV → detektor → follower → bridge</td><td>Traktować załączony kod jako zestaw wejść i adapterów brzegowych.</td></tr>
-            <tr><td>Sprzęt i integracje</td><td>Pakiet ogólny, diagnostyczny, z depth mapperem i visual SLAM</td><td>Integracje specyficzne dla Unitree: <code>unitree_cmd_vel_bridge_node</code>, <code>arm_skill_bridge_node</code>, <code>d435i_node</code>, tryb <code>turtlesim</code></td><td>Wydzielić integracje sprzętowe do osobnych node'ów i launcherów opcjonalnych.</td></tr>
-            <tr><td>Launchery</td><td><code>prod.launch.py</code>, <code>topdown_odom.launch.py</code></td><td><code>light_tracking_stack.launch.py</code>, <code>light_tracking_turtlesim.launch.py</code></td><td>Dodać nowe launchery kompatybilnościowe, ale nie zastępować istniejących.</td></tr>
-            <tr><td>Konfiguracja</td><td>Wiele plików YAML rozdzielonych per warstwa</td><td>Tylko <code>perception.yaml</code>, <code>control.yaml</code>, <code>bridge.yaml</code></td><td>Przenieść brakujące parametry do nowych plików konfiguracyjnych adapterów.</td></tr>
-            <tr><td>Zakres funkcjonalny</td><td>Śledzenie wielu obiektów, logika misji, wiązanie QR z kartonem, wizualizacja, depth, VO/SLAM</td><td>Śledzenie plamki światła, follower, replay z CSV, mosty do robota i turtlesim</td><td>Zintegrować funkcje niszowe z PoC jako tryby testowe i integracyjne.</td></tr>
-          </tbody>
-        </table>
-
-        <h3>Mapowanie komponentów z projektu załączonego do aktualnego pakietu</h3>
-        <table>
-          <thead><tr><th>Plik / moduł z załączonego projektu</th><th>Rola</th><th>Docelowe miejsce po scaleniu</th><th>Sposób scalenia</th></tr></thead>
-          <tbody>
-            <tr><td><code>d435i_node.py</code></td><td>Źródło obrazu i głębi</td><td><code>g1_light_tracking/nodes/d435i_node.py</code> lub osobny pakiet drivers</td><td>Przenieść jako opcjonalny driver wejściowy. Nie mieszać z <code>localization_node</code>.</td></tr>
-            <tr><td><code>light_spot_detector_node.py</code></td><td>Detekcja plamki i publikacja JSON</td><td><code>g1_light_tracking/nodes/light_spot_detector_node.py</code> lub adapter percepcji</td><td>Zachować algorytm, ale dodać publikację do <code>Detection2D</code> albo most JSON→msg.</td></tr>
-            <tr><td><code>g1_light_follower_node.py</code></td><td>Prosty follower po JSON</td><td><code>g1_light_tracking/nodes/g1_light_follower_node.py</code> lub tryb zgodności</td><td>Nie zastępować <code>control_node</code>. Zachować jako lekki kontroler testowy.</td></tr>
-            <tr><td><code>csv_detection_replay_node.py</code></td><td>Replay detekcji z CSV</td><td><code>g1_light_tracking/nodes/csv_detection_replay_node.py</code></td><td>Dodać jako narzędzie testowe i wejście do testów integracyjnych.</td></tr>
-            <tr><td><code>turtlesim_cmd_vel_bridge_node.py</code></td><td>Most testowy do turtlesim</td><td><code>g1_light_tracking/nodes/turtlesim_cmd_vel_bridge_node.py</code></td><td>Dodać bez zmian funkcjonalnych jako adapter demonstracyjny.</td></tr>
-            <tr><td><code>unitree_cmd_vel_bridge_node.py</code></td><td>Mapowanie <code>/cmd_vel</code> na API Unitree</td><td><code>g1_light_tracking/nodes/unitree_cmd_vel_bridge_node.py</code></td><td>Dodać jako adapter sprzętowy z warunkowym uruchamianiem zależności Unitree.</td></tr>
-            <tr><td><code>arm_skill_bridge_node.py</code>, <code>arm_skill_controller.py</code></td><td>Most usług pick/place</td><td><code>g1_light_tracking/nodes/arm_skill_bridge_node.py</code> + <code>utils/</code></td><td>Zintegrować jako osobną ścieżkę wykonawczą sterowania manipulatorem.</td></tr>
-            <tr><td><code>vision/</code></td><td>Mały framework detekcji plamki</td><td><code>g1_light_tracking/vision/</code> albo <code>utils/vision/</code></td><td>Wydzielić jako bibliotekę pomocniczą, używaną przez percepcję i testy.</td></tr>
-            <tr><td><code>launch/light_tracking_stack.launch.py</code></td><td>Stack PoC dla robota</td><td><code>launch/unitree_light_tracking.launch.py</code></td><td>Przepisać tak, by używał nowych ścieżek i opcjonalnych node'ów.</td></tr>
-            <tr><td><code>launch/light_tracking_turtlesim.launch.py</code></td><td>Tryb replay + turtlesim</td><td><code>launch/light_tracking_turtlesim.launch.py</code></td><td>Przenieść po aktualizacji nazw executable i parametrów.</td></tr>
-            <tr><td><code>config/bridge.yaml</code></td><td>Parametry mostu Unitree</td><td><code>config/bridge.yaml</code></td><td>Dodać jako nowy plik konfiguracyjny.</td></tr>
-          </tbody>
-        </table>
-
-        <h3>Kolejne czynności potrzebne do scalenia projektów</h3>
-        <ol>
-          <li><strong>Ustalić architekturę docelową.</strong> Bazą ma być obecny pakiet, bo zawiera własne wiadomości ROS 2, pełniejszy pipeline i więcej warstw domenowych. Załączone repo należy traktować jako źródło brakujących integracji sprzętowych i trybów testowych.</li>
-          <li><strong>Zamrozić kontrakt danych.</strong> Zachować obecne typy <code>.msg</code> jako interfejs wewnętrzny systemu. Nie propagować JSON-a do środka pipeline'u. Jeżeli moduły z załączonego projektu muszą dalej publikować JSON, należy utworzyć mały node kompatybilności, np. <code>json_detection_bridge_node</code>, który będzie tłumaczył JSON na <code>Detection2D</code> lub bezpośrednio na <code>LocalizedTarget</code>.</li>
-          <li><strong>Przenieść moduły brzegowe do osobnej strefy odpowiedzialności.</strong> Node'y <code>d435i_node</code>, <code>csv_detection_replay_node</code>, <code>turtlesim_cmd_vel_bridge_node</code>, <code>unitree_cmd_vel_bridge_node</code> i <code>arm_skill_bridge_node</code> nie powinny być wpinane w środek logiki misji. To adaptery wejścia/wyjścia, więc należy je dołożyć jako opcjonalne node'y uruchamiane z dedykowanych launcherów.</li>
-          <li><strong>Scalić warstwę detekcji plamki światła.</strong> Kod z <code>vision/</code> oraz <code>light_spot_detector_node.py</code> warto przepiąć do aktualnej warstwy percepcji. Najbezpieczniejsza ścieżka to wydzielenie biblioteki <code>g1_light_tracking/vision/</code>, a następnie użycie jej w <code>perception_node.py</code> jako jednej z metod detekcji. Wariant minimalnie inwazyjny: zachować osobny node i dodać jego bridge do obecnego pipeline'u.</li>
-          <li><strong>Rozdzielić sterowanie testowe od sterowania produkcyjnego.</strong> <code>g1_light_follower_node.py</code> powinien zostać zachowany jako prosty kontroler do testów CSV/turtlesim, ale nie powinien zastępować obecnego <code>control_node.py</code>. Docelowo trzeba mieć dwa launchery: produkcyjny z <code>control_node</code> oraz testowy z <code>g1_light_follower_node</code>.</li>
-          <li><strong>Dodać brakujące pliki konfiguracji i ujednolicić parametry.</strong> Należy przenieść <code>config/bridge.yaml</code> oraz rozbić parametry z załączonego <code>perception.yaml</code> i <code>control.yaml</code> na zgodne sekcje aktualnego repo. Szczególnie ważne jest zmapowanie: <code>detection_topic</code>, <code>cmd_vel_topic</code>, progów detekcji, timeoutów i limitów prędkości.</li>
-          <li><strong>Rozszerzyć instalację pakietu.</strong> W aktualnym pakiecie trzeba dopisać nowe skrypty uruchomieniowe lub entrypointy dla adapterów z projektu załączonego. Ponieważ obecny pakiet korzysta z hybrydowego builda i instalacji zasobów przez <code>CMakeLists.txt</code> oraz wrappery w <code>scripts/</code>, należy dodać nowe executable w tym samym stylu zamiast przepisywać cały pakiet na model z <code>setup.py</code> z załączonego repo.</li>
-          <li><strong>Przepisać launchery do nowej struktury.</strong> Zamiast kopiować wprost <code>light_tracking_stack.launch.py</code>, trzeba utworzyć nowe launchery zgodne z aktualnym repo, np. <code>unitree_light_tracking.launch.py</code> i <code>light_tracking_turtlesim.launch.py</code>. Powinny one warunkowo uruchamiać mosty Unitree tylko wtedy, gdy wymagane zależności są dostępne.</li>
-          <li><strong>Uzupełnić zależności i warunki opcjonalne.</strong> Trzeba dodać do dokumentacji i ewentualnie do zależności opcjonalnych obsługę <code>std_srvs</code>, <code>turtlesim</code>, <code>unitree_api</code> i <code>unitree_hg</code>. Zależności specyficzne dla Unitree nie powinny blokować zwykłego builda pakietu na stanowisku bez robota.</li>
-          <li><strong>Dodać testy integracyjne po scaleniu.</strong> Po włączeniu adapterów trzeba dopisać testy dla trzech ścieżek: (1) CSV → JSON/bridge → follower, (2) kamera → detekcja plamki → obecny pipeline, (3) <code>/cmd_vel</code> → bridge Unitree / turtlesim. Bez tych testów łatwo zepsuć kompatybilność między prostym PoC a pełnym pipeline'em.</li>
-          <li><strong>Na końcu scalić dokumentację.</strong> README główne i dokumentacja <code>docs/</code> powinny jasno opisywać dwa tryby pracy: pełny pipeline logistyczny oraz tryb lekki / demonstracyjny dla plamki światła, CSV i integracji z Unitree.</li>
-        </ol>
-
-        <h3>Rekomendowana kolejność implementacji</h3>
-        <pre><code>1. Dodać adaptery wejścia/wyjścia: csv replay, turtlesim bridge, unitree bridge.
-2. Dodać config/bridge.yaml i launchery zgodnościowe.
-3. Dodać json_detection_bridge_node albo natywną publikację Detection2D.
-4. Przenieść vision/ i light_spot_detector_node.
-5. Zachować g1_light_follower_node jako tryb testowy.
-6. Dodać arm_skill_bridge_node jako osobną ścieżkę integracyjną.
-7. Dopisać testy integracyjne i zaktualizować README / docs.</code></pre>
-
-        <p class="muted">
-          Najbezpieczniejsza strategia to <strong>merge przez rozszerzenie</strong>, a nie merge przez zastąpienie. Obecny pakiet powinien dalej obsługiwać własny pipeline,
-          natomiast funkcje z załączonego projektu powinny wejść jako adaptery, launchery demonstracyjne i integracje specyficzne dla sprzętu Unitree.
         </p>
       </section>
 
@@ -340,6 +267,7 @@
 
       <section id="sequences" class="section">
         <h2>Sekwencje uruchamiania</h2>
+        <div class="card"><h3>Scalony wariant kompatybilności</h3><p>Repo obejmuje teraz również zachowaną warstwę kompatybilności ze starszym projektem JSON/Unitree. Jest ona uruchamiana osobnymi launcherami <code>legacy_light_tracking_stack.launch.py</code> i <code>legacy_light_tracking_turtlesim.launch.py</code>, bez naruszania obecnego pipeline'u percepcja → lokalizacja → tracking → misja.</p></div>
         <div class="actions">
           <button class="btn primary" data-seq="ros-full">Pełny pipeline ROS 2</button>
           <button class="btn ok" data-seq="ros-topdown">ROS2 /odom top-down</button>
@@ -348,6 +276,29 @@
         </div>
         <div id="sequenceConsole" class="console"></div>
       </section>
+
+      <section id="legacy_bridge" class="section">
+        <h2>Legacy bridge: JSON -&gt; Detection2D / TrackedTarget</h2>
+        <p>
+          Po scaleniu repozytoriów starsza ścieżka nadal publikuje obserwacje jako JSON na
+          <code>/light_tracking/detection_json</code>. Nowy adapter <code>legacy_detection_adapter_node</code>
+          mapuje je równolegle na:
+        </p>
+        <ul>
+          <li><code>/perception/detections</code> jako <code>Detection2D</code>,</li>
+          <li><code>/tracking/targets</code> jako przybliżony <code>TrackedTarget</code>.</li>
+        </ul>
+        <pre><code>legacy detector / csv replay
+  -> /light_tracking/detection_json (String / JSON)
+      -> legacy_detection_adapter_node
+          -> /perception/detections (Detection2D)
+          -> /tracking/targets (TrackedTarget)</code></pre>
+        <p class="muted">
+          Dzięki temu starszy pipeline może zasilać nową logikę misji oraz nowe moduły lokalizacji i trackingu,
+          bez naruszania zgodności wstecznej. Adapter jest włączony w launcherach legacy i turtlesim.
+        </p>
+      </section>
+
 
       <section id="diagram" class="section">
         <h2>Interaktywny diagram modułów</h2>
