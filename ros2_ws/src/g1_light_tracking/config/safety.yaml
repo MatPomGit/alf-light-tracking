@@ -1,0 +1,12 @@
+safety_stop_node:
+  ros__parameters:
+    input_cmd_vel_topic: /cmd_vel/raw
+    output_cmd_vel_topic: /cmd_vel
+    status_topic: /safety/estop_state
+    mission_state_topic: /mission/state
+    depth_hint_topic: /navigation/depth_hint
+    auto_estop_on_missing_mission_sec: 3.0
+    auto_estop_on_depth_obstacle: false
+    heartbeat_timeout_sec: 0.75
+    obstacle_clearance_threshold_m: 0.45
+    watchdog_publish_rate_hz: 20.0

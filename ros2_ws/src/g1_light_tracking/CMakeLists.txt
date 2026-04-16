@@ -57,6 +57,7 @@ install(PROGRAMS
   scripts/parcel_track_node
   scripts/mission_node
   scripts/control_node
+  scripts/safety_stop_node
   scripts/debug_node
   scripts/tui_monitor_node
   scripts/camera_calibration_node

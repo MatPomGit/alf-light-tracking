@@ -154,6 +154,13 @@ def generate_launch_description() -> LaunchDescription:
         ),
         Node(
             package='g1_light_tracking',
+            executable='safety_stop_node',
+            output='screen',
+            parameters=[os.path.join(config_dir, 'safety.yaml')],
+            condition=_mode_in('modern', 'legacy', 'hybrid'),
+        ),
+        Node(
+            package='g1_light_tracking',
             executable='debug_node',
             output='screen',
             condition=_mode_in('modern', 'legacy', 'hybrid'),
