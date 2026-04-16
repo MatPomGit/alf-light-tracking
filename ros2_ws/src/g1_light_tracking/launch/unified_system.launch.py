@@ -4,20 +4,26 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import (
+    AndSubstitution,
+    EqualsSubstitution,
+    LaunchConfiguration,
+    NotSubstitution,
+    OrSubstitution,
+)
 from launch_ros.actions import Node
 
 
 def _mode_is(mode_name: str):
-    # Small helper to keep mode-specific conditions readable in the node list below.
-    return IfCondition(PythonExpression(["'", LaunchConfiguration('mode'), "' == '", mode_name, "'"]))
+    # Mały helper, aby warunki trybu były czytelne i bezpieczne typowo.
+    return IfCondition(EqualsSubstitution(LaunchConfiguration('mode'), mode_name))
 
 
 def _mode_in(*mode_names: str):
-    # Used when a node is shared by several runtime modes, e.g. modern and hybrid.
-    comparisons = [f"'{name}'" for name in mode_names]
-    expr = ["'", LaunchConfiguration('mode'), "' in [", ','.join(comparisons), "]"]
-    return IfCondition(PythonExpression(expr))
+    # Wspólny warunek dla kilku trybów bez ręcznego budowania PythonExpression.
+    return IfCondition(
+        OrSubstitution(*[EqualsSubstitution(LaunchConfiguration('mode'), name) for name in mode_names])
+    )
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -58,9 +64,13 @@ def generate_launch_description() -> LaunchDescription:
         LogInfo(msg=['Launching g1_light_tracking in mode=', LaunchConfiguration('mode')]),
         LogInfo(
             condition=IfCondition(
-                PythonExpression([
-                    "'", LaunchConfiguration('mode'), "' not in ['modern','legacy','hybrid']"
-                ])
+                NotSubstitution(
+                    OrSubstitution(
+                        EqualsSubstitution(LaunchConfiguration('mode'), 'modern'),
+                        EqualsSubstitution(LaunchConfiguration('mode'), 'legacy'),
+                        EqualsSubstitution(LaunchConfiguration('mode'), 'hybrid'),
+                    )
+                )
             ),
             msg="Unsupported mode requested. Valid values: modern, legacy, hybrid.",
         ),
@@ -152,13 +162,16 @@ def generate_launch_description() -> LaunchDescription:
             executable='d435i_node',
             name='d435i_node',
             output='screen',
+            # Nie używamy tu surowego PythonExpression z LaunchConfiguration,
+            # bo wartości bool z launch arguments (np. True/False/1/0) mogą dawać błędy parsera.
             condition=IfCondition(
-                PythonExpression([
+                AndSubstitution(
                     LaunchConfiguration('with_legacy_camera'),
-                    " and '",
-                    LaunchConfiguration('mode'),
-                    "' in ['legacy','hybrid']",
-                ])
+                    OrSubstitution(
+                        EqualsSubstitution(LaunchConfiguration('mode'), 'legacy'),
+                        EqualsSubstitution(LaunchConfiguration('mode'), 'hybrid'),
+                    ),
+                )
             ),
         ),
         Node(
