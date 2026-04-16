@@ -161,7 +161,14 @@ class LocalizationNode(Node):
 
     def localize_light(self, det: Detection2D):
         t = self.base_target(det)
+        depth_xyz = self.depth_xyz_from_detection(det)
+        if depth_xyz is not None:
+            t.position.x, t.position.y, t.position.z = [float(v) for v in depth_xyz]
+            t.source_method = 'depth_light'
+            return t
+
         if self.camera_matrix is None:
+            t.source_method = 'camera_info_missing'
             return t
         xyz = pixel_to_floor_plane(det.center_u, det.center_v, self.camera_matrix, self.floor_z)
         if xyz is not None:

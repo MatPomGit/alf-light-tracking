@@ -84,7 +84,7 @@ class ControlNode(Node):
         if abs(mission.position.x) > 0.1:
             twist.angular.z = -self.angular_speed if mission.position.x > 0 else self.angular_speed
 
-        twist = self.apply_depth_navigation(twist)
+        #twist = self.apply_depth_navigation(twist)
         self.pub.publish(twist)
 
 def main(args=None):

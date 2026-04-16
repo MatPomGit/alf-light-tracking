@@ -206,8 +206,10 @@ class UnitreeCmdVelBridgeNode(Node):
 
         self._last_subscribers_log_time = now
         count = self.unitree_pub.get_subscription_count()
-        level = self.get_logger().warn if count == 0 else self.get_logger().info
-        level(f'{self.unitree_request_topic} subscribers={count}')
+        if count == 0:
+            self.get_logger().warn(f'{self.unitree_request_topic} subscribers={count}')
+        else:
+            self.get_logger().info(f'{self.unitree_request_topic} subscribers={count}')
 
     def _maybe_log_tx(
         self, req_id: int, cmd_age_s: float, vx: float, vy: float, vyaw: float, duration: float

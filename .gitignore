@@ -29,3 +29,11 @@ calibration/*.yaml
 .vscode/
 .idea/
 .DS_Store
+
+# YOLO weights/checkpoints
+*.pt
+
+# Codex local artifacts
+.codex
+.codex/
+.agents/

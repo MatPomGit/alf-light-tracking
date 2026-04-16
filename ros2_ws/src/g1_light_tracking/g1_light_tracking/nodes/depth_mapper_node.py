@@ -30,7 +30,7 @@ class DepthMapperNode(Node):
         self.latest_odom = None
 
         self.declare_parameter('depth_image_topic', '/camera/depth/image_raw')
-        self.declare_parameter('camera_info_topic', '/camera/camera_info')
+        self.declare_parameter('camera_info_topic', '/camera/depth/camera_info')
         self.declare_parameter('odom_topic', '/odom')
         self.declare_parameter('local_grid_topic', '/mapping/local_depth_grid')
         self.declare_parameter('depth_hint_topic', '/navigation/depth_hint')

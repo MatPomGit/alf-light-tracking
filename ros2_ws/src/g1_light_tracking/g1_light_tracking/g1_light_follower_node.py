@@ -223,8 +223,10 @@ class G1LightFollowerNode(Node):
 
         self._last_subscribers_log_time = now
         count = self.pub.get_subscription_count()
-        level = self.get_logger().warn if count == 0 else self.get_logger().info
-        level(f'/cmd_vel subscribers={count}')
+        if count == 0:
+            self.get_logger().warn(f'/cmd_vel subscribers={count}')
+        else:
+            self.get_logger().info(f'/cmd_vel subscribers={count}')
 
 
 def main(args=None) -> None:

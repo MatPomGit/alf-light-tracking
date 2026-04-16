@@ -44,11 +44,17 @@ def generate_launch_description() -> LaunchDescription:
         default_value='false',
         description='Start optional Unitree bridge nodes when available.',
     )
+    profile_arg = DeclareLaunchArgument(
+        'profile',
+        default_value='',
+        description='Optional perception profile name from profiles/*.json (e.g. markers_and_light).',
+    )
 
     actions = [
         mode_arg,
         legacy_camera_arg,
         unitree_bridge_arg,
+        profile_arg,
         LogInfo(msg=['Launching g1_light_tracking in mode=', LaunchConfiguration('mode')]),
         LogInfo(
             condition=IfCondition(
@@ -70,7 +76,10 @@ def generate_launch_description() -> LaunchDescription:
             package='g1_light_tracking',
             executable='perception_node',
             output='screen',
-            parameters=[os.path.join(config_dir, 'perception.yaml')],
+            parameters=[
+                os.path.join(config_dir, 'perception.yaml'),
+                {'profile_name': LaunchConfiguration('profile')},
+            ],
             condition=_mode_in('modern', 'hybrid'),
         ),
         Node(

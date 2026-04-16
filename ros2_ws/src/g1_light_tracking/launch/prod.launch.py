@@ -1,4 +1,6 @@
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -6,22 +8,62 @@ import os
 def generate_launch_description():
     pkg_share = get_package_share_directory('g1_light_tracking')
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'profile',
+            default_value='',
+            description='Optional perception profile name from profiles/*.json (e.g. markers_and_light).',
+        ),
+        Node(
+            package='g1_light_tracking',
+            executable='d435i_node',
+            name='d435i_node',
+            parameters=[{
+                'calibration_file': os.path.join(pkg_share, 'calibration', 'camera_intrinsics.yaml'),
+                'aligned_image_topic': '/camera/aligned/image_raw',
+                'aligned_camera_info_topic': '/camera/aligned/camera_info',
+                'aligned_depth_topic': '/camera/aligned/depth/image_raw',
+                'aligned_depth_camera_info_topic': '/camera/aligned/depth/camera_info',
+
+                'separate_color_topic': '/camera/color/image_raw',
+                # Alias expected by the modern perception/localization configs.
+                'separate_color_camera_info_topic': '/camera/camera_info',
+                'separate_depth_topic': '/camera/depth/image_raw',
+                'separate_depth_camera_info_topic': '/camera/depth/camera_info',
+
+                'legacy_color_topic': '/camera/image_raw',
+                'publish_legacy_color_topic': True,
+
+                'publish_camera_info': True,
+                'publish_depth': True,
+                'frame_timeout_ms': 100,
+                }],
+            output='screen'
+        ),
         Node(
             package='g1_light_tracking',
             executable='perception_node',
-            parameters=[os.path.join(pkg_share, 'config', 'perception.yaml')],
+            parameters=[
+                os.path.join(pkg_share, 'config', 'perception.yaml'),
+                {'profile_name': LaunchConfiguration('profile')},
+            ],
             output='screen'
         ),
         Node(
             package='g1_light_tracking',
             executable='localization_node',
-            parameters=[os.path.join(pkg_share, 'config', 'localization.yaml')],
+            parameters=[
+                os.path.join(pkg_share, 'config', 'localization.yaml'),
+                {'depth_image_topic': '/camera/aligned/depth/image_raw'},
+            ],
             output='screen'
         ),
         Node(
             package='g1_light_tracking',
             executable='visual_slam_node',
-            parameters=[os.path.join(pkg_share, 'config', 'visual_slam.yaml')],
+            parameters=[
+                os.path.join(pkg_share, 'config', 'visual_slam.yaml'),
+                {'depth_image_topic': '/camera/aligned/depth/image_raw'},
+            ],
             output='screen'
         ),
         Node(
@@ -39,7 +81,10 @@ def generate_launch_description():
         Node(
             package='g1_light_tracking',
             executable='depth_mapper_node',
-            parameters=[os.path.join(pkg_share, 'config', 'depth_mapper.yaml')],
+            parameters=[
+                os.path.join(pkg_share, 'config', 'depth_mapper.yaml'),
+                {'depth_image_topic': '/camera/aligned/depth/image_raw'},
+            ],
             output='screen'
         ),
         Node(
@@ -57,6 +102,11 @@ def generate_launch_description():
         Node(
             package='g1_light_tracking',
             executable='debug_node',
+            output='screen'
+        ),
+        Node(
+            package='g1_light_tracking',
+            executable='tui_monitor_node',
             output='screen'
         ),
     ])

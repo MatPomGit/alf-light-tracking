@@ -3,50 +3,105 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>g1_light_tracking - dokumentacja</title>
+  <title>alf-light-tracking / g1_light_tracking - dokumentacja</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --panel: #111827;
+      --bg: #0b1120;
+      --bg-2: #0f172a;
+      --panel: rgba(17, 24, 39, 0.96);
       --panel-2: #1f2937;
       --text: #e5e7eb;
       --muted: #94a3b8;
       --accent: #38bdf8;
       --accent-2: #22c55e;
+      --accent-3: #a78bfa;
       --warn: #f59e0b;
+      --danger: #ef4444;
       --border: #334155;
-      --code: #0b1220;
+      --code: #07111f;
+      --shadow: 0 16px 38px rgba(0, 0, 0, 0.28);
     }
+
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
     body {
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #0b1120 0%, #111827 100%);
+      background:
+        radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 30%),
+        radial-gradient(circle at top left, rgba(167, 139, 250, 0.06), transparent 24%),
+        linear-gradient(180deg, var(--bg) 0%, #111827 100%);
       color: var(--text);
-      line-height: 1.6;
+      line-height: 1.65;
     }
+
+    a { color: #c4ecff; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
     .wrap {
-      max-width: 1400px;
+      max-width: 1460px;
       margin: 0 auto;
       padding: 24px;
     }
-    .hero, .panel {
-      background: rgba(17, 24, 39, 0.95);
+
+    .panel, .hero {
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
     }
+
     .hero {
       padding: 28px;
       margin-bottom: 24px;
+      overflow: hidden;
+      position: relative;
     }
-    h1, h2, h3 { margin-top: 0; }
-    h1 { font-size: 2rem; margin-bottom: 8px; }
-    h2 { font-size: 1.4rem; margin-bottom: 12px; }
-    h3 { font-size: 1.05rem; margin-bottom: 8px; }
-    p, li { color: var(--text); }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -50px -50px auto;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.18), transparent 60%);
+      pointer-events: none;
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+      line-height: 1.2;
+    }
+
+    h1 {
+      font-size: 2.15rem;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 1.06rem;
+      margin-bottom: 8px;
+    }
+
+    p, li {
+      color: var(--text);
+    }
+
     .muted { color: var(--muted); }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
     .chip {
       padding: 6px 10px;
       border-radius: 999px;
@@ -55,18 +110,25 @@
       color: #d6f4ff;
       font-size: 0.92rem;
     }
+
     .layout {
       display: grid;
-      grid-template-columns: 300px 1fr;
+      grid-template-columns: 320px 1fr;
       gap: 20px;
     }
+
     .sidebar {
       position: sticky;
       top: 20px;
       align-self: start;
       padding: 18px;
     }
-    .tablist { display: grid; gap: 8px; }
+
+    .tablist {
+      display: grid;
+      gap: 8px;
+    }
+
     .tab-button {
       width: 100%;
       text-align: left;
@@ -77,37 +139,56 @@
       padding: 10px 12px;
       cursor: pointer;
       transition: 0.15s ease;
+      font-size: 0.95rem;
     }
-    .tab-button:hover, .tab-button.active {
+
+    .tab-button:hover,
+    .tab-button.active {
       border-color: var(--accent);
       background: rgba(56, 189, 248, 0.12);
     }
+
     .section {
       display: none;
       padding: 22px;
       margin-bottom: 20px;
     }
+
     .section.active { display: block; }
+
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 14px;
     }
+
     .card {
       background: var(--panel-2);
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 16px;
     }
-    code, pre {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    .callout {
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 14px 16px;
+      margin: 14px 0 18px;
+      background: rgba(15, 23, 42, 0.72);
     }
+
+    .callout.info { border-color: rgba(56, 189, 248, 0.45); }
+    .callout.ok { border-color: rgba(34, 197, 94, 0.45); }
+    .callout.warn { border-color: rgba(245, 158, 11, 0.45); }
+    .callout.danger { border-color: rgba(239, 68, 68, 0.45); }
+
     code {
-      background: rgba(15, 23, 42, 0.95);
+      background: rgba(15, 23, 42, 0.96);
       padding: 2px 6px;
       border-radius: 6px;
       color: #dbeafe;
     }
+
     pre {
       background: var(--code);
       border: 1px solid var(--border);
@@ -116,26 +197,32 @@
       overflow-x: auto;
       white-space: pre-wrap;
       word-break: break-word;
+      margin: 12px 0 18px;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
       margin: 12px 0 18px;
     }
+
     th, td {
       border: 1px solid var(--border);
       padding: 10px 12px;
       vertical-align: top;
       text-align: left;
     }
-    th { background: rgba(30, 41, 59, 0.9); }
-    .actions, .link-list {
+
+    th { background: rgba(30, 41, 59, 0.92); }
+
+    .button-row, .actions, .link-list {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       margin-top: 12px;
     }
-    .btn {
+
+    .btn, .seq-btn {
       display: inline-block;
       text-decoration: none;
       color: var(--text);
@@ -143,25 +230,61 @@
       background: #0f172a;
       padding: 10px 12px;
       border-radius: 12px;
+      cursor: pointer;
+      transition: 0.15s ease;
     }
+
+    .btn:hover, .seq-btn:hover {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.1);
+    }
+
     .btn.primary { border-color: var(--accent); }
-    .btn.ok { border-color: var(--accent-2); }
-    .btn.warn { border-color: var(--warn); }
+    .btn.ok, .seq-btn.ok { border-color: var(--accent-2); }
+    .btn.warn, .seq-btn.warn { border-color: var(--warn); }
+
     .console {
       margin-top: 12px;
       border: 1px solid var(--border);
       border-radius: 14px;
       background: #050b16;
       padding: 12px;
-      min-height: 130px;
+      min-height: 148px;
     }
-    .console-line { font-family: ui-monospace, monospace; color: #d1fae5; margin: 0 0 6px; }
+
+    .console-line {
+      font-family: ui-monospace, monospace;
+      color: #d1fae5;
+      margin: 0 0 6px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .kpi {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .kpi strong {
+      display: block;
+      font-size: 1.4rem;
+      margin-top: 6px;
+    }
+
     footer {
       color: var(--muted);
       font-size: 0.95rem;
-      padding: 10px 2px 30px;
+      padding: 12px 2px 30px;
     }
-    @media (max-width: 1024px) {
+
+    @media (max-width: 1080px) {
       .layout { grid-template-columns: 1fr; }
       .sidebar { position: static; }
     }
@@ -170,23 +293,44 @@
 <body>
 <div class="wrap">
   <section class="hero panel">
-    <h1>g1_light_tracking</h1>
+    <h1>alf-light-tracking / g1_light_tracking</h1>
     <p>
-      Dokumentacja pakietu ROS 2 po scaleniu architektury nowoczesnej i warstwy kompatybilności legacy.
-      Ten plik jest punktem wejścia do opisu struktury repo, node'ów, wiadomości, launcherów,
-      trybów pracy i przykładowych poleceń uruchomieniowych.
+      Rozbudowana dokumentacja wejściowa projektu ROS 2 dla robota <strong>Unitree G1 EDU</strong>.
+      Strona łączy opis repozytorium, architektury <code>modern / legacy / hybrid</code>, sposobów uruchamiania,
+      diagnostyki przez SSH, pracy headless, integracji z Unitree oraz zasad bezpiecznego rozwoju systemu.
     </p>
     <p class="muted">
-      Katalog tego pliku: <code>ros2_ws/src/g1_light_tracking/docs/index.html</code>.
-      Wszystkie ścieżki w sekcjach poniżej zostały zapisane jawnie względem katalogu głównego repo albo względem katalogu pakietu.
+      Ten plik znajduje się w <code>ros2_ws/src/g1_light_tracking/docs/index.html</code>.
+      Jest przeznaczony jako punkt wejścia dla programistów, operatorów i agentów AI pracujących nad projektem.
     </p>
     <div class="chips">
       <span class="chip">ROS 2</span>
-      <span class="chip">Python</span>
+      <span class="chip">Ubuntu 22.04</span>
+      <span class="chip">Unitree G1 EDU</span>
+      <span class="chip">Headless / SSH</span>
       <span class="chip">Perception</span>
       <span class="chip">Tracking</span>
+      <span class="chip">Mission / Control</span>
       <span class="chip">Legacy compatibility</span>
-      <span class="chip">Unified launcher</span>
+      <span class="chip">Diagnostics</span>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi">
+        Architektura
+        <strong>modern + legacy + hybrid</strong>
+      </div>
+      <div class="kpi">
+        Środowisko docelowe
+        <strong>Unitree / Ubuntu / ROS2</strong>
+      </div>
+      <div class="kpi">
+        Preferowany tryb pracy
+        <strong>SSH + terminal + TUI</strong>
+      </div>
+      <div class="kpi">
+        Główny punkt wejścia
+        <strong><code>unified_system.launch.py</code></strong>
+      </div>
     </div>
   </section>
 
@@ -195,18 +339,19 @@
       <h2>Nawigacja</h2>
       <div class="tablist">
         <button class="tab-button active" data-tab="overview">Przegląd</button>
-        <button class="tab-button" data-tab="paths">Ścieżki i katalogi</button>
+        <button class="tab-button" data-tab="repo">Repo i struktura</button>
         <button class="tab-button" data-tab="architecture">Architektura i przepływ</button>
-        <button class="tab-button" data-tab="nodes">Node'y i topiki</button>
+        <button class="tab-button" data-tab="nodes">Node'y i odpowiedzialności</button>
         <button class="tab-button" data-tab="messages">Wiadomości ROS 2</button>
         <button class="tab-button" data-tab="launchers">Launchery i komendy</button>
+        <button class="tab-button" data-tab="terminal">Uruchamianie z terminala</button>
+        <button class="tab-button" data-tab="diagnostics">Diagnostyka i observability</button>
+        <button class="tab-button" data-tab="headless">Headless / SSH / no-display</button>
+        <button class="tab-button" data-tab="unitree">Unitree i wdrożenie</button>
         <button class="tab-button" data-tab="legacy">Legacy i adapter</button>
-        <button class="tab-button" data-tab="merge">Jak scalono repo</button>
-        <button class="tab-button" data-tab="modes">Tryby unified</button>
-        <button class="tab-button" data-tab="standalone">Standalone</button>
-        <button class="tab-button" data-tab="deps">Zależności i build</button>
+        <button class="tab-button" data-tab="merge">Scalenie repo i migracja</button>
+        <button class="tab-button" data-tab="build">Zależności i build</button>
         <button class="tab-button" data-tab="files">Najważniejsze pliki</button>
-        <button class="tab-button" data-tab="versioning">Wersjonowanie</button>
         <button class="tab-button" data-tab="status">Stan po poprawkach</button>
       </div>
     </aside>
@@ -215,37 +360,84 @@
       <section id="overview" class="section panel active">
         <h2>Przegląd</h2>
         <p>
-          Repozytorium zawiera warstwowy system dla robota i środowisk testowych. Aktualny tor nowoczesny prowadzi od obrazu przez
-          detekcję 2D, lokalizację 3D, tracking, logikę przesyłek i misji aż do uproszczonego sterowania. Równolegle dostępny jest tor legacy,
-          który może działać samodzielnie albo zasilać nowy pipeline przez adapter.
+          Projekt implementuje warstwowy pipeline dla percepcji obrazu, lokalizacji 3D, trackingu, logiki misji i sterowania.
+          W repo istnieje także warstwa kompatybilności <code>legacy</code>, ale za tor docelowy należy uznawać architekturę
+          <code>modern</code>. System ma być rozwijany tak, aby robot mógł działać autonomicznie, a programista przez SSH
+          zawsze rozumiał aktualny stan i zamiary robota.
         </p>
+
         <div class="grid">
-          <div class="card"><h3>Nowoczesny pipeline</h3><p><code>perception → localization → tracking → parcel_track → mission → control</code></p></div>
-          <div class="card"><h3>Rozszerzenia</h3><p><code>depth_mapper_node</code>, <code>visual_slam_node</code>, <code>debug_node</code>, <code>topdown_odom_viewer_node</code></p></div>
-          <div class="card"><h3>Legacy compatibility</h3><p>Detektor światła, bridge'e Unitree, replay CSV, turtlesim, adapter JSON → nowe msg.</p></div>
-          <div class="card"><h3>Główny punkt wejścia</h3><p><code>launch/unified_system.launch.py</code> z trybami <code>modern</code>, <code>legacy</code>, <code>hybrid</code>.</p></div>
+          <div class="card">
+            <h3>Cel systemu</h3>
+            <p>Bezpieczne i obserwowalne sterowanie robotem na podstawie percepcji, trackingu i logiki misji.</p>
+          </div>
+          <div class="card">
+            <h3>Preferowany runtime</h3>
+            <p><code>unified_system.launch.py mode:=modern</code> lub <code>prod.launch.py</code>.</p>
+          </div>
+          <div class="card">
+            <h3>Preferowane narzędzia</h3>
+            <p>Terminal, ROS2 CLI, TUI, logi, topic echo, raporty tekstowe i YAML/JSON.</p>
+          </div>
+          <div class="card">
+            <h3>Ważne ograniczenie</h3>
+            <p>Brak monitora i praca headless oznacza, że funkcje GUI muszą być opcjonalne.</p>
+          </div>
+        </div>
+
+        <div class="callout info">
+          <strong>Najważniejsza zasada operacyjna:</strong>
+          robot ma działać autonomicznie, ale człowiek przez SSH ma zawsze rozumieć:
+          co robot widzi, co śledzi, jaki jest stan misji, dlaczego publikuje dane sterowanie
+          i czego systemowi brakuje.
         </div>
       </section>
 
-      <section id="paths" class="section panel">
-        <h2>Ścieżki i katalogi</h2>
+      <section id="repo" class="section panel">
+        <h2>Repo i struktura</h2>
         <p>Najważniejsze ścieżki od katalogu głównego repozytorium:</p>
-        <ul>
-          <li><code>ros2_ws/</code> — workspace ROS 2</li>
-          <li><code>ros2_ws/src/g1_light_tracking/</code> — katalog pakietu</li>
-          <li><code>ros2_ws/src/g1_light_tracking/g1_light_tracking/nodes/</code> — node'y nowoczesne</li>
-          <li><code>ros2_ws/src/g1_light_tracking/g1_light_tracking/utils/</code> — logika pomocnicza</li>
-          <li><code>ros2_ws/src/g1_light_tracking/g1_light_tracking/vision/</code> — warstwa detekcji / typy vision</li>
-          <li><code>ros2_ws/src/g1_light_tracking/launch/</code> — launchery</li>
-          <li><code>ros2_ws/src/g1_light_tracking/config/</code> — konfiguracje YAML</li>
-          <li><code>ros2_ws/src/g1_light_tracking/msg/</code> — wiadomości ROS 2</li>
-          <li><code>ros2_ws/src/g1_light_tracking/docs/</code> — dokumentacja</li>
-          <li><code>ros2_ws/src/g1_light_tracking/profiles/</code> — profile standalone</li>
-        </ul>
-        <p class="muted">
-          Uwaga: wewnątrz dokumentacji HTML linki do plików są względne względem katalogu <code>docs/</code>.
-          Dlatego np. README pakietu jest pod linkiem <code>../README.md</code>, a plik konfiguracji trackingu pod <code>../config/tracking.yaml</code>.
-        </p>
+        <pre><code>.
+├── README.md
+├── RUNBOOK.md
+├── DEPLOYMENT.md
+├── AGENTS.md
+├── CODE_STYLE_PL.md
+├── install_git_hooks.sh
+└── ros2_ws/
+    ├── src/
+    │   └── g1_light_tracking/
+    │       ├── CMakeLists.txt
+    │       ├── package.xml
+    │       ├── config/
+    │       ├── docs/
+    │       ├── g1_light_tracking/
+    │       │   ├── nodes/
+    │       │   ├── utils/
+    │       │   ├── vision/
+    │       │   └── standalone/
+    │       ├── launch/
+    │       ├── msg/
+    │       ├── scripts/
+    │       ├── test/
+    │       └── profiles/
+    ├── build/
+    ├── install/
+    └── log/</code></pre>
+        <table>
+          <thead>
+            <tr><th>Ścieżka</th><th>Rola</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>ros2_ws/</code></td><td>Główny workspace ROS 2. Stąd wykonuje się build i większość poleceń startowych.</td></tr>
+            <tr><td><code>ros2_ws/src/g1_light_tracking/</code></td><td>Pakiet główny projektu.</td></tr>
+            <tr><td><code>g1_light_tracking/nodes/</code></td><td>Node’y nowoczesnego pipeline’u i narzędzia runtime.</td></tr>
+            <tr><td><code>launch/</code></td><td>Launchery dla trybów modern, legacy, hybrid i narzędzi pomocniczych.</td></tr>
+            <tr><td><code>config/</code></td><td>Pliki YAML dla strojenia node’ów.</td></tr>
+            <tr><td><code>msg/</code></td><td>Własne wiadomości ROS 2.</td></tr>
+            <tr><td><code>docs/</code></td><td>Dokumentacja HTML i architektura.</td></tr>
+            <tr><td><code>test/</code></td><td>Testy pakietu.</td></tr>
+          </tbody>
+        </table>
       </section>
 
       <section id="architecture" class="section panel">
@@ -263,33 +455,77 @@
                   -> mission_node
                     -> /mission/state
                     -> /mission/target
-                      -> control_node</code></pre>
-        <p>
-          Równolegle mogą działać dodatkowe źródła danych i diagnostyka:
-        </p>
+                      -> control_node
+                        -> /cmd_vel</code></pre>
+
+        <p>Równolegle mogą działać moduły pomocnicze:</p>
         <ul>
-          <li><code>depth_mapper_node</code> publikuje <code>DepthNavHint</code> dla sterowania.</li>
-          <li><code>visual_slam_node</code> publikuje estymację ruchu i ścieżkę.</li>
-          <li><code>topdown_odom_viewer_node</code> wizualizuje odometrię, tracki i cele.</li>
-          <li><code>legacy_detection_adapter_node</code> wstrzykuje dane z toru legacy do nowego modelu wiadomości.</li>
+          <li><code>depth_mapper_node</code> publikuje <code>DepthNavHint</code> do warstwy safety / sterowania.</li>
+          <li><code>visual_slam_node</code> publikuje odometrię i ścieżkę do diagnostyki.</li>
+          <li><code>debug_node</code> loguje najważniejsze topiki pipeline’u.</li>
+          <li><code>tui_monitor_node</code> prezentuje stan systemu w terminalu.</li>
+          <li><code>legacy_detection_adapter_node</code> wstrzykuje dane z toru legacy do nowego kontraktu wiadomości.</li>
         </ul>
+
+        <div class="callout ok">
+          <strong>Zasada projektowa:</strong> moduły pomocnicze mają wspierać diagnostykę i bezpieczeństwo,
+          ale ich brak lub awaria nie mogą zatrzymywać głównej pętli robota.
+        </div>
       </section>
 
       <section id="nodes" class="section panel">
-        <h2>Node'y i topiki</h2>
+        <h2>Node'y i odpowiedzialności</h2>
         <table>
-          <thead><tr><th>Node</th><th>Wejścia</th><th>Wyjścia</th><th>Rola</th></tr></thead>
+          <thead><tr><th>Node</th><th>Rola</th><th>Typowe wejścia</th><th>Typowe wyjścia</th></tr></thead>
           <tbody>
-            <tr><td><code>perception_node</code></td><td>kamera RGB</td><td><code>/perception/detections</code></td><td>Detekcja 2D, QR, AprilTag, plamka światła.</td></tr>
-            <tr><td><code>localization_node</code></td><td><code>/perception/detections</code>, opcjonalnie depth</td><td><code>/localization/targets</code></td><td>Estymacja 3D i metody lokalizacji.</td></tr>
-            <tr><td><code>tracking_node</code></td><td><code>/localization/targets</code></td><td><code>/tracking/targets</code>, <code>/tracking/global_motion_debug</code></td><td>Asocjacja, Kalman, GMC, stabilizacja tracków.</td></tr>
-            <tr><td><code>parcel_track_node</code></td><td><code>/tracking/targets</code></td><td><code>/tracking/parcel_bindings</code>, <code>/tracking/parcel_tracks</code></td><td>Wiązanie QR z kartonem.</td></tr>
-            <tr><td><code>mission_node</code></td><td><code>/tracking/targets</code>, <code>/tracking/parcel_tracks</code></td><td><code>/mission/state</code>, <code>/mission/target</code>, <code>/mission/parcel_info</code></td><td>Logika celu i automatu zadania.</td></tr>
-            <tr><td><code>control_node</code></td><td><code>/mission/target</code>, opcjonalnie <code>/navigation/depth_hint</code></td><td>komendy ruchu</td><td>Referencyjne sterowanie.</td></tr>
-            <tr><td><code>depth_mapper_node</code></td><td>obraz depth</td><td><code>/navigation/depth_hint</code> i mapowanie pomocnicze</td><td>Reaktywna wskazówka nawigacyjna.</td></tr>
-            <tr><td><code>visual_slam_node</code></td><td>RGB, opcjonalnie depth</td><td><code>/visual_slam/odom</code>, <code>/visual_slam/path</code>, <code>/visual_slam/debug_image</code></td><td>VO / SLAM eksperymentalny.</td></tr>
-            <tr><td><code>legacy_detection_adapter_node</code></td><td><code>/light_tracking/detection_json</code></td><td><code>/perception/detections</code>, opcjonalnie <code>/tracking/targets</code></td><td>Most między starym JSON a nowymi msg.</td></tr>
-            <tr><td><code>light_spot_detector_node</code></td><td>kamera legacy</td><td><code>/light_tracking/detection_json</code></td><td>Detekcja legacy plamki światła.</td></tr>
+            <tr>
+              <td><code>perception_node</code></td>
+              <td>Detekcja 2D, QR, AprilTag, plamka światła.</td>
+              <td>RGB, konfiguracja detekcji.</td>
+              <td><code>/perception/detections</code></td>
+            </tr>
+            <tr>
+              <td><code>localization_node</code></td>
+              <td>Estymacja 3D z 2D, geometrii kamery i głębi.</td>
+              <td><code>/perception/detections</code>, depth, kalibracja.</td>
+              <td><code>/localization/targets</code></td>
+            </tr>
+            <tr>
+              <td><code>tracking_node</code></td>
+              <td>Stabilizacja identyfikatorów, filtracja i asocjacja.</td>
+              <td><code>/localization/targets</code></td>
+              <td><code>/tracking/targets</code></td>
+            </tr>
+            <tr>
+              <td><code>parcel_track_node</code></td>
+              <td>Powiązanie QR z kartonami i budowa obiektu logistycznego.</td>
+              <td><code>/tracking/targets</code></td>
+              <td><code>/tracking/parcel_bindings</code>, <code>/tracking/parcel_tracks</code></td>
+            </tr>
+            <tr>
+              <td><code>mission_node</code></td>
+              <td>Wybór aktywnego celu i stan automatu zadania.</td>
+              <td><code>/tracking/targets</code>, <code>/tracking/parcel_tracks</code></td>
+              <td><code>/mission/state</code>, <code>/mission/target</code></td>
+            </tr>
+            <tr>
+              <td><code>control_node</code></td>
+              <td>Generowanie referencyjnych komend ruchu.</td>
+              <td><code>/mission/target</code>, opcjonalnie <code>/navigation/depth_hint</code></td>
+              <td><code>/cmd_vel</code></td>
+            </tr>
+            <tr>
+              <td><code>depth_mapper_node</code></td>
+              <td>Wskazówki bezpieczeństwa i clearance z mapy głębi.</td>
+              <td>Depth image</td>
+              <td><code>/navigation/depth_hint</code></td>
+            </tr>
+            <tr>
+              <td><code>visual_slam_node</code></td>
+              <td>Eksperymentalna estymacja ruchu i diagnostyka.</td>
+              <td>RGB, opcjonalnie depth</td>
+              <td><code>/visual_slam/odom</code>, <code>/visual_slam/path</code></td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -297,146 +533,262 @@
       <section id="messages" class="section panel">
         <h2>Wiadomości ROS 2</h2>
         <p>Pliki wiadomości znajdują się w katalogu <code>../msg/</code>.</p>
-        <table>
-          <thead><tr><th>Plik</th><th>Zastosowanie</th></tr></thead>
-          <tbody>
-            <tr><td><code>Detection2D.msg</code></td><td>Surowa obserwacja w układzie obrazu.</td></tr>
-            <tr><td><code>LocalizedTarget.msg</code></td><td>Obserwacja 2D rozszerzona o pozycję 3D.</td></tr>
-            <tr><td><code>TrackedTarget.msg</code></td><td>Stabilny tor z <code>track_id</code>.</td></tr>
-            <tr><td><code>ParcelTrackBinding.msg</code></td><td>Wynik skojarzenia QR z kartonem.</td></tr>
-            <tr><td><code>ParcelTrack.msg</code></td><td>Stan logiczny przesyłki.</td></tr>
-            <tr><td><code>ParcelInfo.msg</code></td><td>Dane domenowe publikowane przez logikę misji.</td></tr>
-            <tr><td><code>MissionTarget.msg</code></td><td>Cel dla warstwy sterowania.</td></tr>
-            <tr><td><code>MissionState.msg</code></td><td>Stan wysokopoziomowego automatu.</td></tr>
-            <tr><td><code>DepthNavHint.msg</code></td><td>Pomocnicza wskazówka dla sterowania od warstwy depth.</td></tr>
-          </tbody>
-        </table>
+        <div class="grid">
+          <div class="card"><h3><code>Detection2D.msg</code></h3><p>Surowa obserwacja w układzie obrazu.</p></div>
+          <div class="card"><h3><code>LocalizedTarget.msg</code></h3><p>Pozycja 3D z informacją o metodzie lokalizacji.</p></div>
+          <div class="card"><h3><code>TrackedTarget.msg</code></h3><p>Stabilny track z <code>track_id</code>.</p></div>
+          <div class="card"><h3><code>ParcelTrack.msg</code></h3><p>Obiekt logistyczny po powiązaniu kartonu i QR.</p></div>
+          <div class="card"><h3><code>MissionTarget.msg</code></h3><p>Cel dla warstwy sterowania.</p></div>
+          <div class="card"><h3><code>MissionState.msg</code></h3><p>Stan wysokopoziomowej logiki misji.</p></div>
+          <div class="card"><h3><code>DepthNavHint.msg</code></h3><p>Hint bezpieczeństwa i clearance dla ruchu.</p></div>
+          <div class="card"><h3><code>ParcelInfo.msg</code></h3><p>Dane domenowe publikowane przez misję.</p></div>
+        </div>
       </section>
 
       <section id="launchers" class="section panel">
         <h2>Launchery i komendy</h2>
-        <p>Wszystkie poniższe polecenia wykonuj z katalogu <code>ros2_ws/</code> po wcześniejszym buildzie i po <code>source install/setup.bash</code>.</p>
-        <div class="actions">
-          <button class="btn primary" data-seq="build">Build i source</button>
-          <button class="btn ok" data-seq="prod">prod.launch.py</button>
-          <button class="btn ok" data-seq="unified-modern">unified: modern</button>
-          <button class="btn ok" data-seq="unified-legacy">unified: legacy</button>
-          <button class="btn ok" data-seq="unified-hybrid">unified: hybrid</button>
-          <button class="btn warn" data-seq="legacy-stack">legacy stack</button>
-          <button class="btn warn" data-seq="legacy-csv">legacy turtlesim / CSV</button>
-          <button class="btn" data-seq="bridge">legacy-modern bridge</button>
-          <button class="btn" data-seq="topdown">topdown odom</button>
+        <p>
+          Wszystkie poniższe polecenia wykonuj z katalogu <code>ros2_ws/</code> po wcześniejszym
+          <code>source install/setup.bash</code>.
+        </p>
+
+        <div class="button-row">
+          <button class="seq-btn ok" data-seq="build">Build + source</button>
+          <button class="seq-btn ok" data-seq="prod">prod.launch.py</button>
+          <button class="seq-btn ok" data-seq="unified-modern">unified / modern</button>
+          <button class="seq-btn ok" data-seq="unified-legacy">unified / legacy</button>
+          <button class="seq-btn ok" data-seq="unified-hybrid">unified / hybrid</button>
+          <button class="seq-btn warn" data-seq="legacy-stack">legacy stack</button>
+          <button class="seq-btn warn" data-seq="legacy-csv">legacy / turtlesim / CSV</button>
+          <button class="seq-btn" data-seq="bridge">legacy-modern bridge</button>
+          <button class="seq-btn" data-seq="topdown">topdown odom</button>
+          <button class="seq-btn" data-seq="unitree-legacy">legacy + Unitree</button>
         </div>
+
         <div id="sequenceConsole" class="console"></div>
+
+        <div class="callout info">
+          <strong>Rekomendacja:</strong> dla codziennej pracy używaj
+          <code>ros2 launch g1_light_tracking unified_system.launch.py mode:=modern</code>
+          albo <code>prod.launch.py</code>, a tryby <code>legacy</code> i <code>hybrid</code>
+          traktuj jako narzędzia migracyjne i integracyjne.
+        </div>
+      </section>
+
+      <section id="terminal" class="section panel">
+        <h2>Uruchamianie z terminala</h2>
+        <p>Przykładowe uruchamianie pojedynczych node’ów:</p>
+
+        <pre><code># perception
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking perception_node --ros-args --params-file src/g1_light_tracking/config/perception.yaml
+
+# localization
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking localization_node --ros-args --params-file src/g1_light_tracking/config/localization.yaml
+
+# tracking
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking tracking_node --ros-args --params-file src/g1_light_tracking/config/tracking.yaml
+
+# mission
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking mission_node --ros-args --params-file src/g1_light_tracking/config/mission.yaml
+
+# control
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking control_node --ros-args --params-file src/g1_light_tracking/config/control.yaml</code></pre>
+
+        <p>Przykładowe uruchamianie narzędzi pomocniczych:</p>
+
+        <pre><code># debug node
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking debug_node
+
+# TUI monitor
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking tui_monitor_node
+
+# kamera D435i
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking d435i_node</code></pre>
+      </section>
+
+      <section id="diagnostics" class="section panel">
+        <h2>Diagnostyka i observability</h2>
+        <p>
+          Projekt ma być maksymalnie obserwowalny przez terminal i topiki diagnostyczne.
+          Operator powinien móc sprawdzić nie tylko „czy system działa”, ale także
+          <em>co robot aktualnie robi i dlaczego</em>.
+        </p>
+
+        <h3>Podstawowe komendy diagnostyczne</h3>
+        <pre><code>cd ros2_ws
+source install/setup.bash
+ros2 topic list
+ros2 topic echo /perception/detections
+ros2 topic echo /tracking/targets
+ros2 topic echo /mission/state
+ros2 topic echo /mission/target
+ros2 topic echo /navigation/depth_hint
+ros2 topic echo /cmd_vel</code></pre>
+
+        <h3>Co powinno być obserwowalne</h3>
+        <ul>
+          <li>świeżość danych wejściowych i topiców,</li>
+          <li>liczba detekcji i tracków,</li>
+          <li>aktywny stan misji i powód jego zmiany,</li>
+          <li>czy depth layer ogranicza ruch,</li>
+          <li>czy komendy <code>cmd_vel</code> są publikowane, blokowane lub modyfikowane,</li>
+          <li>czy backendy opcjonalne, np. QR albo AprilTag, są aktywne.</li>
+        </ul>
+
+        <div class="callout warn">
+          <strong>Ważne:</strong> logi, TUI i topici diagnostyczne nie są dodatkiem estetycznym.
+          Są częścią zdolności zespołu do diagnozowania problemów na robocie działającym przez SSH.
+        </div>
+      </section>
+
+      <section id="headless" class="section panel">
+        <h2>Headless / SSH / no-display</h2>
+        <p>
+          Robot nie ma monitora, dlatego wszystkie kluczowe ścieżki runtime muszą działać bez GUI.
+          Zakładaj, że operator pracuje przez SSH i ma do dyspozycji:
+        </p>
+        <ul>
+          <li>terminal,</li>
+          <li><code>ros2 launch</code>, <code>ros2 run</code>, <code>ros2 topic echo</code>,</li>
+          <li>TUI,</li>
+          <li>logi stdout/stderr,</li>
+          <li>raporty tekstowe / YAML / JSON.</li>
+        </ul>
+
+        <h3>Czego nie wolno zakładać</h3>
+        <ul>
+          <li>obecności <code>DISPLAY</code>,</li>
+          <li>obecności środowiska desktopowego,</li>
+          <li>możliwości użycia <code>cv2.imshow</code>,</li>
+          <li>jakiegokolwiek GUI jako warunku działania systemu core.</li>
+        </ul>
+
+        <pre><code># Typowa diagnoza po SSH
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+
+# drugi terminal
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking tui_monitor_node</code></pre>
+      </section>
+
+      <section id="unitree" class="section panel">
+        <h2>Unitree i wdrożenie</h2>
+        <p>
+          Docelowym środowiskiem jest <strong>Unitree G1 EDU</strong> z Ubuntu 22.04 i środowiskiem klasy Jetson.
+          Warstwa integracyjna z robotem ma być odseparowana od core pipeline’u:
+          awaria bridge’a sprzętowego nie może psuć percepcji, trackingu ani logiki misji.
+        </p>
+
+        <h3>Minimalna checklista wdrożeniowa</h3>
+        <ol>
+          <li>Zainstalować zależności systemowe i Pythonowe.</li>
+          <li>Zbudować workspace z <code>ros2_ws/</code>.</li>
+          <li>Sprawdzić importy i backendy opcjonalne.</li>
+          <li>Uruchomić pipeline w trybie bezpiecznym bez realnego ruchu.</li>
+          <li>Zweryfikować topici: percepcja, tracking, misja, depth hint, <code>cmd_vel</code>.</li>
+          <li>Dopiero potem włączyć bridge sprzętowy Unitree.</li>
+        </ol>
+
+        <pre><code># Legacy + bridge Unitree
+cd ros2_ws
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy with_unitree_bridges:=true</code></pre>
+
+        <div class="callout danger">
+          <strong>Bezpieczny start:</strong> najpierw sprawdź, czy system poprawnie liczy i publikuje
+          <code>cmd_vel</code>, a dopiero potem podłączaj fizyczne wysyłanie komend do robota.
+        </div>
       </section>
 
       <section id="legacy" class="section panel">
         <h2>Legacy i adapter</h2>
         <p>
-          Warstwa legacy została zachowana obok nowoczesnej architektury. Nie nadpisuje obecnych funkcjonalności.
-          Jej rola to kompatybilność ze starszym projektem, integracje sprzętowe i środowiska demonstracyjne.
+          Warstwa <code>legacy</code> została zachowana, ale nie jest już architekturą docelową.
+          Jej rola to:
         </p>
-        <pre><code>light_spot_detector_node or csv_detection_replay_node
+        <ul>
+          <li>kompatybilność ze starym detektorem,</li>
+          <li>integracja z istniejącymi źródłami JSON,</li>
+          <li>replay danych historycznych,</li>
+          <li>scenariusze demonstracyjne i migracyjne.</li>
+        </ul>
+
+        <pre><code>light_spot_detector_node / csv_detection_replay_node
   -> /light_tracking/detection_json
     -> legacy_detection_adapter_node
       -> /perception/detections
-      -> optionally /tracking/targets
-        -> mission_node
-          -> control_node</code></pre>
+        -> nowy pipeline mission / control</code></pre>
+
         <p>
-          W trybie <code>legacy</code> adapter może publikować także przybliżone <code>TrackedTarget</code>.
-          W trybie <code>hybrid</code> publikuje tylko <code>Detection2D</code>, żeby nie dublować tracków z <code>tracking_node</code>.
+          W trybie <code>hybrid</code> legacy ma dostarczać jedynie dodatkowe wejścia do nowego modelu wiadomości,
+          a nie narzucać starego kontraktu jako źródła prawdy dla całego systemu.
         </p>
       </section>
 
-
       <section id="merge" class="section panel">
-        <h2>Jak scalono repozytoria i co dalej</h2>
+        <h2>Scalenie repo i migracja</h2>
         <p>
-          Scalenie zostało wykonane zachowawczo. Aktualne repozytorium pozostało bazą docelową,
-          a elementy starszego projektu zostały dołożone jako osobna warstwa kompatybilności.
-          Dzięki temu nie nadpisano gotowych node'ów, wiadomości, konfiguracji ani launcherów
-          z obecnego pakietu.
+          Scalenie zostało wykonane zachowawczo: obecny pakiet i jego wiadomości pozostały bazą docelową,
+          a elementy starszego projektu zostały dołączone jako warstwa kompatybilności.
         </p>
+
         <table>
           <thead><tr><th>Obszar</th><th>Jak został scalony</th><th>Dlaczego tak</th></tr></thead>
           <tbody>
-            <tr><td>Node'y nowoczesne</td><td>Pozostawione bez zastępowania w <code>../g1_light_tracking/nodes/</code>.</td><td>To jest docelowy pipeline produkcyjny i nie wolno było utracić istniejących funkcjonalności.</td></tr>
-            <tr><td>Node'y legacy</td><td>Dodane obok jako osobne entrypointy w katalogu <code>../g1_light_tracking/</code>.</td><td>Pozwala to uruchamiać stare źródła danych bez przepisywania wszystkiego jednocześnie.</td></tr>
-            <tr><td>Konfiguracje</td><td>Pliki starszego stosu dostały prefiks <code>legacy_*</code> w katalogu <code>../config/</code>.</td><td>Uniknięto nadpisywania aktualnych parametrów i rozjazdów nazw.</td></tr>
-            <tr><td>Integracja danych</td><td>Dodano <code>legacy_detection_adapter_node</code> i logikę w <code>../g1_light_tracking/utils/legacy_adapter.py</code>.</td><td>Adapter tłumaczy JSON na <code>Detection2D</code> i opcjonalnie <code>TrackedTarget</code>, więc nowa logika może konsumować stare wejścia.</td></tr>
-            <tr><td>Uruchamianie</td><td>Dodano <code>../launch/unified_system.launch.py</code> oraz launchery pomocnicze legacy.</td><td>Jeden punkt wejścia upraszcza migrację, testy A/B i tryb hybrydowy.</td></tr>
-            <tr><td>Zależności sprzętowe</td><td>Mosty Unitree i kamera legacy są opcjonalne oraz uruchamiane warunkowo.</td><td>Repo działa też bez pełnego środowiska sprzętowego, co ułatwia rozwój i CI.</td></tr>
+            <tr><td>Node’y nowoczesne</td><td>Pozostawione jako główna ścieżka runtime.</td><td>To docelowy pipeline produkcyjny.</td></tr>
+            <tr><td>Node’y legacy</td><td>Dodane obok jako entrypointy kompatybilnościowe.</td><td>Umożliwia migrację bez przepisywania wszystkiego naraz.</td></tr>
+            <tr><td>Konfiguracje</td><td>Legacy dostało osobne pliki <code>legacy_*.yaml</code>.</td><td>Uniknięto nadpisywania strojenia nowego pipeline’u.</td></tr>
+            <tr><td>Integracja danych</td><td>Dodano adapter JSON → nowe message.</td><td>Nowa logika może konsumować stare źródła bez zmiany kontraktu wiadomości.</td></tr>
           </tbody>
         </table>
-        <h3>Rzeczywista sekwencja merge'u</h3>
+
+        <h3>Dalsze kroki do pełnej migracji</h3>
         <ol>
-          <li>Utrzymano aktualny model wiadomości z katalogu <code>../msg/</code> jako jedyny kontrakt docelowy.</li>
-          <li>Przeniesiono starsze node'y jako warstwę kompatybilności, zamiast podmieniać obecne moduły.</li>
-          <li>Dodano osobne pliki <code>legacy_*.yaml</code>, żeby stare parametry nie nadpisały nowego strojenia.</li>
-          <li>Dodano adapter legacy JSON → nowe wiadomości oraz tryby <code>legacy</code> i <code>hybrid</code>.</li>
-          <li>Wpięto legacy źródła do nowego <code>mission_node</code> i <code>control_node</code> przez launcher unified.</li>
-          <li>Rozbudowano dokumentację tak, żeby każda ścieżka i komenda odpowiadała aktualnej strukturze repo.</li>
+          <li>Traktować obecny model wiadomości jako jedyne źródło prawdy.</li>
+          <li>Wygaszać dublujące źródła tracków w warstwie legacy.</li>
+          <li>Przenosić heurystyki starej percepcji do nowego <code>perception_node</code>.</li>
+          <li>Wydzielać rozszerzenia i narzędzia do osobnych paczek, gdy przestają być lokalne dla core.</li>
         </ol>
-        <h3>Dalsze kroki, aby w pełni przejść na aktualne repozytorium</h3>
-        <ol>
-          <li><strong>Przestać traktować JSON jako kontrakt główny.</strong> Wszystkie nowe integracje powinny publikować od razu <code>Detection2D</code> albo <code>LocalizedTarget</code>, a adapter legacy powinien zostać tylko przejściowym mostem.</li>
-          <li><strong>Wygasić dublujące źródła tracków.</strong> Docelowo tylko <code>tracking_node</code> powinien publikować <code>/tracking/targets</code>; tryb hybrydowy jest po to, aby testować migrację bez równoległych ID z legacy.</li>
-          <li><strong>Przenieść heurystyki starego detektora do nowego etapu percepcji.</strong> Najlepszym miejscem jest <code>../g1_light_tracking/nodes/perception_node.py</code>, a nie osobny tor JSON.</li>
-          <li><strong>Zastąpić bridge'e sprzętowe spójnymi adapterami ROS 2.</strong> Mosty Unitree i legacy kamery powinny docelowo publikować te same topiki, które zużywa nowoczesny pipeline.</li>
-          <li><strong>Domknąć build i testy integracyjne.</strong> Poza <code>pytest</code> trzeba dodać testy launch, smoke-test <code>colcon build</code> i scenariusze dla trybów <code>modern</code>, <code>legacy</code>, <code>hybrid</code>.</li>
-          <li><strong>Oznaczyć komponenty do deprecacji.</strong> Gdy nowe źródła danych osiągną pełne pokrycie funkcjonalne, legacy node'y powinny zostać oznaczone jako deprecated w README i launcherach.</li>
-          <li><strong>Zmienić domyślną ścieżkę operacyjną zespołu.</strong> Dokumentacja, instrukcje wdrożeniowe i skrypty developerskie powinny wskazywać <code>unified_system.launch.py mode:=modern</code> jako jedyny tryb domyślny.</li>
-        </ol>
-        <p class="muted">
-          Praktycznie: pełna migracja jest zakończona dopiero wtedy, gdy <code>legacy_detection_adapter_node</code>,
-          <code>light_spot_detector_node</code> i pozostałe bridge'e nie są już potrzebne do codziennego uruchamiania,
-          a wszystkie wejścia systemu trafiają bezpośrednio do obecnego modelu wiadomości.
-        </p>
       </section>
 
-      <section id="modes" class="section panel">
-        <h2>Tryby unified</h2>
-        <p>Launcher <code>../launch/unified_system.launch.py</code> przełącza cały system między trzema trybami.</p>
-        <table>
-          <thead><tr><th>Tryb</th><th>Co uruchamia</th><th>Kiedy używać</th></tr></thead>
-          <tbody>
-            <tr><td><code>modern</code></td><td>pełny nowoczesny pipeline + depth + visual SLAM + debug</td><td>Domyślne uruchomienie systemu.</td></tr>
-            <tr><td><code>legacy</code></td><td>legacy detector + adapter + nowy <code>mission_node</code> i <code>control_node</code></td><td>Integracja ze starym źródłem danych.</td></tr>
-            <tr><td><code>hybrid</code></td><td>pełny nowoczesny pipeline plus legacy detector jako dodatkowe źródło <code>Detection2D</code></td><td>Strojenie i migracja krok po kroku.</td></tr>
-          </tbody>
-        </table>
-        <pre><code>ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
-ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy
-ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid
-ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid with_legacy_camera:=true
-ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy with_unitree_bridges:=true</code></pre>
-      </section>
-
-      <section id="standalone" class="section panel">
-        <h2>Standalone</h2>
-        <p>Polecenia standalone wykonuj z katalogu pakietu <code>ros2_ws/src/g1_light_tracking/</code>.</p>
-        <pre><code>python3 -m g1_light_tracking.standalone.cli_app --camera 0 --model yolov8n.pt --profile full_logistics
-python3 -m g1_light_tracking.standalone.gui_app --camera 0 --model yolov8n.pt --profile debug_perception</code></pre>
-        <p>Dostępne profile z katalogu <code>../profiles/</code>:</p>
-        <ul>
-          <li><code>full_logistics</code></li>
-          <li><code>debug_perception</code></li>
-          <li><code>light_only</code></li>
-          <li><code>marker_only</code></li>
-          <li><code>qr_only</code></li>
-        </ul>
-      </section>
-
-      <section id="deps" class="section panel">
+      <section id="build" class="section panel">
         <h2>Zależności i build</h2>
-        <p>Instalacja zależności pythonowych z katalogu pakietu <code>ros2_ws/src/g1_light_tracking/</code>:</p>
-        <pre><code>python3 -m pip install -r requirements-ros-python.txt
+        <p>Instalacja zależności z katalogu pakietu:</p>
+        <pre><code>cd ros2_ws/src/g1_light_tracking
+python3 -m pip install -r requirements-ros-python.txt
 python3 -m pip install -r requirements-standalone.txt
 python3 -m pip install -r requirements-compat.txt
-sudo apt install libzbar0</code></pre>
+sudo apt update
+sudo apt install -y libzbar0</code></pre>
+
         <p>Build workspace z katalogu <code>ros2_ws/</code>:</p>
-        <pre><code>colcon build --packages-select g1_light_tracking
+        <pre><code>cd ros2_ws
+colcon build --packages-select g1_light_tracking
+source install/setup.bash</code></pre>
+
+        <p>Jeżeli wcześniej wystąpił konflikt targetów CMake:</p>
+        <pre><code>cd ros2_ws
+rm -rf build install log
+colcon build --packages-select g1_light_tracking
 source install/setup.bash</code></pre>
       </section>
 
@@ -444,87 +796,56 @@ source install/setup.bash</code></pre>
         <h2>Najważniejsze pliki</h2>
         <div class="link-list">
           <a class="btn primary" href="../README.md" target="_blank" rel="noopener">README pakietu</a>
+          <a class="btn" href="architecture.md" target="_blank" rel="noopener">architecture.md</a>
           <a class="btn" href="../package.xml" target="_blank" rel="noopener">package.xml</a>
           <a class="btn" href="../CMakeLists.txt" target="_blank" rel="noopener">CMakeLists.txt</a>
           <a class="btn" href="../setup.py" target="_blank" rel="noopener">setup.py</a>
-          <a class="btn" href="architecture.md" target="_blank" rel="noopener">architecture.md</a>
-          <a class="btn ok" href="../launch/unified_system.launch.py" target="_blank" rel="noopener">launch/unified_system.launch.py</a>
-          <a class="btn ok" href="../launch/prod.launch.py" target="_blank" rel="noopener">launch/prod.launch.py</a>
+          <a class="btn ok" href="../launch/unified_system.launch.py" target="_blank" rel="noopener">unified_system.launch.py</a>
+          <a class="btn ok" href="../launch/prod.launch.py" target="_blank" rel="noopener">prod.launch.py</a>
+          <a class="btn ok" href="../config/perception.yaml" target="_blank" rel="noopener">config/perception.yaml</a>
           <a class="btn ok" href="../config/tracking.yaml" target="_blank" rel="noopener">config/tracking.yaml</a>
           <a class="btn ok" href="../config/legacy_adapter.yaml" target="_blank" rel="noopener">config/legacy_adapter.yaml</a>
-          <a class="btn ok" href="../g1_light_tracking/nodes/tracking_node.py" target="_blank" rel="noopener">tracking_node.py</a>
-          <a class="btn ok" href="../g1_light_tracking/nodes/mission_node.py" target="_blank" rel="noopener">mission_node.py</a>
-          <a class="btn ok" href="../g1_light_tracking/legacy_detection_adapter_node.py" target="_blank" rel="noopener">legacy_detection_adapter_node.py</a>
+          <a class="btn ok" href="../g1_light_tracking/nodes/perception_node.py" target="_blank" rel="noopener">perception_node.py</a>
+          <a class="btn ok" href="../g1_light_tracking/nodes/control_node.py" target="_blank" rel="noopener">control_node.py</a>
+          <a class="btn ok" href="../g1_light_tracking/nodes/debug_node.py" target="_blank" rel="noopener">debug_node.py</a>
         </div>
       </section>
 
-      <section id="versioning" class="section panel">
-        <h2>Wersjonowanie</h2>
-        <p>Hook wersjonowania można zainstalować z trzech poziomów katalogów:</p>
-        <pre><code># z katalogu głównego repo
-bash install_git_hooks.sh
-
-# z katalogu ros2_ws/
-bash install_git_hooks.sh
-
-# z katalogu ros2_ws/src/g1_light_tracking/
-bash scripts/install_git_hooks.sh</code></pre>
-        <p class="muted">
-          Każdy wariant instaluje hook <code>pre-commit</code>, który uruchamia <code>scripts/version_bump.py</code>
-          i aktualizuje <code>VERSION</code>, <code>setup.py</code> oraz <code>package.xml</code>.
-        </p>
-      </section>
-    
-      <section class="section panel" id="status">
+      <section id="status" class="section panel">
         <h2>Stan po poprawkach</h2>
-        <p>Aktualna wersja repo zawiera już poprawki w obszarze lokalizacji 3D, wiązania śledzonych obiektów i dokumentacji uruchomieniowej. Bazą docelową pozostaje tor <code>modern</code>, a komponenty <code>legacy</code> są utrzymywane jako warstwa kompatybilności i etap migracyjny.</p>
+        <p>
+          Repo jest już uporządkowane dokumentacyjnie i architektonicznie: tor <code>modern</code> pozostaje bazą docelową,
+          a komponenty <code>legacy</code> działają jako warstwa przejściowa i kompatybilnościowa.
+        </p>
 
-        <div class="callout success">
-          <strong>Potwierdzone poprawki:</strong>
+        <div class="callout ok">
+          <strong>Potwierdzone obszary poprawione i rozwinięte:</strong>
           <ul>
-            <li>skorygowane wywołania helperów geometrycznych w <code>nodes/localization_node.py</code>,</li>
-            <li>parsowanie <code>Detection2D.image_points</code> dla estymacji PnP,</li>
-            <li>spójne ustawianie <code>track_id</code> w wiadomości <code>ParcelTrack</code>,</li>
-            <li>ujednolicenie typu macierzy kamery w <code>depth_mapper_node.py</code>,</li>
-            <li>zsynchronizowane opisy README i polecenia uruchomienia.</li>
+            <li>spójny opis builda, launchy i struktury repo,</li>
+            <li>doprecyzowanie trybów <code>modern</code>, <code>legacy</code>, <code>hybrid</code>,</li>
+            <li>uzupełnienie ścieżki operatorskiej pod SSH i tryb headless,</li>
+            <li>czytelniejszy opis odpowiedzialności node’ów i topików,</li>
+            <li>rozbudowana dokumentacja narzędzi pomocniczych, TUI i wdrożenia na Unitree.</li>
           </ul>
         </div>
 
-        <h3>Co jest aktualnym punktem wejścia</h3>
-        <p>Za główny launcher należy obecnie uznawać <code>ros2_ws/src/g1_light_tracking/launch/unified_system.launch.py</code>. Pozostałe launchery pozostają dostępne, ale pełnią role wyspecjalizowane: produkcyjne, legacy, diagnostyczne albo migracyjne.</p>
+        <h3>Najbardziej rekomendowane polecenia</h3>
+        <pre><code>cd ros2_ws
+colcon build --packages-select g1_light_tracking
+source install/setup.bash
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
 
-        <h3>Rekomendowane polecenia</h3>
-        <div class="button-row">
-          <button class="seq-btn" data-seq="build">Build</button>
-          <button class="seq-btn" data-seq="unified-modern">Modern</button>
-          <button class="seq-btn" data-seq="unified-legacy">Legacy</button>
-          <button class="seq-btn" data-seq="unified-hybrid">Hybrid</button>
-          <button class="seq-btn" data-seq="verify-tests">Testy</button>
-        </div>
-
-        <h3>Konflikt targetów CMake</h3>
-        <p>W tej wersji repo usunięto konflikt pomiędzy generowaniem interfejsów ROS 2 a instalacją pakietu Pythona. W praktyce oznacza to, że po wcześniejszym błędzie typu <code>ament_cmake_python_copy_g1_light_tracking already exists</code> należy wykonać pełne czyszczenie katalogów <code>build/</code>, <code>install/</code> i <code>log/</code> przed kolejnym buildem.</p>
-
-        <div class="button-row">
-          <button class="seq-btn" data-seq="clean-build">Clean build</button>
-          <button class="seq-btn" data-seq="build">Build</button>
-          <button class="seq-btn" data-seq="verify-tests">Testy</button>
-        </div>
-
-        <h3>Dalsze kroki</h3>
-        <ol>
-          <li>utrzymywać nowy kontrakt wiadomości jako jedyne źródło prawdy dla kolejnych modułów,</li>
-          <li>zawężać użycie legacy do replayu, demonstracji i mostów sprzętowych,</li>
-          <li>stopniowo wygaszać ścieżki JSON tam, gdzie nowe wiadomości pokrywają już funkcjonalność,</li>
-          <li>utrzymywać jeden opis uruchomienia w README i tej stronie HTML, aby nie tworzyć rozjazdów.</li>
-        </ol>
+# diagnostyka w drugim terminalu
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking tui_monitor_node</code></pre>
       </section>
-
     </main>
   </div>
 
   <footer>
     Dokumentacja HTML jest utrzymywana w katalogu <code>ros2_ws/src/g1_light_tracking/docs/</code>.
+    Aktualizuj ją równolegle z README i launcherami, aby operator miał jeden spójny opis systemu.
   </footer>
 </div>
 
@@ -572,9 +893,16 @@ const sequences = {
   'unified-hybrid': [
     '$ cd ros2_ws',
     '$ source install/setup.bash',
-    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid with_legacy_camera:=true',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid',
     '',
-    'Nowoczesny pipeline plus legacy jako dodatkowe źródło Detection2D.'
+    'Nowoczesny pipeline plus źródła kompatybilnościowe.'
+  ],
+  'unitree-legacy': [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy with_unitree_bridges:=true',
+    '',
+    'Tryb legacy z bridge\'ami Unitree.'
   ],
   'legacy-stack': [
     '$ cd ros2_ws',
@@ -603,25 +931,11 @@ const sequences = {
     '$ ros2 launch g1_light_tracking topdown_odom.launch.py',
     '',
     'Top-down i diagnostyka odometrii.'
-  ],
-  'clean-build': [
-    '$ cd ros2_ws',
-    '$ rm -rf build install log',
-    '$ colcon build --packages-select g1_light_tracking',
-    '$ source install/setup.bash',
-    '',
-    'Pełne czyszczenie artefaktów po konflikcie targetów CMake.'
-  ],
-  'verify-tests': [
-    '$ cd ros2_ws',
-    '$ source install/setup.bash',
-    '$ python3 -m pytest src/g1_light_tracking/test -v',
-    '',
-    'Kanoniczna forma uruchomienia testów pakietu.'
   ]
 };
 
 const consoleEl = document.getElementById('sequenceConsole');
+
 function renderSequence(key) {
   consoleEl.innerHTML = '';
   (sequences[key] || ['Brak danych']).forEach(line => {

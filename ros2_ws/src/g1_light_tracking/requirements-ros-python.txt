@@ -4,3 +4,4 @@ opencv-python
 ultralytics
 pyzbar
 pupil-apriltags
+PyYAML

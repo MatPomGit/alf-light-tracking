@@ -10,9 +10,12 @@ który następne moduły zamieniają na pozycje przestrzenne i stabilne tracki.
 """
 
 from typing import List, Optional
+import json
+import os
 import cv2
 import numpy as np
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
@@ -48,8 +51,10 @@ class PerceptionNode(Node):
         self.declare_parameter('camera_info_topic', '/camera/camera_info')
         self.declare_parameter('detection_topic', '/perception/detections')
         self.declare_parameter('debug_image_topic', '/debug/perception_image')
+        self.declare_parameter('profile_name', '')
         self.declare_parameter('yolo_model_path', 'yolov8n.pt')
         self.declare_parameter('yolo_confidence', 0.35)
+        self.declare_parameter('enable_yolo', True)
         self.declare_parameter('enable_qr', True)
         self.declare_parameter('enable_apriltag', True)
         self.declare_parameter('enable_light_spot', True)
@@ -60,11 +65,13 @@ class PerceptionNode(Node):
 
         self.detection_topic = self.get_parameter('detection_topic').value
         self.yolo_conf = float(self.get_parameter('yolo_confidence').value)
+        self.enable_yolo = bool(self.get_parameter('enable_yolo').value)
         self.enable_qr = bool(self.get_parameter('enable_qr').value)
         self.enable_apriltag = bool(self.get_parameter('enable_apriltag').value)
         self.enable_light_spot = bool(self.get_parameter('enable_light_spot').value)
         self.light_threshold = int(self.get_parameter('light_threshold').value)
         self.target_classes = set(self.get_parameter('target_classes').value)
+        self._apply_profile_overrides(str(self.get_parameter('profile_name').value).strip())
 
         self.pub = self.create_publisher(Detection2D, self.detection_topic, 50)
         self.debug_pub = self.create_publisher(Image, self.get_parameter('debug_image_topic').value, 10)
@@ -75,20 +82,64 @@ class PerceptionNode(Node):
         # Optional backends are loaded lazily so the node can still run in lighter
         # environments where only QR, AprilTag or light-spot detection is needed.
         self.model = None
-        if YOLO is not None:
+        if self.enable_yolo and YOLO is not None:
             try:
                 self.model = YOLO(self.get_parameter('yolo_model_path').value)
                 self.get_logger().info('YOLO model loaded')
             except Exception as exc:
                 self.get_logger().warning(f'YOLO load failed: {exc}')
+        elif not self.enable_yolo:
+            self.get_logger().info('YOLO disabled by parameters/profile')
 
         self.apriltag_detector = None
         if AprilTagDetector is not None and self.enable_apriltag:
             try:
-                self.apriltag_detector = AprilTagDetector(families='tag36h11')
+                self.apriltag_detector = AprilTagDetector(
+                    families=(
+                        'tag16h5,tag25h9,tag36h11,'
+                        'tagCircle21h7,tagCircle49h12,'
+                        'tagStandard41h12,tagStandard52h13,tagCustom48h12'
+                    )
+                )
                 self.get_logger().info('AprilTag detector loaded')
             except Exception as exc:
                 self.get_logger().warning(f'AprilTag init failed: {exc}')
+
+    def _apply_profile_overrides(self, profile_name: str):
+        if not profile_name:
+            return
+
+        file_name = profile_name if profile_name.endswith('.json') else f'{profile_name}.json'
+        profile_path = os.path.join(get_package_share_directory('g1_light_tracking'), 'profiles', file_name)
+        if not os.path.isfile(profile_path):
+            self.get_logger().warning(
+                f'Profile "{profile_name}" not found under package profiles directory: {profile_path}'
+            )
+            return
+
+        try:
+            with open(profile_path, 'r', encoding='utf-8') as handle:
+                payload = json.load(handle)
+        except Exception as exc:
+            self.get_logger().warning(f'Could not load profile "{profile_name}": {exc}')
+            return
+
+        mapping = {
+            'enable_yolo': 'enable_yolo',
+            'enable_qr': 'enable_qr',
+            'enable_apriltag': 'enable_apriltag',
+            'enable_light_spot': 'enable_light_spot',
+        }
+        applied = []
+        for profile_key, attr_name in mapping.items():
+            if profile_key in payload:
+                setattr(self, attr_name, bool(payload[profile_key]))
+                applied.append(f'{profile_key}={bool(payload[profile_key])}')
+
+        if applied:
+            self.get_logger().info(f'Applied profile "{profile_name}": {", ".join(applied)}')
+        else:
+            self.get_logger().warning(f'Profile "{profile_name}" contains no perception flags')
 
     def camera_info_cb(self, msg: CameraInfo):
         self.last_camera_info = msg
@@ -202,7 +253,7 @@ class PerceptionNode(Node):
 
     def detect_yolo(self, frame, image_msg):
         out = []
-        if self.model is None:
+        if not self.enable_yolo or self.model is None:
             return out
         try:
             results = self.model.predict(frame, conf=self.yolo_conf, verbose=False)

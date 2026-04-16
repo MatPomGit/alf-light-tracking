@@ -1,0 +1,23 @@
+# Generated from camera_calib.npz
+# NOTE: image_width and image_height were not present in the NPZ file.
+# They were inferred as a best-effort estimate from the principal point (cx, cy).
+image_width: 2048
+image_height: 1024
+camera_name: g1_camera
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [1394.9933836130, 0.0000000000, 1022.7132054349, 0.0000000000, 1384.2607749768, 509.7296864402, 0.0000000000, 0.0000000000, 1.0000000000]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.2242386375, -0.7072229005, -0.0080068681, 0.0080013714, 0.7648783722]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0000000000, 0.0000000000, 0.0000000000, 0.0000000000, 1.0000000000, 0.0000000000, 0.0000000000, 0.0000000000, 1.0000000000]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [1394.9933836130, 0.0000000000, 1022.7132054349, 0.0000000000, 0.0000000000, 1384.2607749768, 509.7296864402, 0.0000000000, 0.0000000000, 0.0000000000, 1.0000000000, 0.0000000000]

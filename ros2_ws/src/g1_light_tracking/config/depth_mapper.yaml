@@ -1,7 +1,7 @@
 depth_mapper_node:
   ros__parameters:
     depth_image_topic: /camera/depth/image_raw
-    camera_info_topic: /camera/camera_info
+    camera_info_topic: /camera/depth/camera_info
     odom_topic: /odom
     local_grid_topic: /mapping/local_depth_grid
     depth_hint_topic: /navigation/depth_hint
