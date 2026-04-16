@@ -26,6 +26,16 @@ def _mode_in(*mode_names: str):
     )
 
 
+def _arg_is_true(arg_name: str):
+    # Launch argumenty są stringami; jawnie akceptujemy najczęstsze warianty bool.
+    # Dzięki temu unikamy PythonExpression na surowym LaunchConfiguration i błędów parsera.
+    return OrSubstitution(
+        EqualsSubstitution(LaunchConfiguration(arg_name), 'true'),
+        EqualsSubstitution(LaunchConfiguration(arg_name), 'True'),
+        EqualsSubstitution(LaunchConfiguration(arg_name), '1'),
+    )
+
+
 def generate_launch_description() -> LaunchDescription:
     # All launch files resolve YAMLs from the installed package share directory so the
     # same launcher works both from the source tree and after `colcon build`.
@@ -163,7 +173,7 @@ def generate_launch_description() -> LaunchDescription:
             executable='rosbag_recorder_node',
             output='screen',
             parameters=[os.path.join(config_dir, 'rosbag_recorder.yaml')],
-            condition=IfCondition(LaunchConfiguration('with_rosbag')),
+            condition=IfCondition(_arg_is_true('with_rosbag')),
         ),
     ]
 
@@ -175,11 +185,11 @@ def generate_launch_description() -> LaunchDescription:
             executable='d435i_node',
             name='d435i_node',
             output='screen',
-            # Nie używamy tu surowego PythonExpression z LaunchConfiguration,
-            # bo wartości bool z launch arguments (np. True/False/1/0) mogą dawać błędy parsera.
+            # Nie używamy PythonExpression na surowym LaunchConfiguration:
+            # launch argumenty bool przychodzą jako stringi i muszą być jawnie znormalizowane.
             condition=IfCondition(
                 AndSubstitution(
-                    LaunchConfiguration('with_legacy_camera'),
+                    _arg_is_true('with_legacy_camera'),
                     OrSubstitution(
                         EqualsSubstitution(LaunchConfiguration('mode'), 'legacy'),
                         EqualsSubstitution(LaunchConfiguration('mode'), 'hybrid'),
@@ -243,13 +253,13 @@ def generate_launch_description() -> LaunchDescription:
                 name='unitree_cmd_vel_bridge_node',
                 output='screen',
                 parameters=[os.path.join(config_dir, 'legacy_bridge.yaml')],
-                condition=IfCondition(LaunchConfiguration('with_unitree_bridges')),
+                condition=IfCondition(_arg_is_true('with_unitree_bridges')),
             )
         )
     except ImportError:
         actions.append(
             LogInfo(
-                condition=IfCondition(LaunchConfiguration('with_unitree_bridges')),
+                condition=IfCondition(_arg_is_true('with_unitree_bridges')),
                 msg='unitree_api not available, skipping unitree_cmd_vel_bridge_node',
             )
         )
@@ -263,13 +273,13 @@ def generate_launch_description() -> LaunchDescription:
                 executable='arm_skill_bridge_node',
                 name='arm_skill_bridge_node',
                 output='screen',
-                condition=IfCondition(LaunchConfiguration('with_unitree_bridges')),
+                condition=IfCondition(_arg_is_true('with_unitree_bridges')),
             )
         )
     except ImportError:
         actions.append(
             LogInfo(
-                condition=IfCondition(LaunchConfiguration('with_unitree_bridges')),
+                condition=IfCondition(_arg_is_true('with_unitree_bridges')),
                 msg='unitree_hg messages not available, skipping arm_skill_bridge_node',
             )
         )
