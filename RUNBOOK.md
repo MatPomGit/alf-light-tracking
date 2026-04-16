@@ -57,6 +57,18 @@ ros2 run g1_light_tracking mission_node --ros-args \
   -p scenario_name:=handover_only
 ```
 
+### Ręczna publikacja pozycji plamki
+
+```bash
+ros2 topic pub /spot_position geometry_msgs/Point "{x: 320.0, y: 240.0}" --once
+```
+
+### Obserwacja cmd_vel
+
+```bash
+ros2 topic echo /cmd_vel
+```
+
 ### Modern
 
 ```bash
