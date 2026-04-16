@@ -26,6 +26,11 @@ def _mode_in(*mode_names: str):
     )
 
 
+def _mode_any(*mode_names: str):
+    # Wersja zwracająca Substitution do łączenia z AndSubstitution.
+    return OrSubstitution(*[EqualsSubstitution(LaunchConfiguration('mode'), name) for name in mode_names])
+
+
 def _arg_is_true(arg_name: str):
     # Launch argumenty są stringami; jawnie akceptujemy najczęstsze warianty bool.
     # Dzięki temu unikamy PythonExpression na surowym LaunchConfiguration i błędów parsera.
@@ -33,6 +38,15 @@ def _arg_is_true(arg_name: str):
         EqualsSubstitution(LaunchConfiguration(arg_name), 'true'),
         EqualsSubstitution(LaunchConfiguration(arg_name), 'True'),
         EqualsSubstitution(LaunchConfiguration(arg_name), '1'),
+    )
+
+
+def _arg_is_false(arg_name: str):
+    # Analogiczny helper dla gałęzi warunkowych typu "wyłącz feature".
+    return OrSubstitution(
+        EqualsSubstitution(LaunchConfiguration(arg_name), 'false'),
+        EqualsSubstitution(LaunchConfiguration(arg_name), 'False'),
+        EqualsSubstitution(LaunchConfiguration(arg_name), '0'),
     )
 
 
@@ -70,6 +84,21 @@ def generate_launch_description() -> LaunchDescription:
         default_value='false',
         description='Start rosbag_recorder_node for runtime recording.',
     )
+    with_safety_stop_arg = DeclareLaunchArgument(
+        'with_safety_stop',
+        default_value='true',
+        description='Enable safety_stop_node between control_node and /cmd_vel.',
+    )
+    with_head_display_arg = DeclareLaunchArgument(
+        'with_head_display',
+        default_value='false',
+        description='Start head_display_state_node to publish LED/head display effect.',
+    )
+    head_display_backend_arg = DeclareLaunchArgument(
+        'head_display_backend',
+        default_value='mock',
+        description='Backend name used by head_display_state_node (e.g. mock, unitree).',
+    )
 
     actions = [
         mode_arg,
@@ -77,6 +106,9 @@ def generate_launch_description() -> LaunchDescription:
         unitree_bridge_arg,
         profile_arg,
         rosbag_arg,
+        with_safety_stop_arg,
+        with_head_display_arg,
+        head_display_backend_arg,
         LogInfo(msg=['Launching g1_light_tracking in mode=', LaunchConfiguration('mode')]),
         LogInfo(
             condition=IfCondition(
@@ -160,19 +192,48 @@ def generate_launch_description() -> LaunchDescription:
             executable='control_node',
             output='screen',
             parameters=[os.path.join(config_dir, 'control.yaml')],
-            condition=_mode_in('modern', 'legacy', 'hybrid'),
+            condition=IfCondition(
+                AndSubstitution(
+                    _mode_any('modern', 'legacy', 'hybrid'),
+                    _arg_is_true('with_safety_stop'),
+                )
+            ),
+        ),
+        Node(
+            package='g1_light_tracking',
+            executable='control_node',
+            output='screen',
+            parameters=[
+                os.path.join(config_dir, 'control.yaml'),
+                {'cmd_vel_topic': '/cmd_vel'},
+            ],
+            # Gdy safety_stop jest wyłączony, control publikuje bezpośrednio na finalny topic.
+            condition=IfCondition(
+                AndSubstitution(
+                    _mode_any('modern', 'legacy', 'hybrid'),
+                    _arg_is_false('with_safety_stop'),
+                )
+            ),
         ),
         Node(
             package='g1_light_tracking',
             executable='safety_stop_node',
             output='screen',
             parameters=[os.path.join(config_dir, 'safety.yaml')],
-            condition=_mode_in('modern', 'legacy', 'hybrid'),
+            # Safety node uruchamiamy tylko gdy explicitnie włączony feature flagą launch.
+            # Dzięki temu testy integracyjne mogą łatwo porównać zachowanie z/bez filtra.
+            condition=IfCondition(
+                AndSubstitution(
+                    _mode_any('modern', 'legacy', 'hybrid'),
+                    _arg_is_true('with_safety_stop'),
+                )
+            ),
         ),
         Node(
             package='g1_light_tracking',
             executable='debug_node',
             output='screen',
+            parameters=[os.path.join(config_dir, 'debug.yaml')],
             condition=_mode_in('modern', 'legacy', 'hybrid'),
         ),
         Node(
@@ -188,6 +249,16 @@ def generate_launch_description() -> LaunchDescription:
             output='screen',
             parameters=[os.path.join(config_dir, 'rosbag_recorder.yaml')],
             condition=IfCondition(_arg_is_true('with_rosbag')),
+        ),
+        Node(
+            package='g1_light_tracking',
+            executable='head_display_state_node',
+            output='screen',
+            parameters=[
+                os.path.join(config_dir, 'head_display_state.yaml'),
+                {'backend': LaunchConfiguration('head_display_backend')},
+            ],
+            condition=IfCondition(_arg_is_true('with_head_display')),
         ),
     ]
 

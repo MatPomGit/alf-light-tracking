@@ -45,6 +45,20 @@ Na tym poziomie system zaczyna rozumieć scenę w kategoriach biznesowych. `parc
 ### Warstwa sterowania
 To końcowa translacja percepcji i decyzji na ruch robota. Implementacja jest świadomie prosta: ma być łatwa do strojenia, czytelna i dobra do demonstracji całego pipeline’u, a nie zastępować złożony stack planowania ruchu.
 
+## 3a. Nowy przepływ bezpieczeństwa, head display i nagrywania
+
+```text
+MissionTarget -> control_node -> /cmd_vel/raw -> safety_stop_node -> /cmd_vel
+MissionState ---------------------------------> head_display_state_node -> /head_display/effect
+MissionState ---------------------------------> rosbag_recorder_node -> /rosbag_recorder/status
+```
+
+Powyższy przepływ rozdziela odpowiedzialność:
+- `control_node` generuje ruch roboczy bez decyzji o latched E-STOP,
+- `safety_stop_node` jest jedyną warstwą decydującą o zatrzymaniu awaryjnym,
+- `head_display_state_node` mapuje FSM misji na efekt operatorski LED,
+- `rosbag_recorder_node` raportuje jawny status rejestracji telemetrii.
+
 ## 4. Najważniejsze moduły kodu
 
 ## `g1_light_tracking/nodes/`
@@ -151,3 +165,23 @@ Każde zatrzymanie jest logowane z przyczyną (`manual`, `automatic_reconcile`, 
 ### Metadane sesji
 Dla każdej sesji zapisywany jest JSON obok katalogu bag'a (np. `<bag_name>_session.json`).
 Plik zawiera m.in. timestamp uruchomienia, powód startu/zatrzymania, stan misji na starcie i podpowiedź scenariusza.
+
+## 10. Checklista operacyjna
+
+### Start misji
+1. Uruchom system launch i potwierdź wybrany tryb (`mode`).
+2. Zweryfikuj, że `control_node` publikuje na `/cmd_vel/raw`.
+3. Sprawdź czy `safety_stop_node` jest aktywny (`with_safety_stop:=true`) i publikuje `/safety/estop_state`.
+4. Potwierdź heartbeat `MissionState` i poprawny cel `MissionTarget`.
+5. Jeśli używany jest head display, sprawdź publikację `/head_display/effect`.
+6. Jeśli wymagane logowanie danych, włącz `with_rosbag:=true` i sprawdź `/rosbag_recorder/status`.
+7. Dopiero po powyższej walidacji przejdź do ruchu robota.
+
+### Awaryjne zatrzymanie + recovery
+1. Wywołaj `/safety/estop/trigger` i potwierdź `E-STOP active=true`.
+2. Zweryfikuj, że `/cmd_vel` jest zerowany (brak ruchu robota).
+3. Zidentyfikuj przyczynę w logu (`manual`, watchdog, depth obstacle, brak mission heartbeat).
+4. Usuń przyczynę źródłową (np. przeszkoda, brak danych wejściowych, błąd node’a).
+5. Potwierdź stabilność telemetryczną (`/mission/state`, `/navigation/depth_hint`, `/rosbag_recorder/status`).
+6. Wywołaj `/safety/estop/reset` i sprawdź, że `E-STOP active=false`.
+7. Wznowienie ruchu wykonuj stopniowo, obserwując `debug_node` lub `tui_monitor_node`.
