@@ -121,3 +121,33 @@ Najbardziej efektywna kolejność wejścia w kod:
 6. `utils/` i `test/`.
 
 To pozwala najpierw zrozumieć kontrakty i przepływ danych, a dopiero potem szczegóły implementacyjne.
+
+## 9. Workflow nagrywania rosbag (rosbag_recorder_node)
+
+Pipeline można uruchomić z opcjonalnym node'em `rosbag_recorder_node`, który zarządza procesem `ros2 bag record`.
+Node startuje warunkowo przez launch argument `with_rosbag:=true` i czyta parametry z `config/rosbag_recorder.yaml`.
+
+### Kluczowe parametry
+- `output_dir`, `bag_prefix` — lokalizacja i prefiks nazw sesji.
+- `record_all_topics`, `topics_allowlist` — nagrywanie wszystkich topiców albo jawnej listy.
+- `compression_mode`, `compression_format` — kompresja rosbag2.
+- `split_size_mb` — podział worka po limicie rozmiaru.
+- `start_on_launch` — czy node ma zacząć nagrywać od startu.
+- `record_only_when_mission_active` — czy nagrywanie zależy od aktywności FSM.
+
+### Automatyczne sterowanie wg FSM
+Node subskrybuje `/mission/state` (`MissionState`) i wylicza, czy misja jest aktywna.
+Jeżeli `record_only_when_mission_active=true`, nagrywanie jest aktywne tylko poza stanami terminalnymi/
+bezczynności. Dzięki temu można ograniczyć rozmiar danych do momentów istotnych operacyjnie.
+
+### Sterowanie ręczne i rotacja
+- `/rosbag_recorder/enable` (`std_srvs/srv/SetBool`) — ręczne start/stop.
+- `/rosbag_recorder/rotate` (`std_srvs/srv/SetBool`) — opcjonalna rotacja aktywnej sesji.
+
+### Bezpieczne zamykanie procesu
+Przy zatrzymaniu node wysyła najpierw `SIGINT`, następnie po timeout `SIGTERM` i awaryjnie `SIGKILL`.
+Każde zatrzymanie jest logowane z przyczyną (`manual`, `automatic_reconcile`, `node_shutdown`, itp.).
+
+### Metadane sesji
+Dla każdej sesji zapisywany jest JSON obok katalogu bag'a (np. `<bag_name>_session.json`).
+Plik zawiera m.in. timestamp uruchomienia, powód startu/zatrzymania, stan misji na starcie i podpowiedź scenariusza.

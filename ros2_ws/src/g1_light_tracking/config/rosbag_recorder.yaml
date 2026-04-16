@@ -1,0 +1,11 @@
+rosbag_recorder_node:
+  ros__parameters:
+    output_dir: /tmp/rosbags
+    bag_prefix: mission
+    record_all_topics: true
+    topics_allowlist: ["/mission/state", "/mission/target", "/tracking/targets", "/tracking/parcel_tracks"]
+    compression_mode: file
+    compression_format: zstd
+    split_size_mb: 1024
+    start_on_launch: false
+    record_only_when_mission_active: true

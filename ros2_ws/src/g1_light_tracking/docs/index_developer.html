@@ -333,6 +333,24 @@
           <strong>Antywzorzec:</strong> nie łącz percepcji, trackingu, logiki misji i sterowania w jednym node’zie.
           To utrudnia debugowanie, zwiększa ryzyko i psuje możliwość modularnej rozbudowy.
         </div>
+
+        <h3>Nagrywanie sesji rosbag</h3>
+        <p>
+          W launchu <code>unified_system.launch.py</code> można opcjonalnie uruchomić
+          <code>rosbag_recorder_node</code> przez argument <code>with_rosbag:=true</code>.
+          Node zarządza procesem <code>ros2 bag record</code>, wspiera kompresję, dzielenie plików
+          i automatyczne włączanie nagrywania tylko podczas aktywnej misji.
+        </p>
+        <pre><code># Przykład uruchomienia systemu z rejestracją bagów
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern with_rosbag:=true
+
+# Ręczne sterowanie
+ros2 service call /rosbag_recorder/enable std_srvs/srv/SetBool "{data: true}"
+ros2 service call /rosbag_recorder/rotate std_srvs/srv/SetBool "{data: true}"</code></pre>
+        <div class="callout info">
+          Oprócz bag'a zapisywany jest JSON z metadanymi sesji (timestamp, powód zatrzymania,
+          początkowy stan FSM i wskazówka scenariusza), co ułatwia późniejszą analizę logów.
+        </div>
       </section>
 
       <section id="patterns" class="section panel">
@@ -843,6 +861,14 @@ const sequences = {
     '$ python3 -m pytest src/g1_light_tracking/test -v',
     '',
     'Podstawowa weryfikacja testowa pakietu.'
+  ],
+  rosbag: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=modern with_rosbag:=true',
+    '$ ros2 service call /rosbag_recorder/enable std_srvs/srv/SetBool "{data: true}"',
+    '',
+    'Uruchomienie i sterowanie rejestratorem sesji rosbag.'
   ]
 };
 

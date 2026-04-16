@@ -55,12 +55,18 @@ def generate_launch_description() -> LaunchDescription:
         default_value='',
         description='Optional perception profile name from profiles/*.json (e.g. markers_and_light).',
     )
+    rosbag_arg = DeclareLaunchArgument(
+        'with_rosbag',
+        default_value='false',
+        description='Start rosbag_recorder_node for runtime recording.',
+    )
 
     actions = [
         mode_arg,
         legacy_camera_arg,
         unitree_bridge_arg,
         profile_arg,
+        rosbag_arg,
         LogInfo(msg=['Launching g1_light_tracking in mode=', LaunchConfiguration('mode')]),
         LogInfo(
             condition=IfCondition(
@@ -151,6 +157,13 @@ def generate_launch_description() -> LaunchDescription:
             executable='debug_node',
             output='screen',
             condition=_mode_in('modern', 'legacy', 'hybrid'),
+        ),
+        Node(
+            package='g1_light_tracking',
+            executable='rosbag_recorder_node',
+            output='screen',
+            parameters=[os.path.join(config_dir, 'rosbag_recorder.yaml')],
+            condition=IfCondition(LaunchConfiguration('with_rosbag')),
         ),
     ]
 
