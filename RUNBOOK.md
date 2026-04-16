@@ -37,12 +37,37 @@ ros2 launch g1\_light\_tracking prod.launch.py
 
 ## 2\. Najczęstsze warianty uruchomienia
 
+Uruchom mission_node z wybraną nazwą scenariusza.
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking mission_node --ros-args \
+  --params-file src/g1_light_tracking/config/mission.yaml \
+  -p scenario_name:=delivery
+```
+
+albo
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 run g1_light_tracking mission_node --ros-args \
+  --params-file src/g1_light_tracking/config/mission.yaml \
+  -p scenario_name:=handover_only
+```
+
 ### Modern
 
 ```bash
 cd ros2\_ws
 source install/setup.bash
 ros2 launch g1\_light\_tracking unified\_system.launch.py mode:=modern
+
+# Uruchomienie pełnego pipeline'u 'modern'
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern
+# Uruchomienie w trybie 'hybrid' z profilem do wykrywania markerów
+ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid profile:=markers_and_light
 ```
 
 ### Legacy

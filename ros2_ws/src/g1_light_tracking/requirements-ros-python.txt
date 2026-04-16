@@ -5,3 +5,4 @@ ultralytics
 pyzbar
 pupil-apriltags
 PyYAML
+filterpy

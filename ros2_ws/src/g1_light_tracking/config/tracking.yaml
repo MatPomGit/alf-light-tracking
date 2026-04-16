@@ -1,5 +1,10 @@
 tracking_node:
   ros__parameters:
+    min_spot_area: 3          # dla lasera
+    max_spot_area: 500        # dla większych plamek
+    min_circularity: 0.5      # odrzuca refleksy liniowe
+    measurement_noise: 25.0   # ufność pomiarom (px)
+    tracking_timeout_ms: 200  # jak długo przewidujemy bez pomiaru
     localized_topic: /localization/targets
     tracked_topic: /tracking/targets
     debug_motion_topic: /tracking/global_motion_debug

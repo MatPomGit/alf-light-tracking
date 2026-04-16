@@ -19,6 +19,7 @@ from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
+from g1_light_tracking.vision.light_spot_detector import LightSpotDetector
 
 from g1_light_tracking.msg import Detection2D
 from g1_light_tracking.utils.geometry import dominant_color_bgr
@@ -53,14 +54,15 @@ class PerceptionNode(Node):
         self.declare_parameter('debug_image_topic', '/debug/perception_image')
         self.declare_parameter('profile_name', '')
         self.declare_parameter('yolo_model_path', 'yolov8n.pt')
-        self.declare_parameter('yolo_confidence', 0.35)
+        self.declare_parameter('yolo_confidence', 0.55)
         self.declare_parameter('enable_yolo', True)
         self.declare_parameter('enable_qr', True)
         self.declare_parameter('enable_apriltag', True)
         self.declare_parameter('enable_light_spot', True)
         self.declare_parameter('light_threshold', 240)
-        # TODO: Add runtime-reconfigurable ROI / color presets so operators can
-        # retune the detector live for new warehouse lighting conditions.
+
+        # TODO: Add runtime-reconfigurable ROI / color presets so operators 
+        # can retune the detector live for new warehouse lighting conditions.
         self.declare_parameter('target_classes', ['person', 'box', 'package', 'shelf', 'bookcase', 'table'])
 
         self.detection_topic = self.get_parameter('detection_topic').value
@@ -78,6 +80,29 @@ class PerceptionNode(Node):
 
         self.create_subscription(Image, self.get_parameter('image_topic').value, self.image_cb, 10)
         self.create_subscription(CameraInfo, self.get_parameter('camera_info_topic').value, self.camera_info_cb, 10)
+
+         # Parametry dla detektora plamki światła
+        self.declare_parameter('light_spot.min_area', 3)
+        self.declare_parameter('light_spot.max_area', 500)
+        self.declare_parameter('light_spot.min_circularity', 0.5)
+        self.declare_parameter('light_spot.measurement_noise', 25.0)
+        self.declare_parameter('light_spot.tracking_timeout_ms', 200)
+
+        min_area = self.get_parameter('light_spot.min_area').get_parameter_value().integer_value
+        max_area = self.get_parameter('light_spot.max_area').get_parameter_value().integer_value
+        min_circularity = self.get_parameter('light_spot.min_circularity').get_parameter_value().double_value
+        measurement_noise = self.get_parameter('light_spot.measurement_noise').get_parameter_value().double_value
+        tracking_timeout_ms = self.get_parameter('light_spot.tracking_timeout_ms').get_parameter_value().integer_value
+
+                # Konfiguracja dla LightSpotDetector
+        detector_config = {
+            'min_spot_area': min_area,
+            'max_spot_area': max_area,
+            'min_circularity': min_circularity,
+            'measurement_noise': measurement_noise,
+            'tracking_timeout_ms': tracking_timeout_ms,
+        }
+        self.spot_detector = LightSpotDetector(detector_config)
 
         # Optional backends are loaded lazily so the node can still run in lighter
         # environments where only QR, AprilTag or light-spot detection is needed.
@@ -143,6 +168,21 @@ class PerceptionNode(Node):
 
     def camera_info_cb(self, msg: CameraInfo):
         self.last_camera_info = msg
+
+        def image_callback(self, msg):
+        # konwersja obrazu z ROS do OpenCV
+        cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+        # Użycie detektora do znalezienia plamki
+        spot_pos = self.spot_detector.process_frame(cv_image)
+        if spot_pos is not None:
+            # Pozycja plamki znaleziona - opublikuj lub zapisz
+            # Publikuj jako Point lub Vector2
+            self.publish_spot(spot_pos[0], spot_pos[1])
+            self.get_logger().debug(f'Spot detected at: {spot_pos}', throttle_duration_sec=1.0)
+        else:
+            # Brak plamki w tej klatce
+            self.get_logger().debug('No spot detected', throttle_duration_sec=1.0)
+        
 
     def image_cb(self, msg: Image):
         # The node publishes one message per detection instead of a batch array, because
