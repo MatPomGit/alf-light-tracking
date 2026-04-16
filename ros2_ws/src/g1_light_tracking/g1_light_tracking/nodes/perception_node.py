@@ -20,9 +20,10 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
 from g1_light_tracking.vision.light_spot_detector import LightSpotDetector
-
+from geometry_msgs.msg import Point
 from g1_light_tracking.msg import Detection2D
 from g1_light_tracking.utils.geometry import dominant_color_bgr
+
 
 try:
     from ultralytics import YOLO
@@ -64,6 +65,7 @@ class PerceptionNode(Node):
         # TODO: Add runtime-reconfigurable ROI / color presets so operators 
         # can retune the detector live for new warehouse lighting conditions.
         self.declare_parameter('target_classes', ['person', 'box', 'package', 'shelf', 'bookcase', 'table'])
+        self.spot_pub = self.create_publisher(Point, '/spot_position', 10)
 
         self.detection_topic = self.get_parameter('detection_topic').value
         self.yolo_conf = float(self.get_parameter('yolo_confidence').value)
@@ -174,9 +176,17 @@ class PerceptionNode(Node):
         cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         # Użycie detektora do znalezienia plamki
         spot_pos = self.spot_detector.process_frame(cv_image)
+        # Poprawne rozpakowanie wyniku (x, y)
         if spot_pos is not None:
             # Pozycja plamki znaleziona - opublikuj lub zapisz
             # Publikuj jako Point lub Vector2
+            spot_x, spot_y = spot_pos
+            spot_msg = Point()
+            spot_msg.x = float(spot_x)
+            spot_msg.y = float(spot_y)
+            spot_msg.z = 0.0   # głębokość nieznana – może być uzupełniona przez localization_node
+            self.spot_pub.publish(spot_msg)
+            self.get_logger().debug(f'Spot published: ({spot_x:.1f}, {spot_y:.1f})', throttle_duration_sec=0.5)
             self.publish_spot(spot_pos[0], spot_pos[1])
             self.get_logger().debug(f'Spot detected at: {spot_pos}', throttle_duration_sec=1.0)
         else:
@@ -239,6 +249,13 @@ class PerceptionNode(Node):
         det.x_min = float(x); det.y_min = float(y); det.x_max = float(x + w); det.y_max = float(y + h)
         det.center_u = float(x + w / 2.0); det.center_v = float(y + h / 2.0)
         det.color_label = dominant_color_bgr(roi)
+        
+        # W perception_node.py po wykryciu plamki:
+        spot_msg = Point()
+        spot_msg.x = float(spot_x)
+        spot_msg.y = float(spot_y)
+        spot_msg.z = 0.0  # brak głębi
+        self.spot_pub.publish(spot_msg)
         return det
 
     def detect_qr(self, frame, image_msg):
@@ -269,6 +286,7 @@ class PerceptionNode(Node):
     def detect_apriltag(self, frame, image_msg):
         out = []
         if self.apriltag_detector is None:
+            print("Brak biblioteki April Tag")
             return out
         try:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

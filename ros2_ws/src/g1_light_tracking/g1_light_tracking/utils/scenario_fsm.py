@@ -3,6 +3,9 @@
 Moduł pozwala definiować wiele nazwanych scenariuszy w jednym pliku YAML
 i wybierać je po nazwie misji. Dzięki temu `mission_node` może obsługiwać
 różne warianty zachowania robota bez przepisywania samego kodu node'a.
+
+Ważna zasada:
+- jeżeli użytkownik nie poda `scenario_name`, ładowany jest pierwszy scenariusz z pliku.
 """
 
 from __future__ import annotations
@@ -46,6 +49,7 @@ class ScenarioDefinition:
 
 
 def default_mission_scenario_dict() -> Dict[str, Any]:
+    """Wbudowany fallback, używany gdy plik scenariusza jest niedostępny."""
     return {
         "name": "delivery_default",
         "initial_state": "search",
@@ -138,6 +142,7 @@ def default_mission_scenario_dict() -> Dict[str, Any]:
 
 
 def scenario_from_dict(data: Dict[str, Any]) -> ScenarioDefinition:
+    """Buduje obiekt scenariusza z danych YAML / dict."""
     states: Dict[str, ScenarioState] = {}
     for state_name, raw_state in data.get("states", {}).items():
         transitions = []
@@ -155,6 +160,7 @@ def scenario_from_dict(data: Dict[str, Any]) -> ScenarioDefinition:
                     actions=list(raw_transition.get("actions", [])),
                 )
             )
+
         states[state_name] = ScenarioState(
             name=state_name,
             target_policy=str(raw_state.get("target_policy", "generic")),
@@ -174,19 +180,29 @@ def scenario_from_dict(data: Dict[str, Any]) -> ScenarioDefinition:
     )
 
 
-def _extract_registry(data: Dict[str, Any]) -> Tuple[Optional[str], Dict[str, Any]]:
+def _extract_registry(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Wyciąga rejestr scenariuszy z pliku.
+
+    Obsługiwane formaty:
+    1. Pojedynczy scenariusz jako cały plik YAML
+    2. Rejestr wielu scenariuszy pod kluczem `scenarios`
+    """
     if "scenarios" in data:
         registry = data.get("scenarios", {})
         if not isinstance(registry, dict) or not registry:
             raise ValueError("Pole 'scenarios' musi być niepustą mapą YAML")
-        default_name = data.get("default_scenario")
-        return (str(default_name) if default_name else None), registry
+        return registry
 
     scenario_name = str(data.get("name", "default"))
-    return scenario_name, {scenario_name: data}
+    return {scenario_name: data}
 
 
 def load_named_scenario_definition(path: str | Path | None, scenario_name: str | None) -> ScenarioDefinition:
+    """Wczytuje nazwany scenariusz z pliku YAML lub zwraca fallback wbudowany.
+
+    Jeżeli `scenario_name` jest puste albo None, wybierany jest pierwszy scenariusz
+    z pliku w kolejności YAML.
+    """
     if not path:
         return scenario_from_dict(default_mission_scenario_dict())
 
@@ -200,10 +216,13 @@ def load_named_scenario_definition(path: str | Path | None, scenario_name: str |
     if not isinstance(data, dict):
         raise ValueError("Plik scenariusza musi zawierać mapę YAML")
 
-    default_name, registry = _extract_registry(data)
-    selected_name = scenario_name or default_name or next(iter(registry.keys()))
+    registry = _extract_registry(data)
+    selected_name = scenario_name.strip() if isinstance(scenario_name, str) else None
+    if not selected_name:
+        selected_name = next(iter(registry.keys()))
+
     if selected_name not in registry:
-        available = ", ".join(sorted(registry.keys()))
+        available = ", ".join(registry.keys())
         raise ValueError(f"Nie znaleziono scenariusza {selected_name!r}. Dostępne: {available}")
 
     selected = dict(registry[selected_name])
@@ -212,10 +231,12 @@ def load_named_scenario_definition(path: str | Path | None, scenario_name: str |
 
 
 def load_scenario_definition(path: str | Path | None) -> ScenarioDefinition:
+    """Kompatybilny wrapper do wczytania scenariusza bez podawania nazwy."""
     return load_named_scenario_definition(path, None)
 
 
 def evaluate_condition(expr: Any, predicates: Dict[str, bool]) -> bool:
+    """Oblicza warunek przejścia na podstawie prostego DSL w YAML."""
     if isinstance(expr, bool):
         return expr
     if isinstance(expr, str):

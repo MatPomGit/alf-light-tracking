@@ -2,30 +2,40 @@
 
 MissionNode obserwuje tracki i stan przesyłek, wybiera cel misji oraz publikuje dwa rodzaje
 informacji: bieżący stan automatu (`MissionState`) oraz docelowy obiekt do śledzenia / podejścia
-(`MissionTarget`). W praktyce jest to cienka warstwa decyzyjna nad percepcją i trackingiem.
+(`MissionTarget`).
 
-To tutaj zapada decyzja, czy robot ma być bezczynny, czy ma podążać za wykrytym celem,
-czy też przesyłka osiągnęła stan gotowości do przekazania.
+W tej wersji maszyna stanów jest ładowana z pliku YAML i może zawierać wiele
+nazwanych scenariuszy. Dzięki temu różne misje mogą korzystać z różnych FSM
+bez przepisywania samego node'a.
 """
 
+from __future__ import annotations
+
 import time
+
 import rclpy
 from rclpy.node import Node
 
 from g1_light_tracking.msg import (
-    TrackedTarget,
+    MissionState,
     MissionTarget,
     ParcelInfo,
     ParcelTrack,
-    MissionState,
+    TrackedTarget,
+)
+from g1_light_tracking.utils.scenario_fsm import (
+    ScenarioDefinition,
+    evaluate_condition,
+    load_named_scenario_definition,
 )
 
 
-# TODO: Promote the implicit state logic into an explicit finite-state machine
-# with transition guards and metrics once handover / pickup behaviors grow.
 class MissionNode(Node):
+    """Node ROS 2 odpowiedzialny za logikę misji i wybór aktywnego celu."""
+
     def __init__(self):
         super().__init__('mission_node')
+
         self.declare_parameter('tracked_topic', '/tracking/targets')
         self.declare_parameter('parcel_track_topic', '/tracking/parcel_tracks')
         self.declare_parameter('mission_topic', '/mission/target')
@@ -35,9 +45,9 @@ class MissionNode(Node):
         self.declare_parameter('color_dropoff_values', ['blue', 'red'])
         self.declare_parameter('prefer_identified_parcels', True)
         self.declare_parameter('parcel_timeout_sec', 3.0)
-        # TODO: Add operator override / supervisory commands so missions can be
-        # paused, resumed or forced into a recovery state from an HMI layer.
         self.declare_parameter('state_hold_sec', 1.0)
+        self.declare_parameter('scenario_file', '')
+        self.declare_parameter('scenario_name', '')
 
         self.pickup_colors = set(self.get_parameter('color_pickup_values').value)
         self.dropoff_colors = set(self.get_parameter('color_dropoff_values').value)
@@ -45,12 +55,16 @@ class MissionNode(Node):
         self.parcel_timeout_sec = float(self.get_parameter('parcel_timeout_sec').value)
         self.state_hold_sec = float(self.get_parameter('state_hold_sec').value)
 
+        scenario_file = str(self.get_parameter('scenario_file').value)
+        scenario_name = str(self.get_parameter('scenario_name').value)
+        self.scenario = self.load_scenario(scenario_file, scenario_name)
+
         self.latest_tracked_by_id = {}
         self.latest_parcel_tracks = {}
         self.latest_parcel_time = {}
         self.latest_tracked_time = {}
 
-        self.current_state = 'search'
+        self.current_state = self.scenario.initial_state
         self.previous_state = ''
         self.state_since = time.time()
         self.active_parcel_box_track_id = ''
@@ -60,12 +74,26 @@ class MissionNode(Node):
         self.state_pub = self.create_publisher(MissionState, self.get_parameter('mission_state_topic').value, 20)
         self.parcel_pub = self.create_publisher(ParcelInfo, self.get_parameter('parcel_info_topic').value, 20)
 
-        # Mission subscribes both to raw tracked objects and parcel-level aggregates so
-        # it can operate during partial migration, even if parcel binding is incomplete.
         self.create_subscription(TrackedTarget, self.get_parameter('tracked_topic').value, self.on_tracked, 50)
         self.create_subscription(ParcelTrack, self.get_parameter('parcel_track_topic').value, self.on_parcel_track, 20)
 
         self.timer = self.create_timer(0.20, self.tick)
+
+        self.get_logger().info(
+            f"MissionNode started. scenario={self.scenario.name}, "
+            f"initial_state={self.scenario.initial_state}, "
+            f"scenario_file={scenario_file or '<built-in>'}"
+        )
+
+    def load_scenario(self, scenario_file: str, scenario_name: str | None) -> ScenarioDefinition:
+        try:
+            return load_named_scenario_definition(scenario_file, scenario_name)
+        except Exception as exc:
+            self.get_logger().warning(
+                f"Nie udało się wczytać scenariusza name={scenario_name!r} "
+                f"z pliku {scenario_file!r}: {exc}. Używam scenariusza wbudowanego."
+            )
+            return load_named_scenario_definition(None, None)
 
     def on_tracked(self, msg: TrackedTarget):
         self.latest_tracked_by_id[msg.track_id] = msg
@@ -87,19 +115,20 @@ class MissionNode(Node):
             self.parcel_pub.publish(p)
 
     def tick(self):
-        # The timer performs a full policy update: purge stale observations, select the
-        # best candidates, advance the finite-state machine and publish fresh outputs.
         self.cleanup_stale()
+
         best_parcel = self.select_best_parcel_track()
         light = self.select_first_target('light_spot')
         shelf = self.select_first_target('shelf')
         person = self.select_first_target('person')
         planar = self.select_first_target('planar_surface')
 
-        self.advance_state(best_parcel, light, shelf, person, planar)
-        mission = self.build_mission(best_parcel, light, shelf, person, planar)
+        context = {"parcel": best_parcel, "light": light, "shelf": shelf, "person": person, "planar": planar}
+
+        self.advance_state(context)
+        mission = self.build_mission(context)
         self.mission_pub.publish(mission)
-        self.state_pub.publish(self.build_state_msg(best_parcel, light, shelf, person, planar))
+        self.state_pub.publish(self.build_state_msg(context))
 
     def state_elapsed(self) -> float:
         return time.time() - self.state_since
@@ -109,88 +138,97 @@ class MissionNode(Node):
             self.previous_state = self.current_state
             self.current_state = new_state
             self.state_since = time.time()
+            self.get_logger().info(
+                f"Mission state changed: {self.previous_state} -> {self.current_state} "
+                f"(scenario={self.scenario.name})"
+            )
 
-    def advance_state(self, parcel, light, shelf, person, planar):
-        # This finite-state machine is deliberately compact and readable. The project uses
-        # it as the canonical place for mission policy rather than distributing decisions
-        # across many nodes.
-        # search -> approach_person -> receive_parcel -> verify_qr -> navigate -> align -> drop
-        if self.current_state == 'search':
-            if parcel is not None:
+    def build_predicates(self, context: dict) -> dict:
+        parcel = context["parcel"]
+        light = context["light"]
+        shelf = context["shelf"]
+        person = context["person"]
+        planar = context["planar"]
+        elapsed = self.state_elapsed()
+
+        return {
+            "parcel_exists": parcel is not None,
+            "parcel_has_qr": bool(parcel is not None and parcel.has_qr),
+            "parcel_identified": bool(parcel is not None and parcel.logistics_state == 'identified'),
+            "person_exists": person is not None,
+            "shelf_exists": shelf is not None,
+            "light_exists": light is not None,
+            "planar_exists": planar is not None,
+            "light_color_in_zone": bool(light is not None and light.color_label in (self.pickup_colors | self.dropoff_colors)),
+            "light_aligned_for_drop": bool(light is not None and abs(light.position.x) < 0.15 and light.position.z < 0.8),
+            "person_missing_timeout": bool(person is None and elapsed > self.state_hold_sec),
+            "parcel_missing_timeout": bool(parcel is None and elapsed > self.state_hold_sec),
+            "light_missing_timeout": bool(light is None and elapsed > self.state_hold_sec),
+            "navigate_missing_timeout": bool(shelf is None and parcel is None and elapsed > max(2.0, self.state_hold_sec)),
+            "drop_finished_timeout": bool(elapsed > 1.5),
+        }
+
+    def execute_actions(self, actions: list[str], context: dict):
+        parcel = context["parcel"]
+        for action in actions:
+            if action == "set_active_parcel_from_parcel" and parcel is not None:
                 self.active_parcel_box_track_id = parcel.parcel_box_track_id
                 self.active_shipment_id = parcel.shipment_id
-                self.set_state('verify_qr' if parcel.has_qr else 'receive_parcel')
-            elif person is not None:
-                self.set_state('approach_person')
-            elif shelf is not None:
-                self.set_state('navigate')
-
-        elif self.current_state == 'approach_person':
-            if parcel is not None:
-                self.active_parcel_box_track_id = parcel.parcel_box_track_id
-                self.active_shipment_id = parcel.shipment_id
-                self.set_state('verify_qr' if parcel.has_qr else 'receive_parcel')
-            elif person is None and self.state_elapsed() > self.state_hold_sec:
-                self.set_state('search')
-
-        elif self.current_state == 'receive_parcel':
-            if parcel is not None and parcel.has_qr:
-                self.active_parcel_box_track_id = parcel.parcel_box_track_id
-                self.active_shipment_id = parcel.shipment_id
-                self.set_state('verify_qr')
-            elif parcel is None and self.state_elapsed() > self.state_hold_sec:
-                self.set_state('search')
-
-        elif self.current_state == 'verify_qr':
-            if parcel is not None and parcel.logistics_state == 'identified':
-                self.set_state('navigate')
-            elif parcel is None and self.state_elapsed() > self.state_hold_sec:
-                self.set_state('search')
-
-        elif self.current_state == 'navigate':
-            if light is not None and light.color_label in ('blue', 'red', 'green', 'yellow'):
-                self.set_state('align')
-            elif planar is not None:
-                # stay in navigate but with planar target hint
-                pass
-            elif shelf is None and parcel is None and self.state_elapsed() > max(2.0, self.state_hold_sec):
-                self.set_state('search')
-
-        elif self.current_state == 'align':
-            if light is not None and abs(light.position.x) < 0.15 and light.position.z < 0.8:
-                self.set_state('drop')
-            elif light is None and self.state_elapsed() > self.state_hold_sec:
-                self.set_state('navigate')
-
-        elif self.current_state == 'drop':
-            if self.state_elapsed() > 1.5:
+            elif action == "clear_active_parcel":
                 self.active_parcel_box_track_id = ''
                 self.active_shipment_id = ''
-                self.set_state('search')
+            else:
+                self.get_logger().warning(f"Nieznana akcja scenariusza: {action}")
 
-    def build_mission(self, parcel, light, shelf, person, planar) -> MissionTarget:
+    def advance_state(self, context: dict):
+        state_def = self.scenario.states.get(self.current_state)
+        if state_def is None:
+            self.get_logger().error(
+                f"Aktualny stan {self.current_state!r} nie istnieje w scenariuszu. "
+                f"Wracam do initial_state={self.scenario.initial_state!r}."
+            )
+            self.set_state(self.scenario.initial_state)
+            return
+
+        predicates = self.build_predicates(context)
+        for transition in state_def.transitions:
+            elapsed = self.state_elapsed()
+            if elapsed < transition.min_state_time:
+                continue
+            if transition.max_state_time is not None and elapsed > transition.max_state_time:
+                continue
+            if evaluate_condition(transition.condition, predicates):
+                self.execute_actions(transition.actions, context)
+                self.set_state(transition.target)
+                return
+
+    def build_mission(self, context: dict) -> MissionTarget:
+        parcel = context["parcel"]
+        light = context["light"]
+        shelf = context["shelf"]
+        person = context["person"]
+        planar = context["planar"]
+
         mission = MissionTarget()
         mission.mode = self.current_state
 
-        if self.current_state == 'approach_person' and person is not None:
-            return self.mission_from_tracked(person, 'approach_person')
+        state_def = self.scenario.states.get(self.current_state)
+        target_policy = state_def.target_policy if state_def is not None else "generic"
 
-        if self.current_state in ('receive_parcel', 'verify_qr', 'navigate') and parcel is not None:
+        if target_policy == 'person' and person is not None:
+            return self.mission_from_tracked(person, self.current_state)
+        if target_policy == 'parcel' and parcel is not None:
             return self.mission_from_parcel_track(parcel, self.current_state)
-
-        if self.current_state == 'align':
+        if target_policy == 'align':
             if light is not None:
                 return self.mission_from_light(light)
             if planar is not None:
                 return self.mission_from_tracked(planar, 'planar_alignment')
+        if target_policy == 'drop' and light is not None:
+            m = self.mission_from_light(light)
+            m.mode = 'drop'
+            return m
 
-        if self.current_state == 'drop':
-            if light is not None:
-                m = self.mission_from_light(light)
-                m.mode = 'drop'
-                return m
-
-        # generic fallback
         if parcel is not None:
             return self.mission_from_parcel_track(parcel, 'parcel_approach')
         if light is not None:
@@ -204,8 +242,6 @@ class MissionNode(Node):
         return mission
 
     def select_best_parcel_track(self):
-        # Parcel ranking prefers continuity first and then semantic quality signals such as
-        # QR identification and confirmation. That reduces target thrashing frame-to-frame.
         if not self.latest_parcel_tracks:
             return None
         candidates = list(self.latest_parcel_tracks.values())
@@ -274,7 +310,13 @@ class MissionNode(Node):
         mission.mode = mode
         return mission
 
-    def build_state_msg(self, parcel, light, shelf, person, planar) -> MissionState:
+    def build_state_msg(self, context: dict) -> MissionState:
+        parcel = context["parcel"]
+        light = context["light"]
+        shelf = context["shelf"]
+        person = context["person"]
+        planar = context["planar"]
+
         msg = MissionState()
         msg.stamp = self.get_clock().now().to_msg()
         msg.frame_id = parcel.frame_id if parcel is not None else 'base_link'
@@ -284,8 +326,8 @@ class MissionNode(Node):
         msg.active_shipment_id = self.active_shipment_id
         msg.has_active_parcel = parcel is not None
         msg.has_drop_target = (light is not None) or (planar is not None) or (shelf is not None)
-        msg.is_terminal = (self.current_state == 'drop')
-        msg.reason = self.describe_reason(parcel, light, shelf, person, planar)
+        msg.is_terminal = self.current_state in self.scenario.terminal_states
+        msg.reason = self.describe_reason()
 
         if parcel is not None:
             msg.track_id = parcel.parcel_box_track_id
@@ -313,22 +355,11 @@ class MissionNode(Node):
 
         return msg
 
-    def describe_reason(self, parcel, light, shelf, person, planar) -> str:
-        if self.current_state == 'search':
-            return 'searching for person, parcel, shelf or drop cue'
-        if self.current_state == 'approach_person':
-            return 'person detected but no active parcel yet'
-        if self.current_state == 'receive_parcel':
-            return 'parcel visible but QR not identified yet'
-        if self.current_state == 'verify_qr':
-            return 'parcel has QR or binding, waiting for identification'
-        if self.current_state == 'navigate':
-            return 'identified parcel available, navigating to destination cues'
-        if self.current_state == 'align':
-            return 'drop target visible, performing final alignment'
-        if self.current_state == 'drop':
-            return 'drop conditions satisfied'
-        return 'unknown'
+    def describe_reason(self) -> str:
+        state_def = self.scenario.states.get(self.current_state)
+        if state_def is None:
+            return 'unknown'
+        return f"{state_def.reason} [scenario={self.scenario.name}]"
 
     def cleanup_stale(self):
         now = time.time()

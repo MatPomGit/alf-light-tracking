@@ -12,7 +12,7 @@ który ułatwia integrację całego pipeline’u end-to-end.
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-
+from g1_light_tracking.control.spot_follower import SpotFollower
 from g1_light_tracking.msg import MissionTarget, DepthNavHint
 
 
@@ -50,6 +50,9 @@ class ControlNode(Node):
         # motion logic stays decoupled from perception-specific heuristics.
         self.create_subscription(MissionTarget, self.get_parameter('mission_topic').value, self.cb, 20)
         self.create_subscription(DepthNavHint, self.get_parameter('depth_hint_topic').value, self.depth_cb, 20)
+        
+        self.follower = SpotFollower(self)
+        self.get_logger().info("Control node initialized with advanced PID tracking.")
 
     def depth_cb(self, msg: DepthNavHint):
         self.latest_depth_hint = msg
@@ -93,3 +96,7 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+
