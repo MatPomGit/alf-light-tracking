@@ -30,17 +30,22 @@ o : cycle track sort mode
 r : clear alarm/event history
 x : export text snapshot to /tmp/g1_tui_snapshot.txt
 j : export JSON snapshot to /tmp/g1_tui_snapshot.json
+v : launch rviz command (non-blocking)
+1/2/3 : launch configured helper modules (non-blocking)
 """
 
 from __future__ import annotations
 
 import curses
 import json
+import shlex
+import subprocess
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Deque, Dict, List, Optional, Tuple
 
 import rclpy
@@ -245,10 +250,23 @@ class TuiMonitorNode(Node):
         self.declare_parameter("stale_after_sec", 1.5)
         self.declare_parameter("drop_tracks_after_sec", 3.0)
         self.declare_parameter("alarm_dedup_sec", 2.0)
+        self.declare_parameter("rviz_launch_cmd", "rviz2")
+        self.declare_parameter("extra_module_cmd_1", "ros2 run g1_light_tracking debug_node")
+        self.declare_parameter("extra_module_cmd_2", "ros2 run g1_light_tracking depth_mapper_node")
+        self.declare_parameter(
+            "extra_module_cmd_3",
+            "ros2 run g1_light_tracking topdown_odom_viewer_node",
+        )
 
         self.stale_after_sec = float(self.get_parameter("stale_after_sec").value)
         self.drop_tracks_after_sec = float(self.get_parameter("drop_tracks_after_sec").value)
         self.alarm_dedup_sec = float(self.get_parameter("alarm_dedup_sec").value)
+        self.rviz_launch_cmd = str(self.get_parameter("rviz_launch_cmd").value).strip()
+        self.extra_module_commands = {
+            "1": str(self.get_parameter("extra_module_cmd_1").value).strip(),
+            "2": str(self.get_parameter("extra_module_cmd_2").value).strip(),
+            "3": str(self.get_parameter("extra_module_cmd_3").value).strip(),
+        }
 
         self.state = MonitorState()
         self.lock = threading.Lock()
@@ -333,6 +351,38 @@ class TuiMonitorNode(Node):
 
     def _clear_alarm(self, code: str) -> None:
         self.state.active_alarm_codes.pop(code, None)
+
+    def launch_external_command(self, trigger_key: str, command: str, label: str) -> None:
+        # Uruchamiamy proces w tle, żeby nie blokować pętli curses i callbacków ROS 2.
+        if not command:
+            with self.lock:
+                self._emit_alarm(
+                    f"launcher:missing:{trigger_key}",
+                    Severity.WARN,
+                    f"Launcher '{label}' is not configured",
+                )
+            return
+
+        try:
+            subprocess.Popen(
+                shlex.split(command),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except (FileNotFoundError, PermissionError, OSError, ValueError) as exc:
+            with self.lock:
+                self._emit_alarm(
+                    f"launcher:failed:{trigger_key}",
+                    Severity.WARN,
+                    f"Launch failed for '{label}': {exc}",
+                )
+            return
+
+        with self.lock:
+            self._clear_alarm(f"launcher:failed:{trigger_key}")
+            self._event(f"Launched '{label}' by key '{trigger_key}'")
 
     @staticmethod
     def ros_time_to_sec(stamp) -> float:
@@ -809,6 +859,13 @@ def draw_header(stdscr, title: str, tab: str, frozen: bool, sort_mode: TrackSort
         f"Tab: {tab} | {' | '.join(flags)} | q quit | h help | f freeze | o sort | r clear logs",
         color_info(),
     )
+    safe_addstr(
+        stdscr,
+        2,
+        0,
+        "Launchers: v rviz | 1 debug | 2 depth_mapper | 3 topdown_odom",
+        color_info(),
+    )
 
 
 def draw_heartbeats(stdscr, snap: MonitorState, stale_after_sec: float, start_y: int) -> int:
@@ -1115,6 +1172,7 @@ def draw_help(stdscr, start_y: int) -> int:
         "s status/rates   l alarms log   e event log   h help",
         "f freeze/unfreeze current screen   o cycle track sort mode   r clear logs   q quit",
         "x export snapshot text   j export snapshot json",
+        "v launch rviz   1/2/3 launch helper modules configured via ROS parameters",
         "Color semantics: green=healthy, yellow=warning, red=alarm, cyan=info/activity",
     ]
     y = start_y + 1
@@ -1220,6 +1278,15 @@ def tui_loop(stdscr, node: TuiMonitorNode) -> None:
             node.export_snapshot_text("/tmp/g1_tui_snapshot.txt")
         elif key == ord("j"):
             node.export_snapshot_json("/tmp/g1_tui_snapshot.json")
+        elif key == ord("v"):
+            node.launch_external_command("v", node.rviz_launch_cmd, "rviz")
+        elif key in (ord("1"), ord("2"), ord("3")):
+            trigger = chr(key)
+            node.launch_external_command(
+                trigger,
+                node.extra_module_commands.get(trigger, ""),
+                f"extra_module_{trigger}",
+            )
 
     node.stop()
 

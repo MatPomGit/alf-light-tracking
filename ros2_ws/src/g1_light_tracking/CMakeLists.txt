@@ -58,6 +58,7 @@ install(PROGRAMS
   scripts/mission_node
   scripts/control_node
   scripts/debug_node
+  scripts/tui_monitor_node
   scripts/camera_calibration_node
   scripts/depth_mapper_node
   scripts/visual_slam_node
