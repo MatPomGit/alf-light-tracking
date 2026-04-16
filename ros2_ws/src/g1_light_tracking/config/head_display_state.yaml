@@ -1,0 +1,5 @@
+head_display_state_node:
+  ros__parameters:
+    mission_state_topic: /mission/state
+    effect_topic: /head_display/effect
+    backend: mock

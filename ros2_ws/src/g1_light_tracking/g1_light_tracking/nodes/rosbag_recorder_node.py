@@ -18,6 +18,7 @@ from typing import Any
 
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import String
 from std_srvs.srv import SetBool
 
 from g1_light_tracking.msg import MissionState
@@ -63,6 +64,7 @@ class RosbagRecorderNode(Node):
         self.declare_parameter('split_size_mb', 0)
         self.declare_parameter('start_on_launch', False)
         self.declare_parameter('record_only_when_mission_active', False)
+        self.declare_parameter('status_topic', '/rosbag_recorder/status')
 
         self.output_dir = Path(str(self.get_parameter('output_dir').value)).expanduser()
         self.bag_prefix = str(self.get_parameter('bag_prefix').value)
@@ -75,6 +77,7 @@ class RosbagRecorderNode(Node):
         self.record_only_when_mission_active = bool(
             self.get_parameter('record_only_when_mission_active').value
         )
+        self.status_topic = str(self.get_parameter('status_topic').value)
 
         self.user_enabled = self.start_on_launch
         self.mission_is_active = False
@@ -86,6 +89,7 @@ class RosbagRecorderNode(Node):
         self.current_start_reason = ''
 
         self.create_subscription(MissionState, '/mission/state', self.on_mission_state, 20)
+        self.status_pub = self.create_publisher(String, self.status_topic, 10)
         self.enable_srv = self.create_service(SetBool, '/rosbag_recorder/enable', self.handle_enable)
         self.rotate_srv = self.create_service(SetBool, '/rosbag_recorder/rotate', self.handle_rotate)
         self.timer = self.create_timer(0.5, self.reconcile_recording_state)
@@ -95,7 +99,8 @@ class RosbagRecorderNode(Node):
             f'output_dir={self.output_dir}, bag_prefix={self.bag_prefix}, '
             f'record_all_topics={self.record_all_topics}, '
             f'start_on_launch={self.start_on_launch}, '
-            f'record_only_when_mission_active={self.record_only_when_mission_active}'
+            f'record_only_when_mission_active={self.record_only_when_mission_active}, '
+            f'status_topic={self.status_topic}'
         )
 
         self.reconcile_recording_state()
@@ -134,6 +139,20 @@ class RosbagRecorderNode(Node):
             self.start_recording('automatic_reconcile')
         elif not should_record and is_recording:
             self.stop_recording('automatic_reconcile')
+
+        # Status jest publikowany cyklicznie, aby narzędzia operatorskie miały heartbeat.
+        self.publish_status()
+
+    def publish_status(self) -> None:
+        """Publikuje skrócony status nagrywania dla debug i monitorów operatorskich."""
+        status_msg = String()
+        status_msg.data = (
+            f'recording={self.is_recording()};'
+            f'user_enabled={self.user_enabled};'
+            f'mission_active={self.mission_is_active};'
+            f'bag_uri={self.current_bag_uri or "-"}'
+        )
+        self.status_pub.publish(status_msg)
 
     def handle_enable(self, request: SetBool.Request, response: SetBool.Response) -> SetBool.Response:
         """Serwis SetBool do ręcznego włączenia/wyłączenia nagrywania."""

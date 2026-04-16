@@ -76,6 +76,7 @@ install(PROGRAMS
   scripts/standalone_gui
   scripts/version_bump.py
   scripts/rosbag_recorder_node
+  scripts/head_display_state_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

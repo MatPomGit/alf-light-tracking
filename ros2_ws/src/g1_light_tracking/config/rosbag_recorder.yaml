@@ -9,3 +9,4 @@ rosbag_recorder_node:
     split_size_mb: 1024
     start_on_launch: false
     record_only_when_mission_active: true
+    status_topic: /rosbag_recorder/status
