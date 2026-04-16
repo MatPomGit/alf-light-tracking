@@ -238,6 +238,13 @@ def generate_launch_description() -> LaunchDescription:
         ),
         Node(
             package='g1_light_tracking',
+            executable='head_display_state_node',
+            output='screen',
+            parameters=[os.path.join(config_dir, 'head_display.yaml')],
+            condition=_mode_in('modern', 'legacy', 'hybrid'),
+        ),
+        Node(
+            package='g1_light_tracking',
             executable='rosbag_recorder_node',
             output='screen',
             parameters=[os.path.join(config_dir, 'rosbag_recorder.yaml')],
