@@ -68,7 +68,36 @@ Dla typowego optical frame:
 4. Jeśli porównujesz `XYZ` między modułami, upewnij się, że dane są w tej samej ramce
    (`frame_id` + ewentualne transformacje TF).
 
-## 5. Krótki przykład interpretacji
+## 5. Jak kalibracja i plik kalibracyjny wpływają na `XYZ`
+
+W praktycznym wdrożeniu parametry kamery nie są wpisywane ręcznie do node'a, tylko trafiają
+do systemu przez `CameraInfo`. Te wartości są zwykle ładowane przez sterownik kamery z pliku
+powstałego po kalibracji (najczęściej YAML).
+
+Typowy plik kalibracyjny zawiera m.in.:
+
+- macierz kamery `K` (`fx`, `fy`, `cx`, `cy`),
+- współczynniki dystorsji `D`,
+- czasem też macierz projekcji `P` i macierz rektyfikacji `R`.
+
+Wpływ na lokalizację w `localization_node`:
+
+1. `fx`, `fy`, `cx`, `cy` wpływają bezpośrednio na przeliczenie piksela na `X/Y`:
+   - błędne `fx/fy` -> niepoprawna skala przesunięcia bocznego,
+   - błędne `cx/cy` -> systematyczny offset `X/Y` (stałe „przesunięcie” pozycji).
+2. Dystorsja (`D`) wpływa szczególnie na metody geometryczne (np. `pnp_qr`, `pnp_apriltag`):
+   - niedokładna kalibracja pogarsza estymację pozy markera,
+   - błąd rośnie zwykle przy krawędziach obrazu.
+3. Gdy `Z` pochodzi z mapy głębi, jakość kalibracji nadal jest ważna:
+   - `Z` jest brane z depth ROI, ale `X/Y` nadal zależy od `K`,
+   - przy złym dopasowaniu RGB-depth (intrinsics/extrinsics) obiekt może mieć poprawne `Z`,
+     ale przesunięte `X/Y`.
+
+Wniosek praktyczny: po każdej zmianie kamery, obiektywu, rozdzielczości lub istotnej
+zmianie montażu kamery należy odświeżyć kalibrację i upewnić się, że właściwy plik
+kalibracyjny jest faktycznie używany przez node publikujący `CameraInfo`.
+
+## 6. Krótki przykład interpretacji
 
 Jeśli obserwujesz kolejne próbki:
 
