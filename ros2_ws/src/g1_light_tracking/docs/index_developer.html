@@ -533,7 +533,8 @@ class ExampleControlNode(Node):
         <h3>Uruchomienie z plikiem parametrów</h3>
         <pre><code>cd ros2_ws
 source install/setup.bash
-ros2 run g1_light_tracking example_node --ros-args --params-file src/g1_light_tracking/config/example.yaml</code></pre>
+# Przykład: podmień <example_wrapper_name> na nazwę rzeczywiście instalowanego wrappera z scripts/
+ros2 run g1_light_tracking <example_wrapper_name> --ros-args --params-file src/g1_light_tracking/config/example.yaml</code></pre>
       </section>
 
       <section id="logging" class="section panel">
