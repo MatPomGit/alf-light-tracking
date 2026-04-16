@@ -74,6 +74,7 @@ install(PROGRAMS
   scripts/standalone_cli
   scripts/standalone_gui
   scripts/version_bump.py
+  scripts/rosbag_recorder_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
