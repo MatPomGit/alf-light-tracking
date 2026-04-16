@@ -119,6 +119,8 @@ ros2 run g1\_light\_tracking tracking\_node --ros-args --params-file src/g1\_lig
 cd ros2\_ws
 source install/setup.bash
 ros2 run g1\_light\_tracking mission\_node --ros-args --params-file src/g1\_light\_tracking/config/mission.yaml
+
+ros2 run g1_light_tracking mission_node --ros-args --params-file src/g1_light_tracking/config/mission.yaml
 ```
 
 ### Sterowanie

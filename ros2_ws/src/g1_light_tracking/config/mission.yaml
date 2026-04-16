@@ -10,3 +10,8 @@ mission_node:
     prefer_identified_parcels: true
     parcel_timeout_sec: 3.0
     state_hold_sec: 1.0
+
+    # Nowy parametr: plik definiujący scenariusz FSM.
+    # Jeżeli ścieżka jest pusta, node użyje scenariusza wbudowanego.
+    scenario_file: src/g1_light_tracking/config/mission_scenario_default.yaml
+    

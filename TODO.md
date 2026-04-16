@@ -1,11 +1,11 @@
 \*\* wysoki priorytet \*\*
 
-* \[ ] wysoki kalibracja na podstawie obrazów z folderu
+* \[x] wysoki kalibracja na podstawie obrazów z folderu
 * \[ ] dodanie tui\_monitor\_node
 * \[ ] dodanie tui\_monitor\_node.py do launch-a
 * \[ ] dodanie obsługi rąk
 * \[ ] możliwość uruchomienia scenariuszy z predefiniowanych  plików
-* \[ ] ograniczenie rozdzielczości analizowanego obrazu ooraz tego co ile klatek wykonywana jest analiza. możliwość zadania tych parametrów z pliku konfiguracyjnego.
+* \[ ] ograniczenie rozdzielczości analizowanego obrazu oraz tego co ile klatek wykonywana jest analiza. możliwość zadania tych parametrów z pliku konfiguracyjnego.
 * \[ ] pomiar czasu trwania analizy i decyzji
 * \[ ] naprawa wykrywania QR i april tagów
 
