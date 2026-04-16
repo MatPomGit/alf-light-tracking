@@ -24,7 +24,9 @@ class ControlNode(Node):
         super().__init__('control_node')
         self.declare_parameter('mission_topic', '/mission/target')
         self.declare_parameter('depth_hint_topic', '/navigation/depth_hint')
-        self.declare_parameter('cmd_vel_topic', '/cmd_vel')
+        # Komendy z control_node trafiają na kanał raw i dopiero safety_stop_node
+        # publikuje końcowy `/cmd_vel` po walidacji warunków bezpieczeństwa.
+        self.declare_parameter('cmd_vel_topic', '/cmd_vel/raw')
         self.declare_parameter('linear_speed', 0.15)
         self.declare_parameter('angular_speed', 0.50)
         self.declare_parameter('stop_distance_m', 0.60)
@@ -99,4 +101,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
