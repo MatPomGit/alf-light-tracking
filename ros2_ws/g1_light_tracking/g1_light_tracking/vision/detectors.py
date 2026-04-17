@@ -179,6 +179,9 @@ class DetectionPersistenceFilter:
         max_missed_frames: int = 1,
         association_cost_limit: float = 2.5,
         innovation_cost_limit: Optional[float] = None,
+        dynamic_roi_enabled: bool = False,
+        dynamic_roi_size_px: int = 160,
+        dynamic_roi_expand_on_miss: int = 40,
     ) -> None:
         """
         Cel: Ta metoda realizuje odpowiedzialność `__init__` w aktualnym module.
@@ -194,6 +197,17 @@ class DetectionPersistenceFilter:
             raise ValueError("association_cost_limit musi być dodatnie.")
         if innovation_cost_limit is not None and innovation_cost_limit <= 0:
             raise ValueError("innovation_cost_limit musi być dodatnie, gdy jest ustawione.")
+        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # CO ZMIENIONO: Dodano walidację parametrów dynamicznego ROI.
+        # DLACZEGO: Błędne wartości (np. zerowy rozmiar okna) mogłyby prowadzić do
+        # utraty toru i niestabilnego działania detektora.
+        # JAK TO DZIAŁA: `dynamic_roi_size_px` musi być dodatnie, a krok
+        # rozszerzania ROI (`dynamic_roi_expand_on_miss`) nie może być ujemny.
+        # TODO: Rozszerzyć walidację o górny limit ROI zależny od rozdzielczości wejścia.
+        if dynamic_roi_size_px <= 0:
+            raise ValueError("dynamic_roi_size_px musi być dodatnie.")
+        if dynamic_roi_expand_on_miss < 0:
+            raise ValueError("dynamic_roi_expand_on_miss nie może być ujemne.")
         self.min_persistence_frames = int(min_persistence_frames)
         self.persistence_radius_px = float(persistence_radius_px)
         self.max_missed_frames = int(max_missed_frames)
@@ -201,6 +215,9 @@ class DetectionPersistenceFilter:
         self.innovation_cost_limit = (
             float(innovation_cost_limit) if innovation_cost_limit is not None else float(association_cost_limit)
         )
+        self.dynamic_roi_enabled = bool(dynamic_roi_enabled)
+        self.dynamic_roi_size_px = int(dynamic_roi_size_px)
+        self.dynamic_roi_expand_on_miss = int(dynamic_roi_expand_on_miss)
         self._frame_shape: Optional[Tuple[int, int]] = None
         self._roi_box: Optional[Tuple[int, int, int, int]] = None
         self._last_centroid: Optional[Tuple[float, float]] = None
@@ -212,8 +229,9 @@ class DetectionPersistenceFilter:
         self._last_brightness: Optional[float] = None
         self._hit_count: int = 0
         self._miss_count: int = 0
+        self._reacquire_full_frame: bool = False
 
-    def reset(self) -> None:
+    def reset(self, *, reacquire_full_frame: bool = False) -> None:
         """
         Cel: Ta metoda realizuje odpowiedzialność `reset` w aktualnym module.
         Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
@@ -229,6 +247,7 @@ class DetectionPersistenceFilter:
         self._last_brightness = None
         self._hit_count = 0
         self._miss_count = 0
+        self._reacquire_full_frame = bool(reacquire_full_frame)
 
     def _ensure_geometry(self, frame_shape: Tuple[int, int], roi_box: Tuple[int, int, int, int]) -> None:
         """
@@ -272,8 +291,78 @@ class DetectionPersistenceFilter:
         self._miss_count += 1
         self._hit_count = max(0, self._hit_count - 1)
         if self._miss_count > self.max_missed_frames:
-            self.reset()
+            # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+            # CO ZMIENIONO: Po przekroczeniu limitu missów filtr resetuje tor
+            # z wymuszeniem pełnej klatki podczas ponownej akwizycji.
+            # DLACZEGO: Po dłuższej utracie obiektu predykcja bywa niepewna, więc
+            # bezpieczniej wrócić do globalnego wyszukiwania i potwierdzić tor od nowa.
+            # JAK TO DZIAŁA: `reacquire_full_frame=True` oznacza, że kolejne klatki
+            # przed ponownym potwierdzeniem toru będą analizowane bez zawężonego ROI.
+            # TODO: Dodać licznik resetów toru do diagnostyki stabilności algorytmu.
+            self.reset(reacquire_full_frame=True)
         return []
+
+    def is_track_confirmed(self) -> bool:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `is_track_confirmed` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
+        return self._last_centroid is not None and self._hit_count >= self.min_persistence_frames
+
+    def get_dynamic_roi(
+        self,
+        frame_shape: Tuple[int, int, int],
+        default_roi: Tuple[int, int, int, int],
+    ) -> Tuple[Tuple[int, int, int, int], Dict[str, float | str | bool]]:
+        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # CO ZMIENIONO: Dodano wyznaczanie dynamicznego ROI na bazie predykcji toru,
+        # z rozszerzaniem okna przy kolejnych missach oraz trybem pełnej klatki po resecie.
+        # DLACZEGO: Ograniczenie przeszukiwania po potwierdzeniu toru redukuje false-positive,
+        # a stopniowe rozszerzanie ROI pomaga odzyskać obiekt przy krótkich zanikach sygnału.
+        # JAK TO DZIAŁA: Gdy tor jest potwierdzony, centrum ROI bierze się z predykcji
+        # (model stałej prędkości), rozmiar to `dynamic_roi_size_px + miss*expand`.
+        # Po przekroczeniu limitu missów aktywuje się pełna klatka do czasu rekonfirmacji.
+        # TODO: Rozważyć klipowanie ROI do statycznego `default_roi` jako opcję konfiguracyjną.
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `get_dynamic_roi` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
+        frame_h, frame_w = int(frame_shape[0]), int(frame_shape[1])
+        full_frame_roi = (0, 0, frame_w, frame_h)
+        diagnostics: Dict[str, float | str | bool] = {
+            "dynamic_roi_enabled": bool(self.dynamic_roi_enabled),
+            "dynamic_roi_miss_count": int(self._miss_count),
+            "dynamic_roi_track_confirmed": bool(self.is_track_confirmed()),
+        }
+        if not self.dynamic_roi_enabled:
+            diagnostics["dynamic_roi_mode"] = "disabled"
+            return default_roi, diagnostics
+        if self._reacquire_full_frame:
+            diagnostics["dynamic_roi_mode"] = "full_frame_reacquire"
+            return full_frame_roi, diagnostics
+        if not self.is_track_confirmed() or self._last_centroid is None:
+            diagnostics["dynamic_roi_mode"] = "pre_confirmation"
+            return default_roi, diagnostics
+
+        predicted_x, predicted_y = self._predict_centroid(missed_frames=self._miss_count)
+        dynamic_size = self.dynamic_roi_size_px + (self.dynamic_roi_expand_on_miss * self._miss_count)
+        dynamic_size = max(1, int(dynamic_size))
+        half = max(1, int(dynamic_size // 2))
+        x0 = int(round(predicted_x)) - half
+        y0 = int(round(predicted_y)) - half
+        x0 = max(0, min(x0, frame_w - 1))
+        y0 = max(0, min(y0, frame_h - 1))
+        w = max(1, min(dynamic_size, frame_w - x0))
+        h = max(1, min(dynamic_size, frame_h - y0))
+        diagnostics.update(
+            {
+                "dynamic_roi_mode": "tracking",
+                "dynamic_roi_predicted_x": float(predicted_x),
+                "dynamic_roi_predicted_y": float(predicted_y),
+                "dynamic_roi_size_px": int(dynamic_size),
+            }
+        )
+        return (x0, y0, w, h), diagnostics
 
     def _detection_brightness(self, frame_gray: np.ndarray, detection: Detection) -> float:
         """
@@ -398,6 +487,16 @@ class DetectionPersistenceFilter:
             self._last_brightness = float(init_brightness)
             self._miss_count = 0
             self._hit_count = 1
+            # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+            # CO ZMIENIONO: Przy pierwszym pewnym trafieniu czyszczona jest flaga
+            # pełnoklatkowej rekonfirmacji toru.
+            # DLACZEGO: Po odzyskaniu stabilnego toru chcemy ponownie korzystać
+            # z lokalnego ROI, aby ograniczyć ryzyko błędnych dopasowań.
+            # JAK TO DZIAŁA: Gdy liczba trafień osiąga próg persystencji, ustawiamy
+            # `_reacquire_full_frame=False` i kolejne klatki mogą używać dynamicznego ROI.
+            # TODO: Dodać histerezę przełączania trybu, aby ograniczyć oscylacje.
+            if self._hit_count >= self.min_persistence_frames:
+                self._reacquire_full_frame = False
             if self._hit_count < self.min_persistence_frames:
                 return []
             return [init_candidate]
@@ -446,6 +545,15 @@ class DetectionPersistenceFilter:
         self._last_area = float(best_candidate.area)
         self._last_aspect_ratio = self._detection_aspect_ratio(best_candidate)
         self._last_brightness = float(best_brightness)
+        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # CO ZMIENIONO: Po utrzymaniu toru utrzymujemy wyłączony tryb pełnej klatki.
+        # DLACZEGO: Stabilny tor powinien pracować na ROI wokół predykcji, bo to
+        # zmniejsza podatność na false-positive poza obszarem ruchu.
+        # JAK TO DZIAŁA: Po osiągnięciu progu persystencji flaga rekonfirmacji
+        # pozostaje wyzerowana i metoda `get_dynamic_roi` zwraca okno lokalne.
+        # TODO: Powiązać decyzję z poziomem pewności (`confidence`) zamiast samego hit-count.
+        if self._hit_count >= self.min_persistence_frames:
+            self._reacquire_full_frame = False
         if self._hit_count < self.min_persistence_frames:
             return []
         return [best_candidate]
@@ -728,6 +836,15 @@ def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bo
         "confidence_saturation_penalty_weight": float(config.confidence_saturation_penalty_weight),
         "min_persistence_frames": int(config.min_persistence_frames),
         "persistence_radius_px": float(config.persistence_radius_px),
+        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # CO ZMIENIONO: Snapshot konfiguracji rozszerzono o parametry dynamicznego ROI.
+        # DLACZEGO: Zmiany trybu ROI muszą być widoczne w logach różnic konfiguracji.
+        # JAK TO DZIAŁA: Nowe pola są serializowane do prymitywów i porównywane
+        # między kolejnymi klatkami tak samo jak pozostałe parametry detektora.
+        # TODO: Dodać zwięzły log grupujący zmiany ROI w jednej sekcji diagnostycznej.
+        "dynamic_roi_enabled": bool(config.dynamic_roi_enabled),
+        "dynamic_roi_size_px": int(config.dynamic_roi_size_px),
+        "dynamic_roi_expand_on_miss": int(config.dynamic_roi_expand_on_miss),
         "legacy_mode": bool(config.legacy_mode),
         "color_name": config.color_name,
         "hsv_lower": config.hsv_lower,
@@ -949,6 +1066,24 @@ def detect_spots_with_config(
     Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
     """
     _log_parameter_changes(config)
+    # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+    # CO ZMIENIONO: Dodano wybór ROI zależny od stanu filtra persystencji
+    # i parametrów `dynamic_roi_*` z konfiguracji.
+    # DLACZEGO: Po potwierdzeniu toru detekcja ma działać lokalnie wokół predykcji,
+    # aby ograniczyć fałszywe trafienia; przy utracie toru wracamy do bezpiecznej akwizycji.
+    # JAK TO DZIAŁA: Funkcja wyznacza `effective_roi` przez `get_dynamic_roi`
+    # (lub używa statycznego ROI), następnie przekazuje je do `detect_spots`.
+    # TODO: Wystawić metrykę pokrycia dynamicznego ROI względem pełnej klatki.
+    frame_h, frame_w = int(frame.shape[0]), int(frame.shape[1])
+    static_roi = parse_roi(config.roi, frame.shape)
+    effective_roi = static_roi
+    dynamic_roi_diagnostics: Dict[str, float | str | bool] = {}
+    if persistence_filter is not None:
+        effective_roi, dynamic_roi_diagnostics = persistence_filter.get_dynamic_roi(
+            frame_shape=frame.shape,
+            default_roi=static_roi,
+        )
+    roi_text = f"{effective_roi[0]},{effective_roi[1]},{effective_roi[2]},{effective_roi[3]}"
     # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
     # CO ZMIENIONO: Adapter konfiguracyjny przekazuje nowy próg
     # `min_top1_top2_margin` oraz propaguje słownik diagnostyczny z detektora.
@@ -990,8 +1125,16 @@ def detect_spots_with_config(
         color_name=config.color_name,
         hsv_lower=config.hsv_lower,
         hsv_upper=config.hsv_upper,
-        roi=config.roi,
+        roi=roi_text,
     )
+    diagnostics.update(dynamic_roi_diagnostics)
+    diagnostics["roi_source"] = str(dynamic_roi_diagnostics.get("dynamic_roi_mode", "static_config"))
+    diagnostics["roi_effective_x"] = int(effective_roi[0])
+    diagnostics["roi_effective_y"] = int(effective_roi[1])
+    diagnostics["roi_effective_w"] = int(effective_roi[2])
+    diagnostics["roi_effective_h"] = int(effective_roi[3])
+    diagnostics["roi_full_frame_area"] = int(frame_w * frame_h)
+    diagnostics["roi_effective_area"] = int(effective_roi[2] * effective_roi[3])
     if persistence_filter is not None:
         # [AI-CHANGE | 2026-04-17 18:36 UTC | v0.82]
         # CO ZMIENIONO: Przekazywana jest pełna lista kandydatów do filtra

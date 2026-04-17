@@ -54,6 +54,17 @@ class DetectorConfig:
     confidence_saturation_penalty_weight: float = 0.35
     min_persistence_frames: int = 1
     persistence_radius_px: float = 12.0
+    # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+    # CO ZMIENIONO: Dodano parametry konfigurujące dynamiczny ROI:
+    # `dynamic_roi_enabled`, `dynamic_roi_size_px`, `dynamic_roi_expand_on_miss`.
+    # DLACZEGO: Po potwierdzeniu toru chcemy ograniczyć obszar przeszukiwania
+    # do przewidywanej pozycji, a przy seriach missów stopniowo go rozszerzać.
+    # JAK TO DZIAŁA: Parametry sterują aktywacją trybu, bazowym rozmiarem okna
+    # oraz przyrostem rozmiaru ROI na każdą kolejną klatkę bez detekcji.
+    # TODO: Dodać wariant eliptycznego ROI zależny od wektora prędkości toru.
+    dynamic_roi_enabled: bool = False
+    dynamic_roi_size_px: int = 160
+    dynamic_roi_expand_on_miss: int = 40
     legacy_mode: bool = False
     max_spots: int = 10
     color_name: str = "red"

@@ -45,6 +45,16 @@ class LightSpotDetectorNode(Node):
         self.declare_parameter('min_detection_score', 0.0)
         self.declare_parameter('min_top1_top2_margin', 0.0)
         self.declare_parameter('min_persistence_frames', 1)
+        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # CO ZMIENIONO: Dodano parametry ROS dla dynamicznego ROI.
+        # DLACZEGO: Konfiguracja musi umożliwiać zawężanie/rozszerzanie obszaru
+        # detekcji wokół przewidywanej pozycji toru bez modyfikacji kodu.
+        # JAK TO DZIAŁA: Parametry sterują aktywacją trybu, bazowym rozmiarem okna
+        # i krokiem rozszerzania przy kolejnych klatkach bez potwierdzonej detekcji.
+        # TODO: Dodać walidację zależną od rozdzielczości strumienia kamery.
+        self.declare_parameter('dynamic_roi_enabled', False)
+        self.declare_parameter('dynamic_roi_size_px', 160)
+        self.declare_parameter('dynamic_roi_expand_on_miss', 40)
         self.declare_parameter('legacy_mode', False)
 
         self.camera_topic = self.get_parameter('camera_topic').get_parameter_value().string_value
@@ -83,6 +93,16 @@ class LightSpotDetectorNode(Node):
         # TODO: Udostępnić dynamiczną rekonfigurację progu bez restartu noda.
         min_top1_top2_margin = max(0.0, float(self.get_parameter('min_top1_top2_margin').value))
         min_persistence_frames = max(1, int(self.get_parameter('min_persistence_frames').value))
+        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # CO ZMIENIONO: Dodano odczyt i walidację parametrów dynamicznego ROI.
+        # DLACZEGO: Potrzebujemy bezpiecznych wartości wejściowych, aby nie tworzyć
+        # zbyt małego lub ujemnie rozszerzanego okna detekcji.
+        # JAK TO DZIAŁA: Rozmiar ROI jest klamrowany do minimum 1 px, a przyrost
+        # rozszerzania przy missie do zakresu >=0, co eliminuje konfiguracje patologiczne.
+        # TODO: Publikować ostrzeżenie, gdy parametry zostały skorygowane klamrowaniem.
+        dynamic_roi_enabled = bool(self.get_parameter('dynamic_roi_enabled').value)
+        dynamic_roi_size_px = max(1, int(self.get_parameter('dynamic_roi_size_px').value))
+        dynamic_roi_expand_on_miss = max(0, int(self.get_parameter('dynamic_roi_expand_on_miss').value))
         legacy_mode = bool(self.get_parameter('legacy_mode').value)
         self.detector_config = DetectorConfig(
             track_mode='brightness',
@@ -102,13 +122,26 @@ class LightSpotDetectorNode(Node):
             min_top1_top2_margin=min_top1_top2_margin,
             min_persistence_frames=min_persistence_frames,
             persistence_radius_px=12.0,
+            dynamic_roi_enabled=dynamic_roi_enabled,
+            dynamic_roi_size_px=dynamic_roi_size_px,
+            dynamic_roi_expand_on_miss=dynamic_roi_expand_on_miss,
             legacy_mode=legacy_mode,
         )
         self.persistence_filter = None
         if not self.detector_config.legacy_mode:
+            # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+            # CO ZMIENIONO: Filtr persystencji otrzymuje parametry dynamicznego ROI.
+            # DLACZEGO: Bez przekazania tych pól filtr nie mógłby sterować obszarem
+            # przeszukiwania na podstawie potwierdzonego toru i serii missów.
+            # JAK TO DZIAŁA: Konstruktor filtra dostaje konfigurację `dynamic_roi_*`,
+            # dzięki czemu `detect_spots_with_config` może wyznaczać lokalne ROI.
+            # TODO: Ujednolicić inicjalizację konfiguracji przez jedną fabrykę obiektów.
             self.persistence_filter = DetectionPersistenceFilter(
                 min_persistence_frames=self.detector_config.min_persistence_frames,
                 persistence_radius_px=self.detector_config.persistence_radius_px,
+                dynamic_roi_enabled=self.detector_config.dynamic_roi_enabled,
+                dynamic_roi_size_px=self.detector_config.dynamic_roi_size_px,
+                dynamic_roi_expand_on_miss=self.detector_config.dynamic_roi_expand_on_miss,
             )
         self._unsupported_encodings_warned: set[str] = set()
         self._last_detection_log_time = None
