@@ -41,9 +41,36 @@ class LightSpotDetectorNode(Node):
         self.declare_parameter('blur_kernel', 11)
         self.declare_parameter('morph_kernel', 0)
         self.declare_parameter('min_area', 10.0)
+        # [AI-CHANGE | 2026-04-17 14:20 UTC | v0.103]
+        # CO ZMIENIONO: Zaktualizowano domyślne wartości deklarowanych progów
+        # `min_detection_score` i `min_top1_top2_margin` na wartości startowe z YAML.
+        # DLACZEGO: Spójność domyślnych parametrów noda i konfiguracji plikowej
+        # ogranicza ryzyko niejawnego rozjazdu zachowania detektora.
+        # JAK TO DZIAŁA: Gdy YAML nie poda wartości, node użyje bezpiecznych progów
+        # 0.10 i 0.04, które preferują odrzucenie niepewnych kandydatów.
+        # TODO: Dodać test jednostkowy sprawdzający zgodność domyślnych wartości
+        # między `perception.yaml`, deklaracją ROS i `DetectorConfig`.
         self.declare_parameter('min_detection_confidence', 0.62)
-        self.declare_parameter('min_detection_score', 0.0)
-        self.declare_parameter('min_top1_top2_margin', 0.0)
+        self.declare_parameter('min_detection_score', 0.10)
+        self.declare_parameter('min_top1_top2_margin', 0.04)
+        # [AI-CHANGE | 2026-04-17 14:20 UTC | v0.103]
+        # CO ZMIENIONO: Dodano deklaracje parametrów jakości fotometrycznej i wag
+        # pewności, które są mapowane bezpośrednio do `DetectorConfig`.
+        # DLACZEGO: Parametry mają być jawnie konfigurowalne z YAML, aby strojenie
+        # bezpieczeństwa nie wymagało zmian kodu.
+        # JAK TO DZIAŁA: Każde pole ma wartość domyślną zgodną z `DetectorConfig`,
+        # a dalsza walidacja klamruje skrajnie ryzykowne wartości.
+        # TODO: Dodać callback `on_set_parameters` z walidacją online bez restartu noda.
+        self.declare_parameter('ring_thickness_px', 2)
+        self.declare_parameter('saturation_level', 250)
+        self.declare_parameter('min_mean_contrast', 4.0)
+        self.declare_parameter('min_peak_sharpness', 6.0)
+        self.declare_parameter('max_saturated_ratio', 0.35)
+        self.declare_parameter('confidence_weight_shape', 0.32)
+        self.declare_parameter('confidence_weight_brightness', 0.22)
+        self.declare_parameter('confidence_weight_contrast', 0.24)
+        self.declare_parameter('confidence_weight_sharpness', 0.22)
+        self.declare_parameter('confidence_saturation_penalty_weight', 0.35)
         self.declare_parameter('min_persistence_frames', 1)
         # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
         # CO ZMIENIONO: Dodano parametry ROS dla dynamicznego ROI.
@@ -92,6 +119,97 @@ class LightSpotDetectorNode(Node):
         # a potem używana w `DetectorConfig` do decyzji top1-vs-top2.
         # TODO: Udostępnić dynamiczną rekonfigurację progu bez restartu noda.
         min_top1_top2_margin = max(0.0, float(self.get_parameter('min_top1_top2_margin').value))
+        # [AI-CHANGE | 2026-04-17 14:20 UTC | v0.103]
+        # CO ZMIENIONO: Dodano centralną walidację i klamrowanie nowych parametrów
+        # jakości detekcji (progi, poziom saturacji, grubość pierścienia, wagi pewności).
+        # DLACZEGO: Skrajne wartości mogą osłabić selekcję kandydatów albo destabilizować
+        # scoring, dlatego muszą być bezpiecznie ograniczane przed użyciem.
+        # JAK TO DZIAŁA: Lokalne helpery `_clamp_float` i `_clamp_int` ograniczają
+        # wartości do zakresu roboczego; dodatkowo normalizujemy sumę wag > 0.
+        # TODO: Dodać licznik metryk pokazujący częstość klamrowania parametrów w runtime.
+        def _clamp_float(name: str, value: float, lower: float, upper: float) -> float:
+            clamped = max(lower, min(upper, value))
+            if clamped != value:
+                self.get_logger().warn(
+                    f'Parameter {name}={value} out of range [{lower}, {upper}], '
+                    f'using {clamped} for safety.'
+                )
+            return clamped
+
+        def _clamp_int(name: str, value: int, lower: int, upper: int) -> int:
+            clamped = max(lower, min(upper, value))
+            if clamped != value:
+                self.get_logger().warn(
+                    f'Parameter {name}={value} out of range [{lower}, {upper}], '
+                    f'using {clamped} for safety.'
+                )
+            return clamped
+
+        ring_thickness_px = _clamp_int('ring_thickness_px', int(self.get_parameter('ring_thickness_px').value), 1, 32)
+        saturation_level = _clamp_int('saturation_level', int(self.get_parameter('saturation_level').value), 1, 255)
+        min_mean_contrast = _clamp_float(
+            'min_mean_contrast',
+            float(self.get_parameter('min_mean_contrast').value),
+            0.0,
+            255.0,
+        )
+        min_peak_sharpness = _clamp_float(
+            'min_peak_sharpness',
+            float(self.get_parameter('min_peak_sharpness').value),
+            0.0,
+            255.0,
+        )
+        max_saturated_ratio = _clamp_float(
+            'max_saturated_ratio',
+            float(self.get_parameter('max_saturated_ratio').value),
+            0.0,
+            1.0,
+        )
+        confidence_weight_shape = _clamp_float(
+            'confidence_weight_shape',
+            float(self.get_parameter('confidence_weight_shape').value),
+            0.0,
+            1.0,
+        )
+        confidence_weight_brightness = _clamp_float(
+            'confidence_weight_brightness',
+            float(self.get_parameter('confidence_weight_brightness').value),
+            0.0,
+            1.0,
+        )
+        confidence_weight_contrast = _clamp_float(
+            'confidence_weight_contrast',
+            float(self.get_parameter('confidence_weight_contrast').value),
+            0.0,
+            1.0,
+        )
+        confidence_weight_sharpness = _clamp_float(
+            'confidence_weight_sharpness',
+            float(self.get_parameter('confidence_weight_sharpness').value),
+            0.0,
+            1.0,
+        )
+        confidence_saturation_penalty_weight = _clamp_float(
+            'confidence_saturation_penalty_weight',
+            float(self.get_parameter('confidence_saturation_penalty_weight').value),
+            0.0,
+            1.0,
+        )
+        confidence_weight_sum = (
+            confidence_weight_shape
+            + confidence_weight_brightness
+            + confidence_weight_contrast
+            + confidence_weight_sharpness
+        )
+        if confidence_weight_sum <= 0.0:
+            self.get_logger().warn(
+                'Confidence weights sum to 0.0; restoring safe defaults '
+                '(shape=0.32, brightness=0.22, contrast=0.24, sharpness=0.22).'
+            )
+            confidence_weight_shape = 0.32
+            confidence_weight_brightness = 0.22
+            confidence_weight_contrast = 0.24
+            confidence_weight_sharpness = 0.22
         min_persistence_frames = max(1, int(self.get_parameter('min_persistence_frames').value))
         # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
         # CO ZMIENIONO: Dodano odczyt i walidację parametrów dynamicznego ROI.
@@ -120,6 +238,16 @@ class LightSpotDetectorNode(Node):
             min_detection_confidence=max(0.0, min(1.0, min_detection_confidence)),
             min_detection_score=min_detection_score,  # Próg drugiego etapu filtrowania jakości detekcji.
             min_top1_top2_margin=min_top1_top2_margin,
+            ring_thickness_px=ring_thickness_px,
+            saturation_level=saturation_level,
+            min_mean_contrast=min_mean_contrast,
+            min_peak_sharpness=min_peak_sharpness,
+            max_saturated_ratio=max_saturated_ratio,
+            confidence_weight_shape=confidence_weight_shape,
+            confidence_weight_brightness=confidence_weight_brightness,
+            confidence_weight_contrast=confidence_weight_contrast,
+            confidence_weight_sharpness=confidence_weight_sharpness,
+            confidence_saturation_penalty_weight=confidence_saturation_penalty_weight,
             min_persistence_frames=min_persistence_frames,
             persistence_radius_px=12.0,
             dynamic_roi_enabled=dynamic_roi_enabled,
