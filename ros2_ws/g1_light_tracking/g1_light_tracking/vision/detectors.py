@@ -2,13 +2,34 @@ from __future__ import annotations
 
 import logging
 import math
+import sys
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type
 
 import cv2
 import numpy as np
 
-from .detector_interfaces import BaseDetector, DetectorConfig
-from .types import Detection
+# [AI-CHANGE | 2026-04-17 16:20 UTC | v0.122]
+# CO ZMIENIONO: Dodano dwuścieżkowy import zależności modułu `vision`:
+# preferowany pakietowy oraz fallback dla uruchomienia `detectors.py` jako pliku.
+# Przy okazji import `Detection` pozostaje przepięty na `detection_types.py`.
+# DLACZEGO: Po usunięciu kolizji z lokalnym `types.py` bezpośrednie uruchamianie
+# pliku nadal kończyło się błędem względnych importów bez kontekstu pakietu.
+# JAK TO DZIAŁA: Gdy `__package__` jest puste, kod dopisuje katalog pakietu
+# `g1_light_tracking` do `sys.path` i używa importów absolutnych; w normalnej
+# pracy pakietowej zachowana jest standardowa ścieżka względna bez zmian API.
+# TODO: Zastąpić tryb standalone dedykowanym skryptem diagnostycznym `python -m`,
+# aby ograniczyć ręczne manipulowanie `sys.path` tylko do narzędzi developerskich.
+if __package__ in (None, ""):
+    PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+    package_root_str = str(PACKAGE_ROOT)
+    if package_root_str not in sys.path:
+        sys.path.insert(0, package_root_str)
+    from g1_light_tracking.vision.detector_interfaces import BaseDetector, DetectorConfig
+    from g1_light_tracking.vision.detection_types import Detection
+else:
+    from .detector_interfaces import BaseDetector, DetectorConfig
+    from .detection_types import Detection
 
 # [MatPom-CHANGE | 2026-04-17 12:31 UTC | v0.85]
 # CO ZMIENIONO: Wprowadzono logger modułowy i pamięć ostatniej konfiguracji
