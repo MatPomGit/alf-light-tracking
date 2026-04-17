@@ -34,6 +34,12 @@ setup(
             'arm_skill_bridge_node = g1_light_tracking.arm_skill_bridge_node:main',
             'csv_detection_replay_node = g1_light_tracking.csv_detection_replay_node:main',
             'turtlesim_cmd_vel_bridge_node = g1_light_tracking.turtlesim_cmd_vel_bridge_node:main',
+            # [AI-CHANGE | 2026-04-17 13:32 UTC | v0.109]
+            # CO ZMIENIONO: Dodano entry point CLI `calibrate_perception` wskazujący na moduł narzędziowy kalibracji.
+            # DLACZEGO: Umożliwia to spójne uruchamianie kalibratora przez `ros2 run`/console script analogicznie do pozostałych narzędzi pakietu.
+            # JAK TO DZIAŁA: Instalator pakietu rejestruje nazwę `calibrate_perception`, która wywołuje funkcję `main` z `g1_light_tracking.tools.calibrate_perception`.
+            # TODO: Rozszerzyć CI o test instalacyjny sprawdzający obecność i poprawny start tego entry pointa.
+            'calibrate_perception = g1_light_tracking.tools.calibrate_perception:main',
         ],
     },
 )
