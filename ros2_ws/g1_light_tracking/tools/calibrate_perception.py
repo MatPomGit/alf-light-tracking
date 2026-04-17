@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -48,7 +48,7 @@ if str(PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_ROOT))
 
 from g1_light_tracking.vision.detector_interfaces import DetectorConfig
-from g1_light_tracking.vision.detectors import detect_spots_with_config
+from g1_light_tracking.vision.detectors import _normalize_weights, detect_spots_with_config
 
 
 @dataclass
@@ -78,6 +78,30 @@ class CalibrationStats:
     reliable: bool
     rejection_reason: Optional[str]
     metrics: List[FrameMetrics]
+
+
+# [AI-CHANGE | 2026-04-17 13:31 UTC | v0.103]
+# CO ZMIENIONO: Dodano stałe i struktury danych opisujące wynik estymacji parametrów
+# (progi, liczebności próbek per parametr oraz uzasadnienia wag confidence).
+# DLACZEGO: Wymagane jest śledzenie jakości estymacji i jawne raportowanie dlaczego
+# dana wartość została przyjęta, zwłaszcza przy fallbacku do bezpiecznych domyślnych.
+# JAK TO DZIAŁA: `CalibrationEstimate` trzyma komplet wyników używanych do YAML i raportu,
+# a stałe definiują minimalną liczebność próbek i granice klamrowania.
+# TODO: Przenieść stałe estymacji do osobnego pliku konfiguracyjnego CLI.
+MIN_RELIABLE_HITS = 12
+MIN_SAMPLES_PER_PARAMETER = 10
+
+
+@dataclass
+class CalibrationEstimate:
+    """Wynik estymacji parametrów percepcji wraz z metadanymi jakości."""
+
+    thresholds: Dict[str, float]
+    sample_counts: Dict[str, int]
+    confidence_weights: Dict[str, float]
+    confidence_weight_rationale: Dict[str, str]
+    used_default_fallback: bool
+    fallback_reason: Optional[str]
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -156,6 +180,55 @@ def _estimate_intensity_metrics(frame_bgr: np.ndarray, detection: Any) -> tuple[
     peak_sharpness = float(np.percentile(inside, 95) - np.percentile(ring, 95))
     saturated_ratio = float(np.mean(inside >= 250))
     return mean_contrast, peak_sharpness, saturated_ratio
+
+
+def _iqr_filtered(values: np.ndarray) -> np.ndarray:
+    """Usuwa outliery metodą IQR; przy zbyt małej próbce zwraca dane wejściowe."""
+    if values.size < 4:
+        return values
+    q1 = float(np.percentile(values, 25))
+    q3 = float(np.percentile(values, 75))
+    iqr = q3 - q1
+    if iqr <= 0:
+        return values
+    lower = q1 - 1.5 * iqr
+    upper = q3 + 1.5 * iqr
+    filtered = values[(values >= lower) & (values <= upper)]
+    return filtered if filtered.size > 0 else values
+
+
+def _clamp(value: float, lower: float, upper: float) -> float:
+    """Klamruje wartość liczbową do zadanego zakresu domkniętego."""
+    return float(max(lower, min(upper, value)))
+
+
+def _build_weight_rationale(
+    saturated_ratio_median: float,
+    mean_contrast_median: float,
+    peak_sharpness_median: float,
+) -> Dict[str, str]:
+    """Tworzy opis uzasadnienia wag confidence na podstawie charakterystyki sceny."""
+    saturation_note = (
+        "Scena ma podwyższoną saturację, więc zwiększamy wpływ kary saturacji i sygnałów kształtu."
+        if saturated_ratio_median > 0.30
+        else "Saturacja jest umiarkowana, więc większy nacisk można położyć na metryki fotometryczne."
+    )
+    contrast_note = (
+        "Niski kontrast lokalny wymaga premiowania cechy kontrastu, aby odsiać tło."
+        if mean_contrast_median < 8.0
+        else "Kontrast jest stabilny, więc wagi kontrastu i ostrości pozostają zbalansowane."
+    )
+    sharpness_note = (
+        "Niska ostrość piku wymaga ostrożności i utrzymania istotnej wagi cechy sharpness."
+        if peak_sharpness_median < 10.0
+        else "Dobra ostrość piku pozwala utrzymać standardowy wpływ cechy sharpness."
+    )
+    return {
+        "confidence_weight_shape": saturation_note,
+        "confidence_weight_brightness": "Jasność opisuje siłę sygnału, ale nie może dominować nad geometrią plamki.",
+        "confidence_weight_contrast": contrast_note,
+        "confidence_weight_sharpness": sharpness_note,
+    }
 
 
 def analyze_video(
@@ -300,75 +373,199 @@ def analyze_video(
     )
 
 
-def derive_thresholds(stats: CalibrationStats) -> Dict[str, Optional[float]]:
+def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
     """Wyprowadza bezpieczne progi detekcji z danych statystycznych.
 
     Args:
         stats: Wynik `analyze_video(...)` zawierający listę metryk i ocenę wiarygodności.
 
     Returns:
-        Słownik progów. Jeśli kalibracja nie jest wiarygodna, wartości progów są `None`.
+        `CalibrationEstimate` z progami, wagami confidence, liczebnościami próbek
+        i informacją czy użyto fallbacku do wartości domyślnych.
     """
 
-    # [AI-CHANGE | 2026-04-17 13:13 UTC | v0.99]
-    # CO ZMIENIONO: Dodano etap wyznaczania progów z konserwatywnymi kwantylami
-    # oraz twardym warunkiem odrzucenia kalibracji przy niestabilnych danych.
-    # DLACZEGO: Projekt wymaga polityki bezpieczeństwa „lepiej brak niż błędna detekcja”,
-    # więc nie wolno produkować agresywnych progów przy słabej próbce.
-    # JAK TO DZIAŁA: Dla wiarygodnych danych stosujemy percentyle odporne na outliery;
-    # dla niewiarygodnych zwracamy `None`, co blokuje automatyczne zaostrzenie progów.
-    # TODO: Rozszerzyć stabilność o test driftu czasowego (początek vs koniec nagrania).
+    # [AI-CHANGE | 2026-04-17 13:31 UTC | v0.103]
+    # CO ZMIENIONO: Zastąpiono prosty słownik progów modułem estymacji opartym o:
+    # - wiarygodne trafienia,
+    # - percentyle (P10/P15/P90),
+    # - odrzucanie outlierów IQR dla stabilności kształtu i jasności,
+    # - klamrowanie zakresów i fallback do domyślnych `DetectorConfig`.
+    # DLACZEGO: Zgodnie z polityką jakości wolimy bezpieczny fallback niż ryzyko
+    # wygenerowania progów z małej lub niestabilnej próbki.
+    # JAK TO DZIAŁA: Najpierw filtrujemy detekcje przez domyślne minima, następnie
+    # liczymy percentyle na danych po IQR i raportujemy liczebność każdej estymacji.
+    # TODO: Dodać bootstrap confidence intervals dla każdego progu.
+    defaults = DetectorConfig()
+    base_thresholds: Dict[str, float] = {
+        "min_detection_confidence": float(defaults.min_detection_confidence),
+        "min_detection_score": float(defaults.min_detection_score),
+        "min_area": float(defaults.min_area),
+        "min_mean_contrast": float(defaults.min_mean_contrast),
+        "min_peak_sharpness": float(defaults.min_peak_sharpness),
+        "max_saturated_ratio": float(defaults.max_saturated_ratio),
+    }
+    base_sample_counts = {key: 0 for key in base_thresholds}
+    base_weights = dict(
+        zip(
+            (
+                "confidence_weight_shape",
+                "confidence_weight_brightness",
+                "confidence_weight_contrast",
+                "confidence_weight_sharpness",
+            ),
+            _normalize_weights(
+                defaults.confidence_weight_shape,
+                defaults.confidence_weight_brightness,
+                defaults.confidence_weight_contrast,
+                defaults.confidence_weight_sharpness,
+            ),
+        )
+    )
+    fallback_reason = "Kalibracja oznaczona jako niewiarygodna przez analizę statystyk." if not stats.reliable else None
     if not stats.reliable:
-        return {
-            "min_detection_confidence": None,
-            "min_detection_score": None,
-            "min_area": None,
-            "min_mean_contrast": None,
-            "min_peak_sharpness": None,
-            "max_saturated_ratio": None,
-        }
+        return CalibrationEstimate(
+            thresholds=base_thresholds,
+            sample_counts=base_sample_counts,
+            confidence_weights=base_weights,
+            confidence_weight_rationale=_build_weight_rationale(1.0, 0.0, 0.0),
+            used_default_fallback=True,
+            fallback_reason=fallback_reason,
+        )
 
-    detected = [m for m in stats.metrics if m.detected]
-    conf = np.array([m.confidence for m in detected], dtype=float)
-    score = np.array([m.score_proxy for m in detected], dtype=float)
-    area = np.array([m.area for m in detected], dtype=float)
-    contrast = np.array([m.mean_contrast for m in detected], dtype=float)
-    sharpness = np.array([m.peak_sharpness for m in detected], dtype=float)
-    sat = np.array([m.saturated_ratio for m in detected], dtype=float)
+    reliable_hits = [
+        m
+        for m in stats.metrics
+        if m.detected
+        and m.confidence >= defaults.min_detection_confidence
+        and m.score_proxy >= defaults.min_detection_score
+        and m.area >= defaults.min_area
+        and m.mean_contrast >= defaults.min_mean_contrast
+        and m.peak_sharpness >= defaults.min_peak_sharpness
+        and m.saturated_ratio <= defaults.max_saturated_ratio
+    ]
+    if len(reliable_hits) < MIN_RELIABLE_HITS:
+        return CalibrationEstimate(
+            thresholds=base_thresholds,
+            sample_counts=base_sample_counts,
+            confidence_weights=base_weights,
+            confidence_weight_rationale=_build_weight_rationale(1.0, 0.0, 0.0),
+            used_default_fallback=True,
+            fallback_reason=f"Za mało wiarygodnych trafień ({len(reliable_hits)} < {MIN_RELIABLE_HITS}).",
+        )
 
-    return {
-        "min_detection_confidence": float(max(0.0, min(0.95, np.percentile(conf, 15)))),
-        "min_detection_score": float(max(0.0, min(0.95, np.percentile(score, 15)))),
-        "min_area": float(max(3.0, np.percentile(area, 10))),
-        "min_mean_contrast": float(max(0.0, np.percentile(contrast, 20))),
-        "min_peak_sharpness": float(max(0.0, np.percentile(sharpness, 20))),
-        "max_saturated_ratio": float(max(0.05, min(0.98, np.percentile(sat, 85)))),
+    conf_values = np.array([m.confidence for m in reliable_hits], dtype=float)
+    score_values = np.array([m.score_proxy for m in reliable_hits], dtype=float)
+    area_values = _iqr_filtered(np.array([m.area for m in reliable_hits], dtype=float))
+    contrast_values = _iqr_filtered(np.array([m.mean_contrast for m in reliable_hits], dtype=float))
+    sharpness_values = _iqr_filtered(np.array([m.peak_sharpness for m in reliable_hits], dtype=float))
+    saturation_values = _iqr_filtered(np.array([m.saturated_ratio for m in reliable_hits], dtype=float))
+    circularity_values = _iqr_filtered(np.array([m.circularity for m in reliable_hits], dtype=float))
+
+    sample_counts = {
+        "min_detection_confidence": int(conf_values.size),
+        "min_detection_score": int(score_values.size),
+        "min_area": int(area_values.size),
+        "min_mean_contrast": int(contrast_values.size),
+        "min_peak_sharpness": int(sharpness_values.size),
+        "max_saturated_ratio": int(saturation_values.size),
+        "shape_stability_circularity": int(circularity_values.size),
     }
 
+    if any(count < MIN_SAMPLES_PER_PARAMETER for count in sample_counts.values()):
+        return CalibrationEstimate(
+            thresholds=base_thresholds,
+            sample_counts=sample_counts,
+            confidence_weights=base_weights,
+            confidence_weight_rationale=_build_weight_rationale(1.0, 0.0, 0.0),
+            used_default_fallback=True,
+            fallback_reason=(
+                "Po odrzuceniu outlierów IQR liczebność próbek jest zbyt mała "
+                f"(minimum {MIN_SAMPLES_PER_PARAMETER})."
+            ),
+        )
 
-def build_perception_config(thresholds: Dict[str, Optional[float]], stats: CalibrationStats) -> Dict[str, Any]:
+    scene_saturation = float(np.median(saturation_values))
+    if scene_saturation > 0.30:
+        raw_weights: Tuple[float, float, float, float] = (0.38, 0.16, 0.24, 0.22)
+    else:
+        raw_weights = (
+            defaults.confidence_weight_shape,
+            defaults.confidence_weight_brightness,
+            defaults.confidence_weight_contrast,
+            defaults.confidence_weight_sharpness,
+        )
+    normalized_weights = _normalize_weights(*raw_weights)
+    confidence_weights = dict(
+        zip(
+            (
+                "confidence_weight_shape",
+                "confidence_weight_brightness",
+                "confidence_weight_contrast",
+                "confidence_weight_sharpness",
+            ),
+            (float(weight) for weight in normalized_weights),
+        )
+    )
+
+    thresholds = {
+        "min_detection_confidence": _clamp(float(np.percentile(conf_values, 10)), 0.0, 1.0),
+        "min_detection_score": _clamp(float(np.percentile(score_values, 10)), 0.0, 1.0),
+        "min_area": max(3.0, float(np.percentile(area_values, 10))),
+        "min_mean_contrast": max(0.0, float(np.percentile(contrast_values, 15))),
+        "min_peak_sharpness": max(0.0, float(np.percentile(sharpness_values, 15))),
+        "max_saturated_ratio": _clamp(float(np.percentile(saturation_values, 90)), 0.0, 1.0),
+    }
+    return CalibrationEstimate(
+        thresholds=thresholds,
+        sample_counts=sample_counts,
+        confidence_weights=confidence_weights,
+        confidence_weight_rationale=_build_weight_rationale(
+            saturated_ratio_median=scene_saturation,
+            mean_contrast_median=float(np.median(contrast_values)),
+            peak_sharpness_median=float(np.median(sharpness_values)),
+        ),
+        used_default_fallback=False,
+        fallback_reason=None,
+    )
+
+
+def build_perception_config(estimate: CalibrationEstimate, stats: CalibrationStats) -> Dict[str, Any]:
     """Buduje strukturę wynikowej konfiguracji percepcji do zapisu w YAML.
 
     Args:
-        thresholds: Progi zwrócone przez `derive_thresholds(...)`.
+        estimate: Wynik estymacji zwrócony przez `derive_thresholds(...)`.
         stats: Statystyki analizy, używane do decyzji czy stosować wartości kalibracji.
 
     Returns:
         Słownik reprezentujący sekcję YAML dla `light_spot_detector_node`.
     """
 
+    defaults = DetectorConfig()
+    # [AI-CHANGE | 2026-04-17 13:31 UTC | v0.103]
+    # CO ZMIENIONO: Bazowa konfiguracja progów i wag jest teraz inicjalizowana
+    # bezpośrednio z `DetectorConfig`, aby fallback miał zawsze te same domyślne
+    # wartości co runtime detektora.
+    # DLACZEGO: Wymaganie kalibracji mówi o fallbacku do domyślnych wartości;
+    # ręczne stałe mogłyby się rozjechać z konfiguracją modułu detekcji.
+    # JAK TO DZIAŁA: Przed ewentualnym nadpisaniem estymacją ustawiamy parametry
+    # `min_*`, `max_saturated_ratio` i wagi confidence na wartości z dataclass.
+    # TODO: Dodać automatyczne mapowanie wszystkich pól `DetectorConfig` do YAML.
     params: Dict[str, Any] = {
         "camera_topic": "/camera/image_raw",
         "detection_topic": "/light_tracking/detection_json",
         "camera_frame": "camera_link",
         "brightness_threshold": 245,
-        "min_area": 6.0,
-        "min_detection_confidence": 0.62,
-        "min_detection_score": 0.0,
+        "min_area": float(defaults.min_area),
+        "min_detection_confidence": float(defaults.min_detection_confidence),
+        "min_detection_score": float(defaults.min_detection_score),
         "min_top1_top2_margin": 0.0,
-        "min_mean_contrast": 4.0,
-        "min_peak_sharpness": 6.0,
-        "max_saturated_ratio": 0.35,
+        "min_mean_contrast": float(defaults.min_mean_contrast),
+        "min_peak_sharpness": float(defaults.min_peak_sharpness),
+        "max_saturated_ratio": float(defaults.max_saturated_ratio),
+        "confidence_weight_shape": float(defaults.confidence_weight_shape),
+        "confidence_weight_brightness": float(defaults.confidence_weight_brightness),
+        "confidence_weight_contrast": float(defaults.confidence_weight_contrast),
+        "confidence_weight_sharpness": float(defaults.confidence_weight_sharpness),
         "min_persistence_frames": 1,
         "blur_kernel": 5,
         "morph_kernel": 3,
@@ -383,10 +580,11 @@ def build_perception_config(thresholds: Dict[str, Optional[float]], stats: Calib
     # JAK TO DZIAŁA: Gdy `stats.reliable=False`, zwracane są wyłącznie bazowe parametry.
     # Gdy `True`, nadpisujemy tylko wybrane progi wartościami z kalibracji.
     # TODO: Dodać merge z istniejącym plikiem YAML, aby zachować ustawienia specyficzne dla robota.
-    if stats.reliable:
-        for key, value in thresholds.items():
-            if value is not None:
-                params[key] = float(value)
+    if stats.reliable and not estimate.used_default_fallback:
+        for key, value in estimate.thresholds.items():
+            params[key] = float(value)
+        for key, value in estimate.confidence_weights.items():
+            params[key] = float(value)
 
     return {"light_spot_detector_node": {"ros__parameters": params}}
 
@@ -406,13 +604,13 @@ def _to_yaml_text(config: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_report(report_path: Path, stats: CalibrationStats, thresholds: Dict[str, Optional[float]], config_path: Path) -> None:
+def write_report(report_path: Path, stats: CalibrationStats, estimate: CalibrationEstimate, config_path: Path) -> None:
     """Zapisuje raport Markdown z przebiegu kalibracji i końcową decyzją bezpieczeństwa.
 
     Args:
         report_path: Docelowa ścieżka pliku raportu.
         stats: Statystyki zwrócone przez `analyze_video(...)`.
-        thresholds: Progi zwrócone przez `derive_thresholds(...)`.
+        estimate: Wynik estymacji zwrócony przez `derive_thresholds(...)`.
         config_path: Ścieżka pliku YAML zapisanego po kalibracji.
 
     Returns:
@@ -426,6 +624,16 @@ def write_report(report_path: Path, stats: CalibrationStats, thresholds: Dict[st
     status = "✅ wiarygodna" if stats.reliable else "⚠️ brak wiarygodnych parametrów"
     reason = stats.rejection_reason or "brak"
 
+    # [AI-CHANGE | 2026-04-17 13:31 UTC | v0.103]
+    # CO ZMIENIONO: Rozszerzono raport o:
+    # - informację o fallbacku,
+    # - liczebność próbek użytych dla każdego parametru,
+    # - znormalizowane wagi confidence i ich uzasadnienie scenowe.
+    # DLACZEGO: Raport ma dokumentować źródło estymacji i decyzje bezpieczeństwa,
+    # aby łatwo ocenić czy strojenie jest wiarygodne.
+    # JAK TO DZIAŁA: Sekcje markdown są budowane z `CalibrationEstimate`, który
+    # przenosi metadane obliczone podczas kalibracji.
+    # TODO: Dodać sekcję trendów czasowych metryk (początek/środek/koniec nagrania).
     lines = [
         "# Raport kalibracji percepcji",
         "",
@@ -436,13 +644,25 @@ def write_report(report_path: Path, stats: CalibrationStats, thresholds: Dict[st
         f"- Liczba detekcji: **{stats.detection_count}** (ratio={stats.detection_ratio:.3f})",
         f"- Mediana confidence: **{med_conf:.3f}**",
         f"- Mediana score_proxy: **{med_score:.3f}**",
+        f"- Fallback do domyślnych: **{'tak' if estimate.used_default_fallback else 'nie'}**",
+        f"- Powód fallbacku: **{estimate.fallback_reason or 'brak'}**",
         "",
         "## Wyznaczone progi",
         "",
     ]
-    for key, value in thresholds.items():
-        shown = "BRAK (kalibracja odrzucona)" if value is None else f"{value:.4f}"
-        lines.append(f"- `{key}`: {shown}")
+    for key, value in estimate.thresholds.items():
+        lines.append(f"- `{key}`: {value:.4f} (próbki: {estimate.sample_counts.get(key, 0)})")
+
+    lines.extend(
+        [
+            "",
+            "## Wagi confidence (znormalizowane do sumy 1.0)",
+            "",
+        ]
+    )
+    for key, value in estimate.confidence_weights.items():
+        rationale = estimate.confidence_weight_rationale.get(key, "Brak dodatkowego uzasadnienia.")
+        lines.append(f"- `{key}`: {value:.4f} — {rationale}")
 
     lines.extend(
         [
@@ -478,8 +698,8 @@ def main() -> int:
         max_frames=int(args.max_frames),
         debug_dir=debug_dir,
     )
-    thresholds = derive_thresholds(stats)
-    config = build_perception_config(thresholds, stats)
+    estimate = derive_thresholds(stats)
+    config = build_perception_config(estimate, stats)
 
     output_config.parent.mkdir(parents=True, exist_ok=True)
     output_config.write_text(_to_yaml_text(config), encoding="utf-8")
@@ -487,7 +707,7 @@ def main() -> int:
     write_report(
         report_path=output_report,
         stats=stats,
-        thresholds=thresholds,
+        estimate=estimate,
         config_path=output_config,
     )
 
