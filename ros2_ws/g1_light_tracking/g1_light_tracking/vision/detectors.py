@@ -280,6 +280,30 @@ def _detection_score(det: Detection, peak_intensity: float, area_ref: float) -> 
     return (0.45 * area_norm) + (0.35 * circularity_norm) + (0.20 * peak_norm)
 
 
+# [AI-CHANGE | 2026-04-17 11:50 UTC | v0.76]
+# CO ZMIENIONO: Dodano strażnik `_is_ambiguous_top_detection`, który wykrywa sytuację
+# niejednoznacznego wyboru lidera (dwie najlepsze detekcje o bardzo zbliżonym score).
+# DLACZEGO: W scenach z refleksami lub wieloma podobnymi punktami detektor mógł zwrócić
+# arbitralnie „pierwszy” kandydat, co zwiększa ryzyko fałszywego śledzenia.
+# JAK TO DZIAŁA: Jeżeli różnica score pomiędzy TOP-1 i TOP-2 jest mniejsza od progu i
+# kandydaci są rozdzieleni przestrzennie, wynik jest uznawany za niepewny.
+# TODO: Rozbudować o wariant adaptacyjny progu niejednoznaczności zależny od dynamiki
+# sceny (np. histogram jasności i liczba kandydatów w ROI).
+def _is_ambiguous_top_detection(
+    scored_detections: List[Tuple[float, Detection]],
+    score_margin: float = 0.03,
+    min_spatial_separation_px: float = 8.0,
+) -> bool:
+    if len(scored_detections) < 2:
+        return False
+    (best_score, best_det), (second_score, second_det) = scored_detections[0], scored_detections[1]
+    if (best_score - second_score) > score_margin:
+        return False
+    dx = float(best_det.x - second_det.x)
+    dy = float(best_det.y - second_det.y)
+    return math.hypot(dx, dy) >= min_spatial_separation_px
+
+
 def detect_spots(
     frame: np.ndarray,
     track_mode: str,
@@ -360,6 +384,19 @@ def detect_spots(
         scored_detections.append((score, det))
 
     scored_detections.sort(key=lambda item: item[0], reverse=True)
+
+    # [AI-CHANGE | 2026-04-17 11:50 UTC | v0.76]
+    # CO ZMIENIONO: Dodano odrzucenie całej paczki detekcji, gdy lider jest
+    # niejednoznaczny względem drugiego kandydata.
+    # DLACZEGO: Priorytetem projektu jest uniknięcie błędnej detekcji; przy remisie
+    # jakościowym bezpieczniej zwrócić brak wyniku niż losowo wskazać obiekt.
+    # JAK TO DZIAŁA: Po sortowaniu score uruchamiamy `_is_ambiguous_top_detection`.
+    # Gdy zwróci `True`, funkcja oddaje pustą listę i maskę bez publikacji punktu.
+    # TODO: Dodać metadane diagnostyczne (np. kod odrzucenia), aby łatwiej stroić
+    # progi `score_margin` i `min_spatial_separation_px` na danych z produkcji.
+    if _is_ambiguous_top_detection(scored_detections):
+        return [], mask, (x0, y0, w, h)
+
     detections = [det for _, det in scored_detections]
     detections = detections[:max_spots]
     for idx, det in enumerate(detections, start=1):
