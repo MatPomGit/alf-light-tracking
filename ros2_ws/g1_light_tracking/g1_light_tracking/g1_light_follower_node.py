@@ -31,6 +31,17 @@ class G1LightFollowerNode(Node):
         self.declare_parameter('rejection_log_interval_s', 1.0)
         self.declare_parameter('log_cmd_vel_subscribers', True)
         self.declare_parameter('cmd_vel_subscribers_log_interval_s', 2.0)
+        # [MatPom-CHANGE | 2026-04-17 12:55 UTC | v0.91]
+        # CO ZMIENIONO: Dodano parametry jakości i stabilności toru:
+        #   - min_confidence_for_control,
+        #   - required_stable_frames.
+        # DLACZEGO: Sterowanie oparte o niepewną detekcję lub świeżo przełączony tor
+        #   zwiększa ryzyko błędnych komend; zgodnie z polityką projektu lepiej odrzucić
+        #   próbkę niż wygenerować fałszywy ruch.
+        # JAK TO DZIAŁA: Parametry będą używane w on_timer do filtrowania komend.
+        # TODO: Dodać walidację zakresów parametrów i dynamiczne przeładowanie podczas runtime.
+        self.declare_parameter('min_confidence_for_control', 0.6)
+        self.declare_parameter('required_stable_frames', 3)
 
         self.detection_topic = self.get_parameter('detection_topic').get_parameter_value().string_value
         self.cmd_vel_topic = self.get_parameter('cmd_vel_topic').get_parameter_value().string_value
@@ -74,12 +85,28 @@ class G1LightFollowerNode(Node):
         self.cmd_vel_subscribers_log_interval_s = float(
             self.get_parameter('cmd_vel_subscribers_log_interval_s').get_parameter_value().double_value
         )
+        # [MatPom-CHANGE | 2026-04-17 12:55 UTC | v0.91]
+        # CO ZMIENIONO: Odczytano nowe parametry i zainicjalizowano licznik stabilności toru.
+        # DLACZEGO: Potrzebujemy kontrolować minimalne confidence oraz liczbę kolejnych ramek
+        #   dla tego samego track_id, aby ograniczyć ryzyko sterowania na niestabilnych danych.
+        # JAK TO DZIAŁA: Self.min_confidence_for_control i self.required_stable_frames sterują
+        #   filtrem; self._last_control_track_id i self._stable_track_frames liczą stabilność toru.
+        # TODO: Rozszerzyć stan o watchdog dla "rank drift", by wykrywać niestabilność nawet bez zmiany track_id.
+        self.min_confidence_for_control = float(
+            self.get_parameter('min_confidence_for_control').get_parameter_value().double_value
+        )
+        self.required_stable_frames = max(
+            1,
+            int(self.get_parameter('required_stable_frames').get_parameter_value().integer_value),
+        )
 
         self.latest_detection = None
         self.latest_detection_time = None
         self._last_cmd_log_time = None
         self._last_rejection_log_time = None
         self._last_subscribers_log_time = None
+        self._last_control_track_id = None
+        self._stable_track_frames = 0
 
         self.sub = self.create_subscription(String, self.detection_topic, self.on_detection, 10)
         self.pub = self.create_publisher(Twist, self.cmd_vel_topic, 10)
@@ -112,6 +139,52 @@ class G1LightFollowerNode(Node):
         if msg is None or not bool(msg.get('detected', False)):
             self.pub.publish(cmd)
             self._maybe_log_rejection('detection_flag_false')
+            return
+
+        # [MatPom-CHANGE | 2026-04-17 12:55 UTC | v0.91]
+        # CO ZMIENIONO: Dodano twarde odrzucenie sterowania dla niskiego confidence
+        #   oraz niestabilnego toru wynikającego z rank/track_id.
+        # DLACZEGO: Priorytetem jest brak błędnego sterowania; świeżo przełączone tory
+        #   i detekcje o niskiej wiarygodności mają wyższe ryzyko pomyłki.
+        # JAK TO DZIAŁA: Najpierw sprawdzamy confidence względem progu, następnie
+        #   aktualizujemy licznik stabilnych ramek dla track_id; odrzucamy gdy rank != 0
+        #   albo gdy licznik nie osiągnął required_stable_frames.
+        # TODO: Dodać histerezę confidence (osobny próg wejścia/wyjścia), by ograniczyć flapping.
+        confidence = self._to_float(msg.get('confidence'))
+        if math.isnan(confidence) or confidence < self.min_confidence_for_control:
+            self.pub.publish(cmd)
+            self._maybe_log_rejection(
+                'confidence_invalid_nan'
+                if math.isnan(confidence)
+                else (
+                    f'confidence_below_min confidence={confidence:.3f} '
+                    f'min_confidence={self.min_confidence_for_control:.3f}'
+                )
+            )
+            return
+
+        track_id = msg.get('track_id')
+        rank_raw = msg.get('rank')
+        rank = self._to_float(rank_raw)
+        if track_id is None:
+            self._stable_track_frames = 0
+        elif track_id == self._last_control_track_id:
+            self._stable_track_frames += 1
+        else:
+            self._last_control_track_id = track_id
+            self._stable_track_frames = 1
+
+        if not math.isnan(rank) and rank != 0.0:
+            self.pub.publish(cmd)
+            self._maybe_log_rejection(f'unstable_track_rank rank={rank_raw}')
+            return
+
+        if self._stable_track_frames < self.required_stable_frames:
+            self.pub.publish(cmd)
+            self._maybe_log_rejection(
+                f'unstable_track_switch track_id={track_id} stable_frames={self._stable_track_frames} '
+                f'required={self.required_stable_frames}'
+            )
             return
 
         area = self._to_float(msg.get('area'))
