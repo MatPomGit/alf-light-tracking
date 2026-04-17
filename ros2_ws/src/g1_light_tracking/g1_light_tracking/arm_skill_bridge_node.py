@@ -1,5 +1,3 @@
-"""Compatibility bridge exposing legacy arm pick/place skills as ROS services."""
-
 #!/usr/bin/env python3
 
 import struct

@@ -1,6 +1,0 @@
-builtin_interfaces/Time stamp
-string qr_track_id
-string parcel_box_track_id
-string qr_payload
-float32 association_score
-bool is_confirmed

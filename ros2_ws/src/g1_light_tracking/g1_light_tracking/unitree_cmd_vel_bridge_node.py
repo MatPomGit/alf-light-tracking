@@ -1,28 +1,16 @@
 from __future__ import annotations
 
-"""Compatibility bridge from /cmd_vel to the Unitree sport API.
-
-This module comes from the legacy JSON-based light tracking stack and is kept
-side-by-side with the newer mission/control pipeline.
-"""
+import json
+import time
 
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-try:
-    from unitree_api.msg import Request, Response
-    _UNITREE_API_IMPORT_ERROR = None
-except ImportError as exc:
-    Request = None
-    Response = None
-    _UNITREE_API_IMPORT_ERROR = exc
+from unitree_api.msg import Request, Response
 
 
 class UnitreeCmdVelBridgeNode(Node):
     def __init__(self) -> None:
-        if Request is None or Response is None:
-            raise RuntimeError(f'unitree_api messages are required for unitree_cmd_vel_bridge_node: {_UNITREE_API_IMPORT_ERROR}')
-
         super().__init__('unitree_cmd_vel_bridge_node')
 
         self.declare_parameter('cmd_vel_topic', '/cmd_vel')
@@ -206,10 +194,8 @@ class UnitreeCmdVelBridgeNode(Node):
 
         self._last_subscribers_log_time = now
         count = self.unitree_pub.get_subscription_count()
-        if count == 0:
-            self.get_logger().warn(f'{self.unitree_request_topic} subscribers={count}')
-        else:
-            self.get_logger().info(f'{self.unitree_request_topic} subscribers={count}')
+        level = self.get_logger().warn if count == 0 else self.get_logger().info
+        level(f'{self.unitree_request_topic} subscribers={count}')
 
     def _maybe_log_tx(
         self, req_id: int, cmd_age_s: float, vx: float, vy: float, vyaw: float, duration: float
@@ -240,9 +226,6 @@ class UnitreeCmdVelBridgeNode(Node):
 
 
 def main(args=None) -> None:
-    if Request is None or Response is None:
-        raise RuntimeError(f'unitree_api messages are required for unitree_cmd_vel_bridge_node: {_UNITREE_API_IMPORT_ERROR}')
-
     rclpy.init(args=args)
     node = UnitreeCmdVelBridgeNode()
     try:

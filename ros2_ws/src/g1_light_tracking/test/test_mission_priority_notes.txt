@@ -1,4 +1,0 @@
-Mission priority intent:
-1. Prefer ParcelTrack over raw TrackedTarget.
-2. Prefer logistics_state=identified over partial parcel states.
-3. Use raw tracked targets only as fallback for light, shelf, person, planar surface, qr.

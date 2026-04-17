@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
+"""Kontroler sekwencji ramion (grasp skills) dla scenariusza move parcel."""
+
 from __future__ import annotations
-
-"""Joint-sequence controller preserved from the legacy Unitree grasping prototype."""
-
 
 import threading
 import time

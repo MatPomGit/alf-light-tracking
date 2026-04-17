@@ -1,13 +1,12 @@
-perception_node:
+light_spot_detector_node:
   ros__parameters:
-    image_topic: /camera/image_raw
-    camera_info_topic: /camera/camera_info
-    detection_topic: /perception/detections
-    debug_image_topic: /debug/perception_image
-    yolo_model_path: yolov8n.pt
-    yolo_confidence: 0.35
-    enable_qr: true
-    enable_apriltag: true
-    enable_light_spot: true
-    light_threshold: 240
-    target_classes: ["person", "box", "package", "shelf", "bookcase", "table"]
+    camera_topic: /camera/image_raw
+    detection_topic: /light_tracking/detection_json
+    camera_frame: camera_link
+    brightness_threshold: 245
+    min_area: 6.0
+    min_detection_confidence: 0.62
+    min_persistence_frames: 1
+    blur_kernel: 5
+    morph_kernel: 3
+    legacy_mode: false

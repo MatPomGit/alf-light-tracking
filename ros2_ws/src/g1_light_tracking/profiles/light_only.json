@@ -1,8 +1,0 @@
-{
-  "enable_yolo": false,
-  "enable_qr": false,
-  "enable_apriltag": false,
-  "enable_light_spot": true,
-  "enable_tracking": false,
-  "enable_binding": false
-}

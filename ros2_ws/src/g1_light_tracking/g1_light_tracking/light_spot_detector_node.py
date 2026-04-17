@@ -1,7 +1,4 @@
-
 from __future__ import annotations
-
-"""Legacy detector that publishes JSON observations of a bright light spot."""
 
 import json
 import math

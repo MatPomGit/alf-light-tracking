@@ -1,5 +1,3 @@
-"""Replay legacy JSON detections from a CSV file for simulation and regression tests."""
-
 import csv
 import json
 import math
