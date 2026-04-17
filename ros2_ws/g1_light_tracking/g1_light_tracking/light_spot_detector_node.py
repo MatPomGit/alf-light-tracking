@@ -28,6 +28,7 @@ class LightSpotDetectorNode(Node):
         self.declare_parameter('morph_kernel', 0)
         self.declare_parameter('min_area', 10.0)
         self.declare_parameter('min_detection_confidence', 0.62)
+        self.declare_parameter('min_detection_score', 0.0)
         self.declare_parameter('min_persistence_frames', 1)
         self.declare_parameter('legacy_mode', False)
 
@@ -45,6 +46,18 @@ class LightSpotDetectorNode(Node):
         erode_iter = max(0, morph_kernel)
         dilate_iter = max(0, morph_kernel)
         min_detection_confidence = float(self.get_parameter('min_detection_confidence').value)
+        # [AI-CHANGE | 2026-04-17 11:41 UTC | v0.74]
+        # CO ZMIENIONO: Dodano odczyt parametru `min_detection_score` oraz klamrowanie
+        # wartości do bezpiecznego zakresu [0.0, 1.0] przed przekazaniem do konfiguracji.
+        # DLACZEGO: Ten próg steruje drugim etapem filtrowania jakości detekcji i musi być
+        # odporny na błędne wartości wejściowe, aby nie dopuścić do niestabilnego działania.
+        # JAK TO DZIAŁA: Wartość pobieramy z parametrów ROS, następnie ograniczamy przez
+        # `max(0.0, min(1.0, ...))`; dzięki temu algorytm nigdy nie dostaje progu spoza
+        # dozwolonego zakresu, co wspiera zasadę „lepiej brak wyniku niż błędny wynik”.
+        # TODO: Rozważyć log ostrzegawczy, gdy wejściowy parametr został skorygowany
+        # (klamrowanie), aby szybciej diagnozować nieprawidłową konfigurację.
+        min_detection_score = float(self.get_parameter('min_detection_score').value)
+        min_detection_score = max(0.0, min(1.0, min_detection_score))
         min_persistence_frames = max(1, int(self.get_parameter('min_persistence_frames').value))
         legacy_mode = bool(self.get_parameter('legacy_mode').value)
         self.detector_config = DetectorConfig(
@@ -61,7 +74,7 @@ class LightSpotDetectorNode(Node):
             hsv_upper=None,
             roi=None,
             min_detection_confidence=max(0.0, min(1.0, min_detection_confidence)),
-            min_detection_score=0.0,
+            min_detection_score=min_detection_score,  # Próg drugiego etapu filtrowania jakości detekcji.
             min_persistence_frames=min_persistence_frames,
             persistence_radius_px=12.0,
             legacy_mode=legacy_mode,
