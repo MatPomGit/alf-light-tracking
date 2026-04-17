@@ -5,7 +5,6 @@ from launch.actions import LogInfo
 from launch import LaunchDescription
 from launch_ros.actions import Node
 
-
 def generate_launch_description() -> LaunchDescription:
     config_dir = os.path.join(get_package_share_directory('g1_light_tracking'), 'config')
     actions = [

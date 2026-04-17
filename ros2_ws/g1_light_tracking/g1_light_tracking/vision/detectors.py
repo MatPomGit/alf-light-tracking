@@ -17,6 +17,7 @@ from .types import Detection
 # JAK TO DZIAŁA: Snapshot ostatniej konfiguracji jest porównywany z bieżącym
 # i aktualizowany po każdym wywołaniu adaptera konfiguracyjnego.
 # TODO: Dodać możliwość całkowitego wyłączenia tych logów flagą środowiskową.
+
 LOGGER = logging.getLogger(__name__)
 _LAST_CONFIG_SNAPSHOT: Optional[Dict[str, float | int | str | bool | None]] = None
 

@@ -1,16 +1,9 @@
-# [MatPom-CHANGE | 2026-04-17 13:06 UTC | v0.91]
-# CO ZMIENIONO: Dodano komentarze opisujące przeznaczenie klas i metod oraz motywację przyjętej struktury.
-# DLACZEGO: Ułatwia to bezpieczne utrzymanie kodu R&D i ogranicza ryzyko błędnej interpretacji logiki detekcji.
-# JAK TO DZIAŁA: Każda klasa/metoda posiada docstring z celem i uzasadnieniem, dzięki czemu intencja implementacji jest jawna.
-# TODO: Rozszerzyć docstringi o kontrakty wejścia/wyjścia po ustabilizowaniu API między węzłami.
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable
 
 import numpy as np
-
 
 @dataclass
 class DetectorConfig:
@@ -33,6 +26,7 @@ class DetectorConfig:
     # JAK TO DZIAŁA: Wartość konfiguracyjna jest używana w etapie post-sortowania
     # kandydatów do odrzucenia detekcji przy zbyt małej separacji rankingu.
     # TODO: Rozważyć dynamiczny próg marginesu zależny od kontrastu sceny i poziomu szumu.
+
     min_top1_top2_margin: float = 0.0
     # [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
     # CO ZMIENIONO: Dodano progi i wagi cech fotometrycznych opartych o kontrast
@@ -42,6 +36,7 @@ class DetectorConfig:
     # JAK TO DZIAŁA: Progi `min_*` i `max_*` służą do odrzucania niepewnych próbek,
     # a pola `*_weight` składają się na wynik pewności dopasowania kandydata.
     # TODO: Przygotować gotowe profile presetów (np. indoor/outdoor) ładowane z YAML.
+
     ring_thickness_px: int = 2
     saturation_level: int = 250
     min_mean_contrast: float = 4.0
@@ -62,6 +57,7 @@ class DetectorConfig:
     # JAK TO DZIAŁA: Parametry sterują aktywacją trybu, bazowym rozmiarem okna
     # oraz przyrostem rozmiaru ROI na każdą kolejną klatkę bez detekcji.
     # TODO: Dodać wariant eliptycznego ROI zależny od wektora prędkości toru.
+    
     dynamic_roi_enabled: bool = False
     dynamic_roi_size_px: int = 160
     dynamic_roi_expand_on_miss: int = 40

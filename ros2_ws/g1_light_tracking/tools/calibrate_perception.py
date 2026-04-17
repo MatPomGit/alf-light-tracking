@@ -48,8 +48,8 @@ PACKAGE_ROOT = REPO_ROOT / "ros2_ws" / "g1_light_tracking"
 if str(PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_ROOT))
 
-from g1_light_tracking.vision.detector_interfaces import DetectorConfig
-from g1_light_tracking.vision.detectors import _normalize_weights, detect_spots_with_config
+from g1_light_tracking.vision.detector_interfaces import DetectorConfig # type: ignore
+from g1_light_tracking.vision.detectors import _normalize_weights, detect_spots_with_config # type: ignore
 
 
 @dataclass
@@ -205,8 +205,8 @@ def _estimate_intensity_metrics(frame_bgr: np.ndarray, detection: Any) -> tuple[
     if inside.size < 8 or ring.size < 8:
         return 0.0, 0.0, 1.0
 
-    mean_contrast = float(np.mean(inside) - np.mean(ring))
-    peak_sharpness = float(np.percentile(inside, 95) - np.percentile(ring, 95))
+    mean_contrast = float(np.mean(inside) - np.mean(ring)) # type: ignore
+    peak_sharpness = float(np.percentile(inside, 95) - np.percentile(ring, 95)) # type: ignore
     saturated_ratio = float(np.mean(inside >= 250))
     return mean_contrast, peak_sharpness, saturated_ratio
 

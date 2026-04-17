@@ -1,9 +1,3 @@
-# [MatPom-CHANGE | 2026-04-17 13:06 UTC | v0.91]
-# CO ZMIENIONO: Dodano komentarze opisujące przeznaczenie klas i metod oraz motywację przyjętej struktury.
-# DLACZEGO: Ułatwia to bezpieczne utrzymanie kodu R&D i ogranicza ryzyko błędnej interpretacji logiki detekcji.
-# JAK TO DZIAŁA: Każda klasa/metoda posiada docstring z celem i uzasadnieniem, dzięki czemu intencja implementacji jest jawna.
-# TODO: Rozszerzyć docstringi o kontrakty wejścia/wyjścia po ustabilizowaniu API między węzłami.
-
 from __future__ import annotations
 
 import json
@@ -12,13 +6,12 @@ from datetime import datetime, timezone
 
 import cv2
 import numpy as np
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Image
-from std_msgs.msg import String
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from sensor_msgs.msg import Image # type: ignore
+from std_msgs.msg import String # type: ignore
 
 from .vision import DetectionPersistenceFilter, DetectorConfig, detect_spots_with_config
-
 
 class LightSpotDetectorNode(Node):
     """
