@@ -182,9 +182,32 @@ class LightSpotDetectorNode(Node):
             return cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
         return cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
 
+    # [AI-CHANGE | 2026-04-17 11:35 UTC | v0.70]
+    # CO ZMIENIONO: Dodano helper `_ros_stamp_to_iso_utc`, który konwertuje czas ROS
+    # (`sec`, `nanosec`) na znacznik ISO-8601 w strefie UTC i zwraca `None` dla pustego
+    # lub niepoprawnego znacznika.
+    # DLACZEGO: Timestamp publikowany w payloadzie powinien opisywać czas pozyskania klatki,
+    # a nie czas przetwarzania callbacku; to ogranicza ryzyko błędnej korelacji danych.
+    # JAK TO DZIAŁA: Funkcja sprawdza, czy nagłówek ma sensowne wartości czasu. Gdy `sec`
+    # i `nanosec` są zerowe (brak stempla) albo format jest błędny, zwraca `None`.
+    # W przeciwnym razie buduje obiekt `datetime` w UTC i zwraca `isoformat()`.
+    # TODO: Rozważyć walidację monotoniczności stempli klatek i odrzucanie ramek z czasem
+    # odstającym od zegara ROS o konfigurowalny próg.
+    def _ros_stamp_to_iso_utc(self, sec: int, nanosec: int) -> str | None:
+        if sec == 0 and nanosec == 0:
+            return None
+        if sec < 0 or nanosec < 0 or nanosec >= 1_000_000_000:
+            return None
+        total_seconds = sec + (nanosec / 1_000_000_000.0)
+        return datetime.fromtimestamp(total_seconds, tz=timezone.utc).isoformat()
+
     def _empty_payload(self, msg: Image) -> dict:
+        header_stamp = msg.header.stamp
+        # Timestamp ma odzwierciedlać czas klatki z nagłówka ROS, a nie czas przetwarzania.
+        # Fallback do czasu systemowego stosujemy tylko przy pustym/zerowym nagłówku.
+        payload_stamp = self._ros_stamp_to_iso_utc(header_stamp.sec, header_stamp.nanosec)
         return {
-            'stamp': datetime.now(timezone.utc).isoformat(),
+            'stamp': payload_stamp or datetime.now(timezone.utc).isoformat(),
             'frame_id': msg.header.frame_id or self.camera_frame,
             'detected': False,
             'x': math.nan,
