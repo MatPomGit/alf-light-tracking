@@ -86,28 +86,46 @@ class LightSpotDetectorNode(Node):
         payload = self._empty_payload(msg)
         frame = self._image_msg_to_bgr(msg)
         if frame is not None:
-            detections, _, _ = detect_spots_with_config(
-                frame,
-                self.detector_config,
-                persistence_filter=self.persistence_filter,
-            )
-            best = detections[0] if detections else None
-            if best is not None:
-                payload.update(
-                    {
-                        'detected': True,
-                        'x': float(best.x),
-                        'y': float(best.y),
-                        'area': float(best.area),
-                        'perimeter': float(best.perimeter),
-                        'circularity': float(best.circularity),
-                        'radius': float(best.radius),
-                        'confidence': float(best.confidence),
-                        'track_id': self.track_id,
-                        'rank': int(best.rank),
-                        'kalman_predicted': False,
-                    }
+            # --- ZMIANA (runtime safety) START ---
+            # Zmieniony fragment: wywołanie detektora zostało osłonięte try/except.
+            # Dlaczego: w środowisku R&D pojedynczy błąd konfiguracji lub jednorazowy
+            # wyjątek z algorytmu nie powinien zatrzymywać callbacku i destabilizować noda.
+            # Jak działa teraz: w razie wyjątku publikujemy nadal pusty payload
+            # (detected=false) zamiast ryzykować publikację błędnych danych.
+            # Innymi słowy: lepiej nie zwrócić detekcji niż zwrócić "głupoty".
+            try:
+                detections, _, _ = detect_spots_with_config(
+                    frame,
+                    self.detector_config,
+                    persistence_filter=self.persistence_filter,
                 )
+                best = detections[0] if detections else None
+                if best is not None:
+                    payload.update(
+                        {
+                            'detected': True,
+                            'x': float(best.x),
+                            'y': float(best.y),
+                            'area': float(best.area),
+                            'perimeter': float(best.perimeter),
+                            'circularity': float(best.circularity),
+                            'radius': float(best.radius),
+                            'confidence': float(best.confidence),
+                            'track_id': self.track_id,
+                            'rank': int(best.rank),
+                            'kalman_predicted': False,
+                        }
+                    )
+            except Exception as exc:
+                # Uwaga: ostrzeżenie jest throttlowane, żeby nie floodować logów przy
+                # powtarzalnym błędzie z tej samej przyczyny.
+                self.get_logger().warn(
+                    f'Spot detection failed: {type(exc).__name__}: {exc}',
+                    throttle_duration_sec=5.0,
+                )
+                # TODO: dodać licznik/metrykę błędów detekcji (np. diagnostyka ROS),
+                # aby monitorować trend awarii i szybciej identyfikować regresje.
+            # --- ZMIANA (runtime safety) END ---
 
         out = String()
         out.data = json.dumps(payload, separators=(',', ':'))
