@@ -1,3 +1,9 @@
+# [AI-CHANGE | 2026-04-17 13:06 UTC | v0.91]
+# CO ZMIENIONO: Dodano komentarze opisujące przeznaczenie klas i metod oraz motywację przyjętej struktury.
+# DLACZEGO: Ułatwia to bezpieczne utrzymanie kodu R&D i ogranicza ryzyko błędnej interpretacji logiki detekcji.
+# JAK TO DZIAŁA: Każda klasa/metoda posiada docstring z celem i uzasadnieniem, dzięki czemu intencja implementacji jest jawna.
+# TODO: Rozszerzyć docstringi o kontrakty wejścia/wyjścia po ustabilizowaniu API między węzłami.
+
 from __future__ import annotations
 
 import json
@@ -15,7 +21,15 @@ from .vision import DetectionPersistenceFilter, DetectorConfig, detect_spots_wit
 
 
 class LightSpotDetectorNode(Node):
+    """
+    Cel: Ta klasa realizuje odpowiedzialność `LightSpotDetectorNode` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     def __init__(self) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `__init__` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         super().__init__('light_spot_detector_node')
 
         self.declare_parameter('camera_topic', '/camera/image_raw')
@@ -107,6 +121,10 @@ class LightSpotDetectorNode(Node):
         )
 
     def on_image(self, msg: Image) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `on_image` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         payload = self._empty_payload(msg)
         frame = self._image_msg_to_bgr(msg)
         if frame is not None:
@@ -176,6 +194,10 @@ class LightSpotDetectorNode(Node):
         self._maybe_log_detection(payload)
 
     def _maybe_log_detection(self, payload: dict) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_maybe_log_detection` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if not self.log_detections or not bool(payload.get('detected', False)):
             return
 
@@ -196,6 +218,10 @@ class LightSpotDetectorNode(Node):
         )
 
     def _image_msg_to_bgr(self, msg: Image) -> np.ndarray | None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_image_msg_to_bgr` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         encoding = msg.encoding.lower()
         if msg.height <= 0 or msg.width <= 0:
             return None
@@ -237,6 +263,10 @@ class LightSpotDetectorNode(Node):
     # TODO: Rozważyć walidację monotoniczności stempli klatek i odrzucanie ramek z czasem
     # odstającym od zegara ROS o konfigurowalny próg.
     def _ros_stamp_to_iso_utc(self, sec: int, nanosec: int) -> str | None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_ros_stamp_to_iso_utc` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if sec == 0 and nanosec == 0:
             return None
         if sec < 0 or nanosec < 0 or nanosec >= 1_000_000_000:
@@ -245,6 +275,10 @@ class LightSpotDetectorNode(Node):
         return datetime.fromtimestamp(total_seconds, tz=timezone.utc).isoformat()
 
     def _empty_payload(self, msg: Image) -> dict:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_empty_payload` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         header_stamp = msg.header.stamp
         # Timestamp ma odzwierciedlać czas klatki z nagłówka ROS, a nie czas przetwarzania.
         # Fallback do czasu systemowego stosujemy tylko przy pustym/zerowym nagłówku.
@@ -271,6 +305,10 @@ class LightSpotDetectorNode(Node):
 
 
 def main(args=None) -> None:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `main` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     rclpy.init(args=args)
     node = LightSpotDetectorNode()
     try:
