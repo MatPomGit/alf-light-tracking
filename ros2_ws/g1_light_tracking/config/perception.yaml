@@ -10,7 +10,7 @@ light_spot_detector_node:
     min_top1_top2_margin: 0.0
     min_mean_contrast: 30.501951164496106
     min_peak_sharpness: 12.3
-    max_saturated_ratio: 0.15
+    max_saturated_ratio: 0.00025182504612495873
     confidence_weight_shape: 0.32
     confidence_weight_brightness: 0.22
     confidence_weight_contrast: 0.24

@@ -867,73 +867,67 @@ def _build_rejection_summary(stats: CalibrationStats) -> List[Tuple[str, int, Li
 
 
 def write_report(report_path: Path, stats: CalibrationStats, estimate: CalibrationEstimate, config_path: Path) -> None:
+    """Zapisuje raport Markdown z przebiegu kalibracji i końcową decyzją bezpieczeństwa."""
 
-        # [AI-CHANGE | 2026-04-17 14:40 UTC | v0.115]
-        # CO ZMIENIONO: Dodano generowanie wykresów z metryk kalibracji (histogramy, wykresy rozrzutu)
-        # oraz wstawianie ich do raportu Markdown.
-        # DLACZEGO: Ułatwienie analizy rozkładu i jakości danych wejściowych oraz progów.
-        # JAK TO DZIAŁA: W katalogu raportu zapisywane są pliki PNG z wykresami, a w raporcie pojawiają się odnośniki.
-        # TODO: Dodać wykresy porównawcze dla kilku nagrań oraz heatmapy czasowe.
-
-        plot_dir = report_path.parent / "calibration_plots"
-        plot_dir.mkdir(parents=True, exist_ok=True)
-        detected = [m for m in stats.metrics if m.detected]
-        # Przygotuj dane
-        conf = [m.confidence for m in detected]
-        area = [m.area for m in detected]
-        contrast = [m.mean_contrast for m in detected]
-        sharp = [m.peak_sharpness for m in detected]
-        sat = [m.saturated_ratio for m in detected]
-        idx = [m.frame_index for m in detected]
-        # Histogram confidence
-        plt.figure(figsize=(5,3))
-        plt.hist(conf, bins=20, color="#1976d2", alpha=0.8)
-        plt.title("Histogram confidence")
-        plt.xlabel("confidence")
-        plt.ylabel("Liczba klatek")
-        conf_path = plot_dir / "hist_confidence.png"
-        plt.tight_layout(); plt.savefig(conf_path); plt.close()
-        # Histogram area
-        plt.figure(figsize=(5,3))
-        plt.hist(area, bins=20, color="#388e3c", alpha=0.8)
-        plt.title("Histogram area")
-        plt.xlabel("area")
-        plt.ylabel("Liczba klatek")
-        area_path = plot_dir / "hist_area.png"
-        plt.tight_layout(); plt.savefig(area_path); plt.close()
-        # Histogram mean_contrast
-        plt.figure(figsize=(5,3))
-        plt.hist(contrast, bins=20, color="#fbc02d", alpha=0.8)
-        plt.title("Histogram mean_contrast")
-        plt.xlabel("mean_contrast")
-        plt.ylabel("Liczba klatek")
-        contrast_path = plot_dir / "hist_contrast.png"
-        plt.tight_layout(); plt.savefig(contrast_path); plt.close()
-        # Histogram peak_sharpness
-        plt.figure(figsize=(5,3))
-        plt.hist(sharp, bins=20, color="#d32f2f", alpha=0.8)
-        plt.title("Histogram peak_sharpness")
-        plt.xlabel("peak_sharpness")
-        plt.ylabel("Liczba klatek")
-        sharp_path = plot_dir / "hist_sharpness.png"
-        plt.tight_layout(); plt.savefig(sharp_path); plt.close()
-        # Histogram saturated_ratio
-        plt.figure(figsize=(5,3))
-        plt.hist(sat, bins=20, color="#7b1fa2", alpha=0.8)
-        plt.title("Histogram saturated_ratio")
-        plt.xlabel("saturated_ratio")
-        plt.ylabel("Liczba klatek")
-        sat_path = plot_dir / "hist_saturated_ratio.png"
-        plt.tight_layout(); plt.savefig(sat_path); plt.close()
-        # Wykres rozrzutu confidence vs area
-        plt.figure(figsize=(5,4))
-        plt.scatter(area, conf, alpha=0.7, c=idx, cmap="viridis")
-        plt.title("Rozrzut: area vs confidence")
-        plt.xlabel("area")
-        plt.ylabel("confidence")
-        plt.colorbar(label="frame_index")
-        scatter_path = plot_dir / "scatter_area_conf.png"
-        plt.tight_layout(); plt.savefig(scatter_path); plt.close()
+    plot_dir = report_path.parent / "calibration_plots"
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    detected = [m for m in stats.metrics if m.detected]
+    # Przygotuj dane
+    conf = [m.confidence for m in detected]
+    area = [m.area for m in detected]
+    contrast = [m.mean_contrast for m in detected]
+    sharp = [m.peak_sharpness for m in detected]
+    sat = [m.saturated_ratio for m in detected]
+    idx = [m.frame_index for m in detected]
+    # Histogram confidence
+    plt.figure(figsize=(5,3))
+    plt.hist(conf, bins=20, color="#1976d2", alpha=0.8)
+    plt.title("Histogram confidence")
+    plt.xlabel("confidence")
+    plt.ylabel("Liczba klatek")
+    conf_path = plot_dir / "hist_confidence.png"
+    plt.tight_layout(); plt.savefig(conf_path); plt.close()
+    # Histogram area
+    plt.figure(figsize=(5,3))
+    plt.hist(area, bins=20, color="#388e3c", alpha=0.8)
+    plt.title("Histogram area")
+    plt.xlabel("area")
+    plt.ylabel("Liczba klatek")
+    area_path = plot_dir / "hist_area.png"
+    plt.tight_layout(); plt.savefig(area_path); plt.close()
+    # Histogram mean_contrast
+    plt.figure(figsize=(5,3))
+    plt.hist(contrast, bins=20, color="#fbc02d", alpha=0.8)
+    plt.title("Histogram mean_contrast")
+    plt.xlabel("mean_contrast")
+    plt.ylabel("Liczba klatek")
+    contrast_path = plot_dir / "hist_contrast.png"
+    plt.tight_layout(); plt.savefig(contrast_path); plt.close()
+    # Histogram peak_sharpness
+    plt.figure(figsize=(5,3))
+    plt.hist(sharp, bins=20, color="#d32f2f", alpha=0.8)
+    plt.title("Histogram peak_sharpness")
+    plt.xlabel("peak_sharpness")
+    plt.ylabel("Liczba klatek")
+    sharp_path = plot_dir / "hist_sharpness.png"
+    plt.tight_layout(); plt.savefig(sharp_path); plt.close()
+    # Histogram saturated_ratio
+    plt.figure(figsize=(5,3))
+    plt.hist(sat, bins=20, color="#7b1fa2", alpha=0.8)
+    plt.title("Histogram saturated_ratio")
+    plt.xlabel("saturated_ratio")
+    plt.ylabel("Liczba klatek")
+    sat_path = plot_dir / "hist_saturated_ratio.png"
+    plt.tight_layout(); plt.savefig(sat_path); plt.close()
+    # Wykres rozrzutu confidence vs area
+    plt.figure(figsize=(5,4))
+    plt.scatter(area, conf, alpha=0.7, c=idx, cmap="viridis")
+    plt.title("Rozrzut: area vs confidence")
+    plt.xlabel("area")
+    plt.ylabel("confidence")
+    plt.colorbar(label="frame_index")
+    scatter_path = plot_dir / "scatter_area_conf.png"
+    plt.tight_layout(); plt.savefig(scatter_path); plt.close()
 
     """Zapisuje raport Markdown z przebiegu kalibracji i końcową decyzją bezpieczeństwa.
 
@@ -959,12 +953,13 @@ def write_report(report_path: Path, stats: CalibrationStats, estimate: Calibrati
     # przygotowane już na etapie estymacji progów.
     # TODO: Dodać sekcję porównania bieżących progów z poprzednim raportem historycznym.
 
-    stats = analyze_video(
-    video_path=video_path,
-    sample_step=defaults.sample_step,
-    max_frames=defaults.max_frames,
-    debug_dir=defaults.debug_dir,
-)
+    # [AI-CHANGE | 2026-04-17 15:58 UTC | v0.117]
+    # CO ZMIENIONO: Usunięto wtórne wywołanie `analyze_video(...)` z funkcji raportującej.
+    # DLACZEGO: Raport powinien opisywać już policzone wyniki, a nie uruchamiać analizę ponownie
+    # na niezdefiniowanych zmiennych, co prowadziłoby do błędu wykonania.
+    # JAK TO DZIAŁA: `write_report(...)` korzysta teraz bezpośrednio z przekazanego obiektu `stats`,
+    # dzięki czemu raport pozostaje spójny z wcześniejszą analizą i nie generuje nowych, ryzykownych odchyleń.
+    # TODO: Dodać test integracyjny, który wywoła pełny przebieg CLI i sprawdzi zapis raportu.
     detected = [m for m in stats.metrics if m.detected]
     med_conf = median([m.confidence for m in detected]) if detected else 0.0
     med_score = median([m.score_proxy for m in detected]) if detected else 0.0

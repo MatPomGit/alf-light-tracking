@@ -2,7 +2,7 @@
 
 ## Metadane uruchomienia
 
-- Data UTC: 2026-04-17T14:38:12.483390+00:00
+- Data UTC: 2026-04-17T15:15:36.380204+00:00
 - Input video: `C:\Users\matpo\repo\alf-light-tracking\ros2_ws\g1_light_tracking\tools\video.mp4`
 - Input frame count: **734**
 - Sampled frames: **734**
@@ -15,16 +15,25 @@
 - Mediana confidence: **0.607**
 - Mediana score_proxy: **0.592**
 
+## Wykresy z kalibracji
+
+![](calibration_plots/hist_confidence.png)
+![](calibration_plots/hist_area.png)
+![](calibration_plots/hist_contrast.png)
+![](calibration_plots/hist_sharpness.png)
+![](calibration_plots/hist_saturated_ratio.png)
+![](calibration_plots/scatter_area_conf.png)
+
 ## Zmiany parametrów względem domyślnych
 
-| Parametr | Wartość domyślna | Nowa wartość | Skutek zmiany |
-|---|---:|---:|---|
-| `min_detection_confidence` | `0.0000` | `0.5380` | Obniżenie progu zwiększa liczbę wykrywanych obiektów, ale może zwiększyć liczbę fałszywych detekcji. |
-| `min_detection_score` | `0.0000` | `0.5407` | Obniżenie progu pozwala na akceptację słabszych sygnałów, co zwiększa czułość, ale może obniżyć precyzję. |
-| `min_area` | `10.0000` | `299.0000` | Zmniejszenie minimalnego obszaru pozwala wykrywać mniejsze plamki, ale zwiększa ryzyko szumu. |
-| `min_mean_contrast` | `4.0000` | `30.5020` | Obniżenie progu pozwala wykrywać obiekty w słabszym kontraście, ale zwiększa podatność na tło. |
-| `min_peak_sharpness` | `6.0000` | `12.3000` | Obniżenie progu pozwala wykrywać mniej ostre plamki, ale może zwiększyć liczbę fałszywych detekcji. |
-| `max_saturated_ratio` | `0.3500` | `0.0003` | Podwyższenie limitu pozwala akceptować bardziej nasycone obiekty, co może być potrzebne przy silnym oświetleniu. |
+| Parametr | Wartość domyślna | Nowa wartość | Δ (różnica) | Siła zmiany [%] | Skutek zmiany |
+|---|---:|---:|:---:|:---:|---|
+| `min_detection_confidence` | `0.0000` | `0.5380` | <span style="color: #388e3c;">+0.5380</span> | 53.8 | Obniżenie progu zwiększa liczbę wykrywanych obiektów, ale może zwiększyć liczbę fałszywych detekcji. |
+| `min_detection_score` | `0.0000` | `0.5407` | <span style="color: #388e3c;">+0.5407</span> | 54.1 | Obniżenie progu pozwala na akceptację słabszych sygnałów, co zwiększa czułość, ale może obniżyć precyzję. |
+| `min_area` | `10.0000` | `299.0000` | <span style="color: #388e3c;">+289.0000</span> | 28.9 | Zmniejszenie minimalnego obszaru pozwala wykrywać mniejsze plamki, ale zwiększa ryzyko szumu. |
+| `min_mean_contrast` | `4.0000` | `30.5020` | <span style="color: #388e3c;">+26.5020</span> | 10.4 | Obniżenie progu pozwala wykrywać obiekty w słabszym kontraście, ale zwiększa podatność na tło. |
+| `min_peak_sharpness` | `6.0000` | `12.3000` | <span style="color: #388e3c;">+6.3000</span> | 2.5 | Obniżenie progu pozwala wykrywać mniej ostre plamki, ale może zwiększyć liczbę fałszywych detekcji. |
+| `max_saturated_ratio` | `0.3500` | `0.0003` | <span style="color: #d32f2f;">-0.3497</span> | 35.0 | Podwyższenie limitu pozwala akceptować bardziej nasycone obiekty, co może być potrzebne przy silnym oświetleniu. |
 
 ## Parametry i reguły wyliczenia
 
