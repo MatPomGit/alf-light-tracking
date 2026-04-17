@@ -1,4 +1,4 @@
-# [AI-CHANGE | 2026-04-17 13:06 UTC | v0.91]
+# [MatPom-CHANGE | 2026-04-17 13:06 UTC | v0.91]
 # CO ZMIENIONO: Dodano komentarze opisujące przeznaczenie klas i metod oraz motywację przyjętej struktury.
 # DLACZEGO: Ułatwia to bezpieczne utrzymanie kodu R&D i ogranicza ryzyko błędnej interpretacji logiki detekcji.
 # JAK TO DZIAŁA: Każda klasa/metoda posiada docstring z celem i uzasadnieniem, dzięki czemu intencja implementacji jest jawna.
@@ -41,7 +41,7 @@ class LightSpotDetectorNode(Node):
         self.declare_parameter('blur_kernel', 11)
         self.declare_parameter('morph_kernel', 0)
         self.declare_parameter('min_area', 10.0)
-        # [AI-CHANGE | 2026-04-17 14:20 UTC | v0.103]
+        # [MatPom-CHANGE | 2026-04-17 14:20 UTC | v0.103]
         # CO ZMIENIONO: Zaktualizowano domyślne wartości deklarowanych progów
         # `min_detection_score` i `min_top1_top2_margin` na wartości startowe z YAML.
         # DLACZEGO: Spójność domyślnych parametrów noda i konfiguracji plikowej
@@ -53,7 +53,7 @@ class LightSpotDetectorNode(Node):
         self.declare_parameter('min_detection_confidence', 0.62)
         self.declare_parameter('min_detection_score', 0.10)
         self.declare_parameter('min_top1_top2_margin', 0.04)
-        # [AI-CHANGE | 2026-04-17 14:20 UTC | v0.103]
+        # [MatPom-CHANGE | 2026-04-17 14:20 UTC | v0.103]
         # CO ZMIENIONO: Dodano deklaracje parametrów jakości fotometrycznej i wag
         # pewności, które są mapowane bezpośrednio do `DetectorConfig`.
         # DLACZEGO: Parametry mają być jawnie konfigurowalne z YAML, aby strojenie
@@ -72,7 +72,7 @@ class LightSpotDetectorNode(Node):
         self.declare_parameter('confidence_weight_sharpness', 0.22)
         self.declare_parameter('confidence_saturation_penalty_weight', 0.35)
         self.declare_parameter('min_persistence_frames', 1)
-        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
         # CO ZMIENIONO: Dodano parametry ROS dla dynamicznego ROI.
         # DLACZEGO: Konfiguracja musi umożliwiać zawężanie/rozszerzanie obszaru
         # detekcji wokół przewidywanej pozycji toru bez modyfikacji kodu.
@@ -98,7 +98,7 @@ class LightSpotDetectorNode(Node):
         erode_iter = max(0, morph_kernel)
         dilate_iter = max(0, morph_kernel)
         min_detection_confidence = float(self.get_parameter('min_detection_confidence').value)
-        # [AI-CHANGE | 2026-04-17 11:41 UTC | v0.74]
+        # [MatPom-CHANGE | 2026-04-17 11:41 UTC | v0.74]
         # CO ZMIENIONO: Dodano odczyt parametru `min_detection_score` oraz klamrowanie
         # wartości do bezpiecznego zakresu [0.0, 1.0] przed przekazaniem do konfiguracji.
         # DLACZEGO: Ten próg steruje drugim etapem filtrowania jakości detekcji i musi być
@@ -110,7 +110,7 @@ class LightSpotDetectorNode(Node):
         # (klamrowanie), aby szybciej diagnozować nieprawidłową konfigurację.
         min_detection_score = float(self.get_parameter('min_detection_score').value)
         min_detection_score = max(0.0, min(1.0, min_detection_score))
-        # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+        # [MatPom-CHANGE | 2026-04-17 12:19 UTC | v0.84]
         # CO ZMIENIONO: Dodano odczyt parametru `min_top1_top2_margin` z walidacją
         # dolnego ograniczenia do zera przed przekazaniem do konfiguracji detektora.
         # DLACZEGO: Parametr steruje odrzucaniem niejednoznacznych detekcji, więc
@@ -119,7 +119,7 @@ class LightSpotDetectorNode(Node):
         # a potem używana w `DetectorConfig` do decyzji top1-vs-top2.
         # TODO: Udostępnić dynamiczną rekonfigurację progu bez restartu noda.
         min_top1_top2_margin = max(0.0, float(self.get_parameter('min_top1_top2_margin').value))
-        # [AI-CHANGE | 2026-04-17 14:20 UTC | v0.103]
+        # [MatPom-CHANGE | 2026-04-17 14:20 UTC | v0.103]
         # CO ZMIENIONO: Dodano centralną walidację i klamrowanie nowych parametrów
         # jakości detekcji (progi, poziom saturacji, grubość pierścienia, wagi pewności).
         # DLACZEGO: Skrajne wartości mogą osłabić selekcję kandydatów albo destabilizować
@@ -211,7 +211,7 @@ class LightSpotDetectorNode(Node):
             confidence_weight_contrast = 0.24
             confidence_weight_sharpness = 0.22
         min_persistence_frames = max(1, int(self.get_parameter('min_persistence_frames').value))
-        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
         # CO ZMIENIONO: Dodano odczyt i walidację parametrów dynamicznego ROI.
         # DLACZEGO: Potrzebujemy bezpiecznych wartości wejściowych, aby nie tworzyć
         # zbyt małego lub ujemnie rozszerzanego okna detekcji.
@@ -257,7 +257,7 @@ class LightSpotDetectorNode(Node):
         )
         self.persistence_filter = None
         if not self.detector_config.legacy_mode:
-            # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+            # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
             # CO ZMIENIONO: Filtr persystencji otrzymuje parametry dynamicznego ROI.
             # DLACZEGO: Bez przekazania tych pól filtr nie mógłby sterować obszarem
             # przeszukiwania na podstawie potwierdzonego toru i serii missów.
@@ -319,7 +319,7 @@ class LightSpotDetectorNode(Node):
                             'kalman_predicted': False,
                         }
                     )
-                # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+                # [MatPom-CHANGE | 2026-04-17 12:19 UTC | v0.84]
                 # CO ZMIENIONO: Dodano throttlowane logowanie przyczyn odrzucenia
                 # detekcji, w szczególności `ambiguous_candidates` i marginesu top1-top2.
                 # DLACZEGO: Diagnostyka ułatwia strojenie progu i pozwala odróżnić
@@ -412,7 +412,7 @@ class LightSpotDetectorNode(Node):
             return cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
         return cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
 
-    # [AI-CHANGE | 2026-04-17 11:35 UTC | v0.70]
+    # [MatPom-CHANGE | 2026-04-17 11:35 UTC | v0.70]
     # CO ZMIENIONO: Dodano helper `_ros_stamp_to_iso_utc`, który konwertuje czas ROS
     # (`sec`, `nanosec`) na znacznik ISO-8601 w strefie UTC i zwraca `None` dla pustego
     # lub niepoprawnego znacznika.

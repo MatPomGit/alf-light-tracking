@@ -1,4 +1,4 @@
-# [AI-CHANGE | 2026-04-17 13:06 UTC | v0.91]
+# [MatPom-CHANGE | 2026-04-17 13:06 UTC | v0.91]
 # CO ZMIENIONO: Dodano komentarze opisujące przeznaczenie klas i metod oraz motywację przyjętej struktury.
 # DLACZEGO: Ułatwia to bezpieczne utrzymanie kodu R&D i ogranicza ryzyko błędnej interpretacji logiki detekcji.
 # JAK TO DZIAŁA: Każda klasa/metoda posiada docstring z celem i uzasadnieniem, dzięki czemu intencja implementacji jest jawna.
@@ -25,7 +25,7 @@ class DetectorConfig:
     max_area: float = 0.0
     min_detection_confidence: float = 0.0
     min_detection_score: float = 0.0
-    # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+    # [MatPom-CHANGE | 2026-04-17 12:19 UTC | v0.84]
     # CO ZMIENIONO: Dodano parametr `min_top1_top2_margin`, który definiuje
     # minimalny bezwzględny margines punktacji między najlepszym i drugim kandydatem.
     # DLACZEGO: Gdy kandydaci mają bardzo podobne wyniki, detekcja jest niejednoznaczna
@@ -34,7 +34,7 @@ class DetectorConfig:
     # kandydatów do odrzucenia detekcji przy zbyt małej separacji rankingu.
     # TODO: Rozważyć dynamiczny próg marginesu zależny od kontrastu sceny i poziomu szumu.
     min_top1_top2_margin: float = 0.0
-    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
     # CO ZMIENIONO: Dodano progi i wagi cech fotometrycznych opartych o kontrast
     # kontur-vs-pierścień, ostrość piku oraz karę za prześwietlenie.
     # DLACZEGO: Sceny indoor/outdoor mają różny poziom tła i saturacji, więc
@@ -54,7 +54,7 @@ class DetectorConfig:
     confidence_saturation_penalty_weight: float = 0.35
     min_persistence_frames: int = 1
     persistence_radius_px: float = 12.0
-    # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+    # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
     # CO ZMIENIONO: Dodano parametry konfigurujące dynamiczny ROI:
     # `dynamic_roi_enabled`, `dynamic_roi_size_px`, `dynamic_roi_expand_on_miss`.
     # DLACZEGO: Po potwierdzeniu toru chcemy ograniczyć obszar przeszukiwania

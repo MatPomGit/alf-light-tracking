@@ -35,13 +35,14 @@ import cv2
 import numpy as np
 
 
-# [AI-CHANGE | 2026-04-17 13:13 UTC | v0.99]
+# [MatPom-CHANGE | 2026-04-17 13:13 UTC | v0.99]
 # CO ZMIENIONO: Dodano jawne dołączenie katalogu pakietu ROS2 do `sys.path`, aby
 # narzędzie uruchamiane przez `python ...` mogło importować pipeline detekcji bez noda ROS.
 # DLACZEGO: Skrypt działa poza środowiskiem ROS launch i bez tej ścieżki import mógłby się nie udać.
 # JAK TO DZIAŁA: Ścieżka repozytorium `ros2_ws/g1_light_tracking` jest dopinana do `sys.path`
 # tylko gdy nie występuje jeszcze na liście, co zachowuje deterministyczne rozwiązywanie modułów.
 # TODO: Zastąpić manipulację `sys.path` przez instalowalny entry-point w `setup.py` (console_scripts).
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_ROOT = REPO_ROOT / "ros2_ws" / "g1_light_tracking"
 if str(PACKAGE_ROOT) not in sys.path:
@@ -70,12 +71,13 @@ class FrameMetrics:
 class CalibrationStats:
     """Zbiorcze statystyki analizy klipu potrzebne do wyznaczania progów."""
 
-    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # [MatPom-CHANGE | 2026-04-17 13:26 UTC | v0.107]
     # CO ZMIENIONO: Rozszerzono statystyki o metadane wejścia (`input_video_path`,
     # `input_frame_count`), żeby raport zapisywał źródło danych i liczność klipu.
     # DLACZEGO: Użytkownik wymaga jawnych metadanych uruchomienia w pliku Markdown.
     # JAK TO DZIAŁA: Pola są ustawiane podczas analizy wideo i później używane w `write_report`.
     # TODO: Dodać zapis FPS oraz rozdzielczości wejściowej do metadanych raportu.
+
     input_video_path: str
     input_frame_count: int
     sampled_frames: int
@@ -88,7 +90,7 @@ class CalibrationStats:
     metrics: List[FrameMetrics]
 
 
-# [AI-CHANGE | 2026-04-17 13:31 UTC | v0.103]
+# [MatPom-CHANGE | 2026-04-17 13:31 UTC | v0.103]
 # CO ZMIENIONO: Dodano stałe i struktury danych opisujące wynik estymacji parametrów
 # (progi, liczebności próbek per parametr oraz uzasadnienia wag confidence).
 # DLACZEGO: Wymagane jest śledzenie jakości estymacji i jawne raportowanie dlaczego
@@ -96,6 +98,7 @@ class CalibrationStats:
 # JAK TO DZIAŁA: `CalibrationEstimate` trzyma komplet wyników używanych do YAML i raportu,
 # a stałe definiują minimalną liczebność próbek i granice klamrowania.
 # TODO: Przenieść stałe estymacji do osobnego pliku konfiguracyjnego CLI.
+
 MIN_RELIABLE_HITS = 12
 MIN_SAMPLES_PER_PARAMETER = 10
 
@@ -104,7 +107,7 @@ MIN_SAMPLES_PER_PARAMETER = 10
 class CalibrationEstimate:
     """Wynik estymacji parametrów percepcji wraz z metadanymi jakości."""
 
-    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # [MatPom-CHANGE | 2026-04-17 13:26 UTC | v0.107]
     # CO ZMIENIONO: Dodano mapy `threshold_sources` i `threshold_rules` opisujące
     # źródłową metrykę oraz konkretną regułę liczbową wyznaczenia parametru.
     # DLACZEGO: Raport ma zawierać tabelę parametr -> wartość -> metryka -> reguła
@@ -112,6 +115,7 @@ class CalibrationEstimate:
     # JAK TO DZIAŁA: Podczas estymacji każdy próg dostaje wpis z metryką i regułą,
     # a `write_report` renderuje te dane do tabeli Markdown.
     # TODO: Dodać pole z przedziałem ufności dla każdej reguły percentylowej.
+
     thresholds: Dict[str, float]
     sample_counts: Dict[str, int]
     threshold_sources: Dict[str, str]
@@ -130,12 +134,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default="ros2_ws/g1_light_tracking/config/perception.yaml",
         help="Ścieżka wyjściowego pliku YAML z konfiguracją percepcji.",
     )
-    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # [MatPom-CHANGE | 2026-04-17 13:26 UTC | v0.107]
     # CO ZMIENIONO: Zmieniono domyślną ścieżkę `--output-report` na plik w katalogu
     # `config/perception_calibration_report.md`.
     # DLACZEGO: Wymaganie użytkownika wskazuje konkretną lokalizację raportu obok konfiguracji.
     # JAK TO DZIAŁA: Bez podawania flagi CLI raport trafia teraz domyślnie do katalogu pakietu.
     # TODO: Dodać walidację, czy katalog docelowy jest zapisywalny przed uruchomieniem analizy.
+
     parser.add_argument(
         "--output-report",
         default="ros2_ws/g1_light_tracking/config/perception_calibration_report.md",
@@ -274,7 +279,7 @@ def analyze_video(
         wiarygodność i lista metryk per-klatka) potrzebne do wyznaczenia progów.
     """
 
-    # [AI-CHANGE | 2026-04-17 13:13 UTC | v0.99]
+    # [MatPom-CHANGE | 2026-04-17 13:13 UTC | v0.99]
     # CO ZMIENIONO: Dodano pętlę analizy klipu korzystającą z istniejącego pipeline
     # `detect_spots_with_config` i rejestrującą metryki jakości każdej detekcji.
     # DLACZEGO: Kalibracja ma bazować na realnych danych z modułu produkcyjnego,
@@ -284,6 +289,7 @@ def analyze_video(
     # peak_sharpness i saturated_ratio; brak detekcji zapisujemy jako `detected=False`.
     # TODO: Dodać alternatywę z odczytem surowych kandydatów przed filtrem rankingu,
     # aby raportować także statystyki odrzuceń top1-vs-top2.
+
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise FileNotFoundError(f"Nie udało się otworzyć pliku wideo: {video_path}")
@@ -385,12 +391,13 @@ def analyze_video(
                 stable = False
                 rejection_reason = "Niestabilne statystyki detekcji między próbkami"
 
-    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # [MatPom-CHANGE | 2026-04-17 13:26 UTC | v0.107]
     # CO ZMIENIONO: Do wyniku `CalibrationStats` dodano metadane wejścia: ścieżkę pliku
     # i deklarowaną przez kontener liczbę klatek (`CAP_PROP_FRAME_COUNT`).
     # DLACZEGO: Raport ma pokazywać metadane uruchomienia, a nie tylko agregaty detekcji.
     # JAK TO DZIAŁA: Wartości są odczytywane po otwarciu strumienia i serializowane w raporcie.
     # TODO: Uzupełnić o fallback liczenia klatek ręcznie dla kontenerów bez poprawnego CAP_PROP.
+
     reliable = stable and rejection_reason is None
     return CalibrationStats(
         input_video_path=str(video_path),
@@ -417,7 +424,7 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
         i informacją czy użyto fallbacku do wartości domyślnych.
     """
 
-    # [AI-CHANGE | 2026-04-17 13:31 UTC | v0.103]
+    # [MatPom-CHANGE | 2026-04-17 13:31 UTC | v0.103]
     # CO ZMIENIONO: Zastąpiono prosty słownik progów modułem estymacji opartym o:
     # - wiarygodne trafienia,
     # - percentyle (P10/P15/P90),
@@ -428,6 +435,7 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
     # JAK TO DZIAŁA: Najpierw filtrujemy detekcje przez domyślne minima, następnie
     # liczymy percentyle na danych po IQR i raportujemy liczebność każdej estymacji.
     # TODO: Dodać bootstrap confidence intervals dla każdego progu.
+
     defaults = DetectorConfig()
     base_thresholds: Dict[str, float] = {
         "min_detection_confidence": float(defaults.min_detection_confidence),
@@ -437,7 +445,7 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
         "min_peak_sharpness": float(defaults.min_peak_sharpness),
         "max_saturated_ratio": float(defaults.max_saturated_ratio),
     }
-    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # [MatPom-CHANGE | 2026-04-17 13:26 UTC | v0.107]
     # CO ZMIENIONO: Dodano metadane estymacji progów (`base_sources`, `base_rules`)
     # używane w tabeli raportu również w przypadku fallbacku.
     # DLACZEGO: Raport ma pokazywać źródło metryki i regułę wyliczenia dla każdego parametru,
@@ -445,6 +453,7 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
     # JAK TO DZIAŁA: Dla fallbacku wpisujemy „wartość domyślna DetectorConfig”, a dla
     # poprawnej kalibracji nadpisujemy reguły konkretnym percentilem i licznością próbek.
     # TODO: Rozszerzyć `base_sources` o wskazanie wersji modelu/algorytmu, z którego pochodzą domyślne progi.
+
     base_sources: Dict[str, str] = {
         "min_detection_confidence": "confidence",
         "min_detection_score": "score_proxy",
@@ -610,7 +619,7 @@ def build_perception_config(estimate: CalibrationEstimate, stats: CalibrationSta
     """
 
     defaults = DetectorConfig()
-    # [AI-CHANGE | 2026-04-17 13:31 UTC | v0.103]
+    # [MatPom-CHANGE | 2026-04-17 13:31 UTC | v0.103]
     # CO ZMIENIONO: Bazowa konfiguracja progów i wag jest teraz inicjalizowana
     # bezpośrednio z `DetectorConfig`, aby fallback miał zawsze te same domyślne
     # wartości co runtime detektora.
@@ -619,6 +628,7 @@ def build_perception_config(estimate: CalibrationEstimate, stats: CalibrationSta
     # JAK TO DZIAŁA: Przed ewentualnym nadpisaniem estymacją ustawiamy parametry
     # `min_*`, `max_saturated_ratio` i wagi confidence na wartości z dataclass.
     # TODO: Dodać automatyczne mapowanie wszystkich pól `DetectorConfig` do YAML.
+
     params: Dict[str, Any] = {
         "camera_topic": "/camera/image_raw",
         "detection_topic": "/light_tracking/detection_json",
@@ -641,7 +651,7 @@ def build_perception_config(estimate: CalibrationEstimate, stats: CalibrationSta
         "legacy_mode": False,
     }
 
-    # [AI-CHANGE | 2026-04-17 13:13 UTC | v0.99]
+    # [MatPom-CHANGE | 2026-04-17 13:13 UTC | v0.99]
     # CO ZMIENIONO: Dodano bezpieczne budowanie konfiguracji wynikowej zależnie od
     # wiarygodności kalibracji, z zachowaniem konserwatywnych wartości bazowych.
     # DLACZEGO: Przy niestabilnej próbce nie wolno wymuszać agresywnych progów,
@@ -649,6 +659,7 @@ def build_perception_config(estimate: CalibrationEstimate, stats: CalibrationSta
     # JAK TO DZIAŁA: Gdy `stats.reliable=False`, zwracane są wyłącznie bazowe parametry.
     # Gdy `True`, nadpisujemy tylko wybrane progi wartościami z kalibracji.
     # TODO: Dodać merge z istniejącym plikiem YAML, aby zachować ustawienia specyficzne dla robota.
+
     if stats.reliable and not estimate.used_default_fallback:
         for key, value in estimate.thresholds.items():
             params[key] = float(value)
@@ -673,13 +684,14 @@ def _to_yaml_text(config: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-# [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+# [MatPom-CHANGE | 2026-04-17 13:26 UTC | v0.107]
 # CO ZMIENIONO: Dodano funkcję `_build_rejection_summary`, która agreguje odrzucone
 # klatki według przyczyn (np. brak detekcji, zbyt niski contrast, zbyt wysoka saturacja).
 # DLACZEGO: Raport ma zawierać sekcję „odrzucone klatki i powody” opartą o konkretne kryteria.
 # JAK TO DZIAŁA: Każda klatka jest porównywana z domyślnymi progami bezpieczeństwa
 # `DetectorConfig`, a wynik to posortowana lista (powód, liczba, przykładowe indeksy).
 # TODO: Rozszerzyć podsumowanie o histogram odrzuceń w funkcji czasu (okna po 100 klatek).
+
 def _build_rejection_summary(stats: CalibrationStats) -> List[Tuple[str, int, List[int]]]:
     """Buduje listę powodów odrzuceń klatek wraz z licznością i przykładami indeksów."""
     defaults = DetectorConfig()
@@ -717,7 +729,7 @@ def write_report(report_path: Path, stats: CalibrationStats, estimate: Calibrati
         None. Funkcja tworzy raport na dysku.
     """
 
-    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # [MatPom-CHANGE | 2026-04-17 13:26 UTC | v0.107]
     # CO ZMIENIONO: Przebudowano raport Markdown tak, aby zawierał:
     # - metadane uruchomienia (data UTC, plik wejściowy, liczba klatek),
     # - tabelę parametryczną z wartością, metryką źródłową i regułą liczbową,
@@ -728,6 +740,7 @@ def write_report(report_path: Path, stats: CalibrationStats, estimate: Calibrati
     # i agregacji `_build_rejection_summary`, a reguły typu „P15 z N próbek” są
     # przygotowane już na etapie estymacji progów.
     # TODO: Dodać sekcję porównania bieżących progów z poprzednim raportem historycznym.
+
     detected = [m for m in stats.metrics if m.detected]
     med_conf = median([m.confidence for m in detected]) if detected else 0.0
     med_score = median([m.score_proxy for m in detected]) if detected else 0.0

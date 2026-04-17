@@ -10,7 +10,7 @@ import numpy as np
 from .detector_interfaces import BaseDetector, DetectorConfig
 from .types import Detection
 
-# [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+# [MatPom-CHANGE | 2026-04-17 12:31 UTC | v0.85]
 # CO ZMIENIONO: Wprowadzono logger modułowy i pamięć ostatniej konfiguracji
 # (`_LAST_CONFIG_SNAPSHOT`) do wykrywania zmian parametrów pomiędzy wywołaniami.
 # DLACZEGO: Pozwala to raportować zmiany strojenia bez ingerencji w API funkcji.
@@ -164,7 +164,7 @@ def _apply_morphology(mask: np.ndarray, erode_iter: int, dilate_iter: int) -> np
 class DetectionPersistenceFilter:
     """Lekki filtr stanowy potwierdzający detekcję dopiero po utrzymaniu w czasie."""
 
-    # [AI-CHANGE | 2026-04-17 13:05 UTC | v0.94]
+    # [MatPom-CHANGE | 2026-04-17 13:05 UTC | v0.94]
     # CO ZMIENIONO: Stan ruchu toru został zapisany jawnie jako składowe prędkości
     # `vx` i `vy` oraz flaga `_has_velocity`.
     # DLACZEGO: Rozdzielenie składowych upraszcza predykcję i aktualizację modelu
@@ -197,7 +197,7 @@ class DetectionPersistenceFilter:
             raise ValueError("association_cost_limit musi być dodatnie.")
         if innovation_cost_limit is not None and innovation_cost_limit <= 0:
             raise ValueError("innovation_cost_limit musi być dodatnie, gdy jest ustawione.")
-        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
         # CO ZMIENIONO: Dodano walidację parametrów dynamicznego ROI.
         # DLACZEGO: Błędne wartości (np. zerowy rozmiar okna) mogłyby prowadzić do
         # utraty toru i niestabilnego działania detektora.
@@ -291,7 +291,7 @@ class DetectionPersistenceFilter:
         self._miss_count += 1
         self._hit_count = max(0, self._hit_count - 1)
         if self._miss_count > self.max_missed_frames:
-            # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+            # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
             # CO ZMIENIONO: Po przekroczeniu limitu missów filtr resetuje tor
             # z wymuszeniem pełnej klatki podczas ponownej akwizycji.
             # DLACZEGO: Po dłuższej utracie obiektu predykcja bywa niepewna, więc
@@ -314,7 +314,7 @@ class DetectionPersistenceFilter:
         frame_shape: Tuple[int, int, int],
         default_roi: Tuple[int, int, int, int],
     ) -> Tuple[Tuple[int, int, int, int], Dict[str, float | str | bool]]:
-        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
         # CO ZMIENIONO: Dodano wyznaczanie dynamicznego ROI na bazie predykcji toru,
         # z rozszerzaniem okna przy kolejnych missach oraz trybem pełnej klatki po resecie.
         # DLACZEGO: Ograniczenie przeszukiwania po potwierdzeniu toru redukuje false-positive,
@@ -398,7 +398,7 @@ class DetectionPersistenceFilter:
         miss_radius_boost = min(1.0, 0.25 * float(missed_frames))
         allowed_radius = max(1.0, self.persistence_radius_px * (1.0 + miss_radius_boost))
         distance_cost = math.hypot(dx, dy) / allowed_radius
-        # [AI-CHANGE | 2026-04-17 13:05 UTC | v0.94]
+        # [MatPom-CHANGE | 2026-04-17 13:05 UTC | v0.94]
         # CO ZMIENIONO: Zastosowano nieliniowe kary za zmianę pola i aspect ratio.
         # DLACZEGO: Duże rozbieżności rozmiaru/kształtu częściej oznaczają błędną
         # asocjację, więc koszt powinien rosnąć szybciej niż liniowo.
@@ -413,7 +413,7 @@ class DetectionPersistenceFilter:
         brightness_cost = abs(candidate_brightness - self._last_brightness) / 255.0
         return (0.50 * distance_cost) + (0.20 * area_cost) + (0.20 * shape_cost) + (0.10 * brightness_cost)
 
-    # [AI-CHANGE | 2026-04-17 13:05 UTC | v0.94]
+    # [MatPom-CHANGE | 2026-04-17 13:05 UTC | v0.94]
     # CO ZMIENIONO: Dodano jawny koszt innowacji liczony wyłącznie względem
     # przewidzianej pozycji (model stałej prędkości) oraz normalizowanej odległości.
     # DLACZEGO: Separacja kosztu asocjacji i innowacji pozwala odrzucać pojedyncze
@@ -439,7 +439,7 @@ class DetectionPersistenceFilter:
         frame: np.ndarray,
         roi_box: Tuple[int, int, int, int],
     ) -> List[Detection]:
-        # [AI-CHANGE | 2026-04-17 19:00 UTC | v0.89]
+        # [MatPom-CHANGE | 2026-04-17 19:00 UTC | v0.89]
         # CO ZMIENIONO: Filtr przechowuje stan prędkości (vx, vy), przewiduje kolejną
         # pozycję toru i asocjuje detekcje do tej predykcji. Koszt asocjacji został
         # rozszerzony o karę za zmianę rozmiaru i proporcji bbox, a dodatkowy próg
@@ -487,7 +487,7 @@ class DetectionPersistenceFilter:
             self._last_brightness = float(init_brightness)
             self._miss_count = 0
             self._hit_count = 1
-            # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+            # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
             # CO ZMIENIONO: Przy pierwszym pewnym trafieniu czyszczona jest flaga
             # pełnoklatkowej rekonfirmacji toru.
             # DLACZEGO: Po odzyskaniu stabilnego toru chcemy ponownie korzystać
@@ -545,7 +545,7 @@ class DetectionPersistenceFilter:
         self._last_area = float(best_candidate.area)
         self._last_aspect_ratio = self._detection_aspect_ratio(best_candidate)
         self._last_brightness = float(best_brightness)
-        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
         # CO ZMIENIONO: Po utrzymaniu toru utrzymujemy wyłączony tryb pełnej klatki.
         # DLACZEGO: Stabilny tor powinien pracować na ROI wokół predykcji, bo to
         # zmniejsza podatność na false-positive poza obszarem ruchu.
@@ -645,7 +645,7 @@ def _contour_solidity(contour: np.ndarray, contour_area: float) -> float:
     return float(contour_area / hull_area)
 
 
-# [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+# [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
 # CO ZMIENIONO: Dodano helper normalizujący dodatnie wagi cech do sumy 1.0.
 # DLACZEGO: Przy strojeniu indoor/outdoor użytkownik może podać dowolne skale wag;
 # normalizacja utrzymuje stabilną interpretację confidence niezależnie od skali.
@@ -664,7 +664,7 @@ def _normalize_weights(*weights: float) -> List[float]:
     return [weight / total for weight in positive_weights]
 
 
-# [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+# [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
 # CO ZMIENIONO: Dodano ekstrakcję cech intensywności dla konturu oraz cienkiego
 # pierścienia tła (`dylatacja(maski) - maska`) wokół obiektu.
 # DLACZEGO: Średnia z patcha bounding box rozmywa kontrast; cecha ring-based lepiej
@@ -745,7 +745,7 @@ def _compute_detection_confidence(
     size_error = abs(float(detection.area) - ref_area) / ref_area
     size_stability_score = _clip01(1.0 - size_error)
 
-    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
     # CO ZMIENIONO: Zmieniono agregację confidence na ważoną kombinację cech:
     # kształt + jasność + kontrast ring-based + ostrość piku oraz karę saturacji.
     # DLACZEGO: Nowe cechy lepiej odróżniają wiarygodny hotspot od tła i refleksów.
@@ -796,13 +796,13 @@ def _detection_score(
 
 
 def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bool | None]:
-    # [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+    # [MatPom-CHANGE | 2026-04-17 12:31 UTC | v0.85]
     # CO ZMIENIONO: Dodano normalizację `DetectorConfig` do słownika prymitywów.
     # DLACZEGO: Jednolita reprezentacja upraszcza porównanie parametrów i logowanie.
     # JAK TO DZIAŁA: Funkcja konwertuje pola konfiguracji do typów prostych
     # (`int`, `float`, `str`, `bool`, `None`) gotowych do porównania i serializacji.
     # TODO: Rozważyć automatyczne generowanie snapshotu z adnotacji dataclass.
-    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
     # CO ZMIENIONO: Rozszerzono snapshot o nowe progi i wagi cech ring-based.
     # DLACZEGO: Bez tych pól zmiany strojenia nie byłyby widoczne w logowaniu diffów.
     # JAK TO DZIAŁA: Każde nowe pole z `DetectorConfig` jest serializowane do typu
@@ -836,7 +836,7 @@ def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bo
         "confidence_saturation_penalty_weight": float(config.confidence_saturation_penalty_weight),
         "min_persistence_frames": int(config.min_persistence_frames),
         "persistence_radius_px": float(config.persistence_radius_px),
-        # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+        # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
         # CO ZMIENIONO: Snapshot konfiguracji rozszerzono o parametry dynamicznego ROI.
         # DLACZEGO: Zmiany trybu ROI muszą być widoczne w logach różnic konfiguracji.
         # JAK TO DZIAŁA: Nowe pola są serializowane do prymitywów i porównywane
@@ -868,7 +868,7 @@ def _log_parameter_changes(config: DetectorConfig) -> None:
         for name, current_value in current_snapshot.items()
         if _LAST_CONFIG_SNAPSHOT.get(name) != current_value
     ]
-    # [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+    # [MatPom-CHANGE | 2026-04-17 12:31 UTC | v0.85]
     # CO ZMIENIONO: Dodano logowanie zmian parametrów detektora pomiędzy kolejnymi
     # wywołaniami, bazujące na migawce konfiguracji.
     # DLACZEGO: Przy strojeniu online ważna jest szybka diagnoza, które parametry
@@ -912,7 +912,7 @@ def detect_spots(
     roi: Optional[str],
     legacy_mode: bool = False,
 ) -> Tuple[List[Detection], np.ndarray, Tuple[int, int, int, int], Dict[str, float | str | bool]]:
-    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
     # CO ZMIENIONO: Rozszerzono API funkcji o parametry progów i wag cech
     # fotometrycznych (kontrast ring-based, sharpness i kara saturacji).
     # DLACZEGO: Umożliwia to strojenie pracy detektora pod różne warunki oświetlenia.
@@ -974,7 +974,7 @@ def detect_spots(
 
     area_reference = float(np.median([det.area for det, _ in candidates])) if candidates else 0.0
     detections: List[Detection] = []
-    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
     # CO ZMIENIONO: Dodano etap twardej walidacji fotometrycznej kandydatów na bazie
     # cech ring-based (kontrast średni, sharpness P95 i udział prześwietleń).
     # DLACZEGO: Polityka jakości wymaga odrzucania niepewnych pików zanim trafią do rankingu.
@@ -1020,7 +1020,7 @@ def detect_spots(
 
     scored_detections.sort(key=lambda item: item[0], reverse=True)
     diagnostics: Dict[str, float | str | bool] = {}
-    # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+    # [MatPom-CHANGE | 2026-04-17 12:19 UTC | v0.84]
     # CO ZMIENIONO: Dodano obliczanie marginesu `top1-top2` po sortowaniu ocen
     # kandydatów i warunek odrzucenia wyniku przy zbyt małej separacji.
     # DLACZEGO: Mały margines oznacza niejednoznaczność klasyfikacji; zgodnie
@@ -1066,7 +1066,7 @@ def detect_spots_with_config(
     Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
     """
     _log_parameter_changes(config)
-    # [AI-CHANGE | 2026-04-17 13:12 UTC | v0.99]
+    # [MatPom-CHANGE | 2026-04-17 13:12 UTC | v0.99]
     # CO ZMIENIONO: Dodano wybór ROI zależny od stanu filtra persystencji
     # i parametrów `dynamic_roi_*` z konfiguracji.
     # DLACZEGO: Po potwierdzeniu toru detekcja ma działać lokalnie wokół predykcji,
@@ -1084,7 +1084,7 @@ def detect_spots_with_config(
             default_roi=static_roi,
         )
     roi_text = f"{effective_roi[0]},{effective_roi[1]},{effective_roi[2]},{effective_roi[3]}"
-    # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+    # [MatPom-CHANGE | 2026-04-17 12:19 UTC | v0.84]
     # CO ZMIENIONO: Adapter konfiguracyjny przekazuje nowy próg
     # `min_top1_top2_margin` oraz propaguje słownik diagnostyczny z detektora.
     # DLACZEGO: Node nadrzędny potrzebuje jawnej informacji o przyczynie odrzucenia,
@@ -1105,7 +1105,7 @@ def detect_spots_with_config(
         min_detection_confidence=config.min_detection_confidence,
         min_detection_score=config.min_detection_score,
         min_top1_top2_margin=config.min_top1_top2_margin,
-        # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+        # [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
         # CO ZMIENIONO: Adapter przekazuje do rdzenia detekcji nowe progi/wagi
         # związane z kontrastem kontur-vs-ring, sharpness i saturacją.
         # DLACZEGO: Brak propagacji uniemożliwiałby realne strojenie przez `DetectorConfig`.
@@ -1136,7 +1136,7 @@ def detect_spots_with_config(
     diagnostics["roi_full_frame_area"] = int(frame_w * frame_h)
     diagnostics["roi_effective_area"] = int(effective_roi[2] * effective_roi[3])
     if persistence_filter is not None:
-        # [AI-CHANGE | 2026-04-17 18:36 UTC | v0.82]
+        # [MatPom-CHANGE | 2026-04-17 18:36 UTC | v0.82]
         # CO ZMIENIONO: Przekazywana jest pełna lista kandydatów do filtra
         # persystencji, a po filtracji wynik jest redukowany do 0/1 detekcji.
         # DLACZEGO: Filtr musi mieć pełen kontekst kandydatów, aby wykonać
