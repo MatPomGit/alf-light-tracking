@@ -31,6 +31,21 @@ class CsvDetectionReplayNode(Node):
         self.frame_id = str(self.get_parameter('frame_id').value)
         self.playback_rate = float(self.get_parameter('playback_rate').value)
         self.loop = bool(self.get_parameter('loop').value)
+        # [AI-CHANGE | 2026-04-17 15:53 UTC | v0.120]
+        # CO ZMIENIONO: Dodano normalizację `playback_rate` do bezpiecznej wartości
+        # dodatniej przed startem timera.
+        # DLACZEGO: Wartości `<= 0` powodują niepoprawny harmonogram odtwarzania
+        # (brak progresu czasu lub cofanie), co skutkowało ciszą na topicu i
+        # trudnym debugowaniem.
+        # JAK TO DZIAŁA: Gdy użytkownik poda `playback_rate <= 0`, node loguje
+        # ostrzeżenie i wymusza `1.0`, dzięki czemu odtwarzanie zawsze postępuje.
+        # TODO: Dodać callback walidacji parametrów runtime (`on_set_parameters`)
+        # aby odrzucać niepoprawne wartości przed ich przyjęciem przez node.
+        if self.playback_rate <= 0.0:
+            self.get_logger().warning(
+                'Parameter playback_rate <= 0.0. Fallback do 1.0, aby uniknąć niepewnego odtwarzania.'
+            )
+            self.playback_rate = 1.0
 
         self.pub = self.create_publisher(String, self.detection_topic, 10)
         self.rows = self._load_rows(self.csv_file)
@@ -52,11 +67,27 @@ class CsvDetectionReplayNode(Node):
             return []
 
         rows = []
-        with open(path, 'r', newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                row['_time_sec'] = self._to_float(row.get('time_sec'), default=0.0)
-                rows.append(row)
+        # [AI-CHANGE | 2026-04-17 15:53 UTC | v0.120]
+        # CO ZMIENIONO: Dodano obsługę błędów I/O podczas odczytu CSV oraz
+        # filtrowanie rekordów z niepoprawnym `time_sec`.
+        # DLACZEGO: Brak pliku lub uszkodzony rekord mógł przerwać node albo
+        # doprowadzić do publikowania danych z niejednoznacznym czasem.
+        # JAK TO DZIAŁA: Błędy otwarcia są zamieniane na pusty wynik i log błędu.
+        # Rekord z `NaN/Inf` w `time_sec` jest pomijany, aby nie publikować
+        # potencjalnie błędnych danych (lepszy brak wyniku niż fałszywy rekord).
+        # TODO: Raportować licznik odrzuconych rekordów przez osobny topic diagnostyczny.
+        try:
+            with open(path, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    parsed_time = self._to_float(row.get('time_sec'), default=math.nan)
+                    if not math.isfinite(parsed_time):
+                        continue
+                    row['_time_sec'] = parsed_time
+                    rows.append(row)
+        except OSError as exc:
+            self.get_logger().error(f'Cannot read CSV file: {path}. Error: {exc}')
+            return []
 
         rows.sort(key=lambda r: r['_time_sec'])
         return rows
