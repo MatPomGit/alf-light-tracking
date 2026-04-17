@@ -62,16 +62,38 @@ def ensure_odd(value: int) -> int:
 
 
 def parse_hsv_pair(text: Optional[str], fallback: Tuple[int, int, int]) -> Tuple[int, int, int]:
+    # [AI-CHANGE | 2026-04-17 15:27 UTC | v0.118]
+    # CO ZMIENIONO: Dodano twardą walidację formatu i zakresów HSV wejścia tekstowego
+    # (`h` w [0, 180], `s` i `v` w [0, 255]) oraz czytelniejsze komunikaty błędów.
+    # DLACZEGO: Bez walidacji wartości poza zakresem były później rzutowane do `np.uint8`,
+    # co mogło powodować zawijanie wartości i zwracanie błędnych masek detekcji.
+    # JAK TO DZIAŁA: Funkcja akceptuje tylko trzy liczby całkowite po przecinku.
+    # Wartości niepoprawne kończą się `ValueError`, co przerywa niepewną detekcję
+    # zgodnie z zasadą „lepiej brak wyniku niż wynik błędny”.
+    # TODO: Rozszerzyć parser o wariant YAML/list i raportowanie źródła parametru.
     """
     Cel: Ta funkcja realizuje odpowiedzialność `parse_hsv_pair` w aktualnym module.
     Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
     """
     if not text:
         return fallback
-    parts = [int(v.strip()) for v in text.split(",")]
+    raw_parts = [v.strip() for v in text.split(",")]
+    if any(not token for token in raw_parts):
+        raise ValueError("Zakres HSV nie może zawierać pustych wartości.")
+    try:
+        parts = [int(v) for v in raw_parts]
+    except ValueError as exc:
+        raise ValueError("Zakres HSV musi składać się z liczb całkowitych.") from exc
     if len(parts) != 3:
         raise ValueError("Zakres HSV musi mieć 3 wartości: h,s,v")
-    return tuple(parts)  # type: ignore
+    h, s, v = parts
+    if not 0 <= h <= 180:
+        raise ValueError("Składowa H musi być w zakresie 0..180.")
+    if not 0 <= s <= 255:
+        raise ValueError("Składowa S musi być w zakresie 0..255.")
+    if not 0 <= v <= 255:
+        raise ValueError("Składowa V musi być w zakresie 0..255.")
+    return h, s, v
 
 
 class BrightnessDetector(BaseDetector):
