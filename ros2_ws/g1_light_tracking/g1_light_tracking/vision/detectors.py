@@ -338,11 +338,74 @@ def _contour_solidity(contour: np.ndarray, contour_area: float) -> float:
     return float(contour_area / hull_area)
 
 
+# [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+# CO ZMIENIONO: Dodano helper normalizujący dodatnie wagi cech do sumy 1.0.
+# DLACZEGO: Przy strojeniu indoor/outdoor użytkownik może podać dowolne skale wag;
+# normalizacja utrzymuje stabilną interpretację confidence niezależnie od skali.
+# JAK TO DZIAŁA: Wagi ujemne są obcinane do zera, a przy sumie <= 0 zwracany jest
+# rozkład równy między wszystkie cechy.
+# TODO: Dodać ostrzeżenie diagnostyczne, gdy wejściowe wagi wymagają korekty.
+def _normalize_weights(*weights: float) -> List[float]:
+    positive_weights = [max(0.0, float(weight)) for weight in weights]
+    total = sum(positive_weights)
+    if total <= 0.0:
+        return [1.0 / len(positive_weights)] * len(positive_weights)
+    return [weight / total for weight in positive_weights]
+
+
+# [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+# CO ZMIENIONO: Dodano ekstrakcję cech intensywności dla konturu oraz cienkiego
+# pierścienia tła (`dylatacja(maski) - maska`) wokół obiektu.
+# DLACZEGO: Średnia z patcha bounding box rozmywa kontrast; cecha ring-based lepiej
+# separuje obiekt od lokalnego tła i pozwala bezpiecznie odrzucać niepewne próbki.
+# JAK TO DZIAŁA: Funkcja liczy `mean_inside`, `mean_ring`, kontrast różnicowy,
+# ostrość piku (P95 inside - P95 ring) i udział pikseli blisko saturacji.
+# Brak pierścienia lub brak pikseli wewnątrz skutkuje `None`, aby preferować brak
+# wyniku zamiast potencjalnie błędnej detekcji.
+# TODO: Dodać adaptacyjną grubość pierścienia zależną od pola konturu i rozdzielczości.
+def _contour_intensity_features(
+    gray_roi: np.ndarray,
+    contour: np.ndarray,
+    ring_thickness_px: int,
+    saturation_level: int,
+) -> Optional[Dict[str, float]]:
+    contour_mask = np.zeros(gray_roi.shape, dtype=np.uint8)
+    cv2.drawContours(contour_mask, [contour], -1, color=255, thickness=-1)
+    inside_pixels = gray_roi[contour_mask > 0]
+    if inside_pixels.size == 0:
+        return None
+
+    thickness = max(1, int(ring_thickness_px))
+    kernel_size = max(3, (2 * thickness) + 1)
+    ring_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+    dilated_mask = cv2.dilate(contour_mask, ring_kernel, iterations=1)
+    ring_mask = cv2.subtract(dilated_mask, contour_mask)
+    ring_pixels = gray_roi[ring_mask > 0]
+    if ring_pixels.size == 0:
+        return None
+
+    mean_inside = float(np.mean(inside_pixels))
+    mean_ring = float(np.mean(ring_pixels))
+    p95_inside = float(np.percentile(inside_pixels, 95))
+    p95_ring = float(np.percentile(ring_pixels, 95))
+    clipped_saturation_level = int(max(1, min(255, saturation_level)))
+    saturated_ratio = float(np.mean(inside_pixels >= clipped_saturation_level))
+
+    return {
+        "mean_inside": mean_inside,
+        "mean_ring": mean_ring,
+        "mean_contrast": mean_inside - mean_ring,
+        "peak_sharpness": p95_inside - p95_ring,
+        "saturated_ratio": saturated_ratio,
+    }
+
+
 def _compute_detection_confidence(
     contour: np.ndarray,
     detection: Detection,
-    roi_frame: np.ndarray,
     area_reference: float,
+    intensity_features: Dict[str, float],
+    config: DetectorConfig,
 ) -> float:
     circularity_score = _clip01(detection.circularity)
     axis_ratio_score = 1.0
@@ -354,31 +417,59 @@ def _compute_detection_confidence(
     solidity_score = _clip01(_contour_solidity(contour, detection.area))
     shape_score = 0.55 * circularity_score + 0.25 * axis_ratio_score + 0.20 * solidity_score
 
-    gray_roi = cv2.cvtColor(roi_frame, cv2.COLOR_BGR2GRAY)
-    contour_mask = np.zeros(gray_roi.shape, dtype=np.uint8)
-    cv2.drawContours(contour_mask, [contour], -1, color=255, thickness=-1)
-    object_pixels = gray_roi[contour_mask > 0]
-    mean_obj = float(np.mean(object_pixels)) if object_pixels.size else 0.0
-    x, y, w, h = cv2.boundingRect(contour)
-    patch = gray_roi[y : y + h, x : x + w]
-    mean_patch = float(np.mean(patch)) if patch.size else mean_obj
-    brightness_norm = _clip01(mean_obj / 255.0)
-    contrast_norm = _clip01((mean_obj - mean_patch + 128.0) / 255.0)
-    brightness_score = 0.6 * brightness_norm + 0.4 * contrast_norm
+    brightness_norm = _clip01(float(intensity_features["mean_inside"]) / 255.0)
+    contrast_norm = _clip01((float(intensity_features["mean_contrast"]) + 64.0) / 128.0)
+    sharpness_norm = _clip01((float(intensity_features["peak_sharpness"]) + 32.0) / 128.0)
+    saturation_penalty = _clip01(float(intensity_features["saturated_ratio"]))
 
     ref_area = max(float(area_reference), 1.0)
     size_error = abs(float(detection.area) - ref_area) / ref_area
     size_stability_score = _clip01(1.0 - size_error)
 
-    confidence = 0.45 * shape_score + 0.35 * brightness_score + 0.20 * size_stability_score
+    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # CO ZMIENIONO: Zmieniono agregację confidence na ważoną kombinację cech:
+    # kształt + jasność + kontrast ring-based + ostrość piku oraz karę saturacji.
+    # DLACZEGO: Nowe cechy lepiej odróżniają wiarygodny hotspot od tła i refleksów.
+    # JAK TO DZIAŁA: Wagi są konfigurowalne i normalizowane; kara za prześwietlenie
+    # jest odejmowana od wyniku końcowego. Wynik jest zawsze klamrowany do [0, 1].
+    # TODO: Rozważyć osobną normalizację cech dla kamer HDR i 8-bit LDR.
+    w_shape, w_brightness, w_contrast, w_sharpness = _normalize_weights(
+        float(config.confidence_weight_shape),
+        float(config.confidence_weight_brightness),
+        float(config.confidence_weight_contrast),
+        float(config.confidence_weight_sharpness),
+    )
+    confidence = (
+        (w_shape * shape_score)
+        + (w_brightness * brightness_norm)
+        + (w_contrast * contrast_norm)
+        + (w_sharpness * sharpness_norm)
+    )
+    confidence = (0.85 * confidence) + (0.15 * size_stability_score)
+    confidence -= float(config.confidence_saturation_penalty_weight) * saturation_penalty
     return _clip01(confidence)
 
 
-def _detection_score(det: Detection, peak_intensity: float, area_ref: float) -> float:
+def _detection_score(
+    det: Detection,
+    peak_intensity: float,
+    area_ref: float,
+    intensity_features: Dict[str, float],
+) -> float:
     area_norm = float(np.clip(det.area / max(area_ref, 1.0), 0.0, 1.0))
     circularity_norm = float(np.clip(det.circularity, 0.0, 1.0))
     peak_norm = float(np.clip(peak_intensity / 255.0, 0.0, 1.0))
-    return (0.45 * area_norm) + (0.35 * circularity_norm) + (0.20 * peak_norm)
+    contrast_norm = _clip01((float(intensity_features["mean_contrast"]) + 64.0) / 128.0)
+    sharpness_norm = _clip01((float(intensity_features["peak_sharpness"]) + 32.0) / 128.0)
+    saturation_penalty = _clip01(float(intensity_features["saturated_ratio"]))
+    return (
+        (0.30 * area_norm)
+        + (0.20 * circularity_norm)
+        + (0.15 * peak_norm)
+        + (0.20 * contrast_norm)
+        + (0.15 * sharpness_norm)
+        - (0.20 * saturation_penalty)
+    )
 
 
 def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bool | None]:
@@ -388,6 +479,12 @@ def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bo
     # JAK TO DZIAŁA: Funkcja konwertuje pola konfiguracji do typów prostych
     # (`int`, `float`, `str`, `bool`, `None`) gotowych do porównania i serializacji.
     # TODO: Rozważyć automatyczne generowanie snapshotu z adnotacji dataclass.
+    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # CO ZMIENIONO: Rozszerzono snapshot o nowe progi i wagi cech ring-based.
+    # DLACZEGO: Bez tych pól zmiany strojenia nie byłyby widoczne w logowaniu diffów.
+    # JAK TO DZIAŁA: Każde nowe pole z `DetectorConfig` jest serializowane do typu
+    # prostego i porównywane między kolejnymi wywołaniami.
+    # TODO: Uzupełnić snapshot o wersję schematu konfiguracji.
     return {
         "track_mode": config.track_mode,
         "blur": int(config.blur),
@@ -400,6 +497,16 @@ def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bo
         "min_detection_confidence": float(config.min_detection_confidence),
         "min_detection_score": float(config.min_detection_score),
         "min_top1_top2_margin": float(config.min_top1_top2_margin),
+        "ring_thickness_px": int(config.ring_thickness_px),
+        "saturation_level": int(config.saturation_level),
+        "min_mean_contrast": float(config.min_mean_contrast),
+        "min_peak_sharpness": float(config.min_peak_sharpness),
+        "max_saturated_ratio": float(config.max_saturated_ratio),
+        "confidence_weight_shape": float(config.confidence_weight_shape),
+        "confidence_weight_brightness": float(config.confidence_weight_brightness),
+        "confidence_weight_contrast": float(config.confidence_weight_contrast),
+        "confidence_weight_sharpness": float(config.confidence_weight_sharpness),
+        "confidence_saturation_penalty_weight": float(config.confidence_saturation_penalty_weight),
         "min_persistence_frames": int(config.min_persistence_frames),
         "persistence_radius_px": float(config.persistence_radius_px),
         "legacy_mode": bool(config.legacy_mode),
@@ -449,12 +556,29 @@ def detect_spots(
     min_detection_confidence: float,
     min_detection_score: float,
     min_top1_top2_margin: float,
+    ring_thickness_px: int,
+    saturation_level: int,
+    min_mean_contrast: float,
+    min_peak_sharpness: float,
+    max_saturated_ratio: float,
+    confidence_weight_shape: float,
+    confidence_weight_brightness: float,
+    confidence_weight_contrast: float,
+    confidence_weight_sharpness: float,
+    confidence_saturation_penalty_weight: float,
     color_name: str,
     hsv_lower: Optional[str],
     hsv_upper: Optional[str],
     roi: Optional[str],
     legacy_mode: bool = False,
 ) -> Tuple[List[Detection], np.ndarray, Tuple[int, int, int, int], Dict[str, float | str | bool]]:
+    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # CO ZMIENIONO: Rozszerzono API funkcji o parametry progów i wag cech
+    # fotometrycznych (kontrast ring-based, sharpness i kara saturacji).
+    # DLACZEGO: Umożliwia to strojenie pracy detektora pod różne warunki oświetlenia.
+    # JAK TO DZIAŁA: Parametry wejściowe są mapowane do `DetectorConfig`, a następnie
+    # używane przez pipeline filtrowania kandydatów i obliczania confidence.
+    # TODO: Rozważyć zastąpienie długiej listy argumentów wyłącznie obiektem config.
     x0, y0, w, h = parse_roi(roi, frame.shape)
     roi_frame = frame[y0 : y0 + h, x0 : x0 + w]
     detector_cls = _resolve_detector_class(track_mode)
@@ -467,6 +591,16 @@ def detect_spots(
         color_name=color_name,
         hsv_lower=hsv_lower,
         hsv_upper=hsv_upper,
+        ring_thickness_px=ring_thickness_px,
+        saturation_level=saturation_level,
+        min_mean_contrast=min_mean_contrast,
+        min_peak_sharpness=min_peak_sharpness,
+        max_saturated_ratio=max_saturated_ratio,
+        confidence_weight_shape=confidence_weight_shape,
+        confidence_weight_brightness=confidence_weight_brightness,
+        confidence_weight_contrast=confidence_weight_contrast,
+        confidence_weight_sharpness=confidence_weight_sharpness,
+        confidence_saturation_penalty_weight=confidence_saturation_penalty_weight,
     )
     mask = detector_cls(detector_config).detect_mask(roi_frame)
 
@@ -496,13 +630,36 @@ def detect_spots(
 
     area_reference = float(np.median([det.area for det, _ in candidates])) if candidates else 0.0
     detections: List[Detection] = []
+    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # CO ZMIENIONO: Dodano etap twardej walidacji fotometrycznej kandydatów na bazie
+    # cech ring-based (kontrast średni, sharpness P95 i udział prześwietleń).
+    # DLACZEGO: Polityka jakości wymaga odrzucania niepewnych pików zanim trafią do rankingu.
+    # JAK TO DZIAŁA: Kandydat przechodzi dalej tylko gdy spełni wszystkie progi:
+    # `mean_contrast >= min_mean_contrast`, `peak_sharpness >= min_peak_sharpness`
+    # oraz `saturated_ratio <= max_saturated_ratio`.
+    # TODO: Dodać licznik odrzuceń per-próg do diagnostyki strojenia outdoor.
     for det, contour in candidates:
         peak_intensity = _contour_peak_intensity(roi_gray, contour)
+        intensity_features = _contour_intensity_features(
+            gray_roi=roi_gray,
+            contour=contour,
+            ring_thickness_px=detector_config.ring_thickness_px,
+            saturation_level=detector_config.saturation_level,
+        )
+        if intensity_features is None:
+            continue
+        if float(intensity_features["mean_contrast"]) < float(detector_config.min_mean_contrast):
+            continue
+        if float(intensity_features["peak_sharpness"]) < float(detector_config.min_peak_sharpness):
+            continue
+        if float(intensity_features["saturated_ratio"]) > float(detector_config.max_saturated_ratio):
+            continue
         det.confidence = _compute_detection_confidence(
             contour=contour,
             detection=det,
-            roi_frame=roi_frame,
             area_reference=area_reference,
+            intensity_features=intensity_features,
+            config=detector_config,
         )
         if det.confidence < float(min_detection_confidence):
             continue
@@ -510,6 +667,7 @@ def detect_spots(
             det,
             peak_intensity=peak_intensity,
             area_ref=area_reference if area_reference > 0 else (max_area if max_area > 0 else (w * h)),
+            intensity_features=intensity_features,
         )
         if score < float(min_detection_score):
             continue
@@ -581,6 +739,22 @@ def detect_spots_with_config(
         min_detection_confidence=config.min_detection_confidence,
         min_detection_score=config.min_detection_score,
         min_top1_top2_margin=config.min_top1_top2_margin,
+        # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+        # CO ZMIENIONO: Adapter przekazuje do rdzenia detekcji nowe progi/wagi
+        # związane z kontrastem kontur-vs-ring, sharpness i saturacją.
+        # DLACZEGO: Brak propagacji uniemożliwiałby realne strojenie przez `DetectorConfig`.
+        # JAK TO DZIAŁA: Pola konfiguracji są mapowane 1:1 do argumentów `detect_spots`.
+        # TODO: Uprościć mapowanie przez przekazywanie całego obiektu config bez rozpakowywania.
+        ring_thickness_px=config.ring_thickness_px,
+        saturation_level=config.saturation_level,
+        min_mean_contrast=config.min_mean_contrast,
+        min_peak_sharpness=config.min_peak_sharpness,
+        max_saturated_ratio=config.max_saturated_ratio,
+        confidence_weight_shape=config.confidence_weight_shape,
+        confidence_weight_brightness=config.confidence_weight_brightness,
+        confidence_weight_contrast=config.confidence_weight_contrast,
+        confidence_weight_sharpness=config.confidence_weight_sharpness,
+        confidence_saturation_penalty_weight=config.confidence_saturation_penalty_weight,
         legacy_mode=config.legacy_mode,
         color_name=config.color_name,
         hsv_lower=config.hsv_lower,
