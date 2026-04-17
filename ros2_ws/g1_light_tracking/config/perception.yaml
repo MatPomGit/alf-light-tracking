@@ -4,23 +4,10 @@ light_spot_detector_node:
     detection_topic: /light_tracking/detection_json
     camera_frame: camera_link
     brightness_threshold: 245
-    min_area: 6.0
-    min_detection_confidence: 0.62
-    # [AI-CHANGE | 2026-04-17 14:20 UTC | v0.103]
-    # CO ZMIENIONO: Uzupełniono YAML o jawnie konfigurowalne progi i wagi jakości:
-    # `min_detection_score`, `min_top1_top2_margin`, `ring_thickness_px`,
-    # `saturation_level`, `min_mean_contrast`, `min_peak_sharpness`,
-    # `max_saturated_ratio`, `confidence_weight_*` oraz
-    # `confidence_saturation_penalty_weight`.
-    # DLACZEGO: Parametry bezpieczeństwa detekcji muszą być jawnie strojone z poziomu
-    # konfiguracji, aby nie dopuszczać niepewnych wyników w zmiennych warunkach sceny.
-    # JAK TO DZIAŁA: Node deklaruje i waliduje te pola, a następnie przekazuje je do
-    # `DetectorConfig`; tu ustawiamy bezpieczne wartości startowe.
-    # TODO: Dodać warianty profili YAML (np. laboratorium/teren) z walidacją A/B.
-    min_detection_score: 0.10
-    min_top1_top2_margin: 0.04
-    ring_thickness_px: 2
-    saturation_level: 250
+    min_area: 10.0
+    min_detection_confidence: 0.0
+    min_detection_score: 0.0
+    min_top1_top2_margin: 0.0
     min_mean_contrast: 4.0
     min_peak_sharpness: 6.0
     max_saturated_ratio: 0.35
@@ -28,7 +15,6 @@ light_spot_detector_node:
     confidence_weight_brightness: 0.22
     confidence_weight_contrast: 0.24
     confidence_weight_sharpness: 0.22
-    confidence_saturation_penalty_weight: 0.35
     min_persistence_frames: 1
     blur_kernel: 5
     morph_kernel: 3

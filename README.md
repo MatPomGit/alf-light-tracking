@@ -238,7 +238,7 @@ Minimalny przebieg (uruchomienie z katalogu repozytorium):
 
 ```bash
 python3 ros2_ws/g1_light_tracking/tools/calibrate_perception.py \
-  --video /ABS/PATH/to/reference_clip.mp4 \
+  --video ros2_ws/g1_light_tracking/tools/video.mp4 \
   --base-config ros2_ws/g1_light_tracking/config/perception.yaml \
   --output-config ros2_ws/g1_light_tracking/config/perception.yaml \
   --output-report ros2_ws/g1_light_tracking/logs/perception_calibration_report.md

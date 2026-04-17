@@ -832,8 +832,35 @@ def write_report(report_path: Path, stats: CalibrationStats, estimate: Calibrati
 
 
 def main() -> int:
+
+    # [AI-CHANGE | 2026-04-17 14:00 UTC | v0.110]
+    # CO ZMIENIONO: Dodano obsługę uruchomienia bez argumentów CLI — przyjmowane są wartości domyślne,
+    # a plik wideo to "video.mp4" z katalogu skryptu.
+    # DLACZEGO: Ułatwienie uruchamiania narzędzia bez konieczności podawania parametrów przez użytkownika.
+    # JAK TO DZIAŁA: Jeśli sys.argv zawiera tylko nazwę programu, parser dostaje domyślne argumenty,
+    # gdzie --video wskazuje na video.mp4 w katalogu skryptu.
+    # TODO: Rozważyć obsługę domyślnego katalogu debug_dir oraz walidację istnienia video.mp4.
+
+
+    # [AI-CHANGE | 2026-04-17 14:05 UTC | v0.111]
+    # CO ZMIENIONO: Dodano walidację istnienia pliku video.mp4 przy uruchomieniu bez argumentów CLI.
+    # DLACZEGO: Użytkownik oczekuje jasnego komunikatu, jeśli domyślny plik wideo nie istnieje.
+    # JAK TO DZIAŁA: Jeśli plik nie istnieje, program wypisuje błąd na stderr i kończy się kodem 2.
+    # TODO: Rozważyć interaktywną podpowiedź ścieżki lub automatyczne wyszukiwanie pliku w katalogu.
+
     parser = _build_arg_parser()
-    args = parser.parse_args()
+    if len(sys.argv) == 1:
+        script_dir = Path(__file__).parent.resolve()
+        default_video_path = script_dir / "video.mp4"
+        if not default_video_path.is_file():
+            print(f"[BŁĄD] Domyślny plik wideo nie istnieje: {default_video_path}", file=sys.stderr)
+            return 2
+        default_args = [
+            f"--video={str(default_video_path)}"
+        ]
+        args = parser.parse_args(default_args)
+    else:
+        args = parser.parse_args()
 
     if args.sample_step < 1:
         parser.error("--sample-step musi być >= 1")
