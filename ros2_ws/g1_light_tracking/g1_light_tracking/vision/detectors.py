@@ -382,12 +382,13 @@ def detect_spots(
     max_spots: int,
     min_detection_confidence: float,
     min_detection_score: float,
+    min_top1_top2_margin: float,
     color_name: str,
     hsv_lower: Optional[str],
     hsv_upper: Optional[str],
     roi: Optional[str],
     legacy_mode: bool = False,
-) -> Tuple[List[Detection], np.ndarray, Tuple[int, int, int, int]]:
+) -> Tuple[List[Detection], np.ndarray, Tuple[int, int, int, int], Dict[str, float | str | bool]]:
     x0, y0, w, h = parse_roi(roi, frame.shape)
     roi_frame = frame[y0 : y0 + h, x0 : x0 + w]
     detector_cls = _resolve_detector_class(track_mode)
@@ -422,7 +423,7 @@ def detect_spots(
         detections = detections[:max_spots]
         for idx, det in enumerate(detections, start=1):
             det.rank = idx
-        return detections, mask, (x0, y0, w, h)
+        return detections, mask, (x0, y0, w, h), {}
 
     roi_gray = cv2.cvtColor(roi_frame, cv2.COLOR_BGR2GRAY)
     scored_detections: List[Tuple[float, Detection]] = []
@@ -450,12 +451,41 @@ def detect_spots(
         scored_detections.append((score, det))
 
     scored_detections.sort(key=lambda item: item[0], reverse=True)
+    diagnostics: Dict[str, float | str | bool] = {}
+    # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+    # CO ZMIENIONO: Dodano obliczanie marginesu `top1-top2` po sortowaniu ocen
+    # kandydatów i warunek odrzucenia wyniku przy zbyt małej separacji.
+    # DLACZEGO: Mały margines oznacza niejednoznaczność klasyfikacji; zgodnie
+    # z zasadą jakości bezpieczniej zwrócić pusty wynik niż ryzykować błędną detekcję.
+    # JAK TO DZIAŁA: Dla >=2 kandydatów liczony jest `top1_top2_margin` oraz
+    # `top1_top2_margin_pct` (względem `best_score`). Jeżeli margines absolutny
+    # jest mniejszy niż `min_top1_top2_margin`, funkcja zwraca `[]` i zapisuje
+    # diagnostykę `rejection_reason=ambiguous_candidates`.
+    # TODO: Dodać alternatywny próg względny (percentylowy), aby lepiej skalować
+    # decyzję dla scen o różnych rozkładach jasności.
+    if len(scored_detections) >= 2:
+        best_score = float(scored_detections[0][0])
+        second_score = float(scored_detections[1][0])
+        top1_top2_margin = best_score - second_score
+        top1_top2_margin_pct = (top1_top2_margin / best_score * 100.0) if best_score > 0.0 else 0.0
+        diagnostics.update(
+            {
+                "top1_top2_margin": float(top1_top2_margin),
+                "top1_top2_margin_pct": float(top1_top2_margin_pct),
+                "min_top1_top2_margin": float(min_top1_top2_margin),
+            }
+        )
+        if top1_top2_margin < float(min_top1_top2_margin):
+            diagnostics["rejection_reason"] = "ambiguous_candidates"
+            diagnostics["rejected"] = True
+            return [], mask, (x0, y0, w, h), diagnostics
+
     detections = [det for _, det in scored_detections]
     detections = detections[:max_spots]
     for idx, det in enumerate(detections, start=1):
         det.rank = idx
 
-    return detections, mask, (x0, y0, w, h)
+    return detections, mask, (x0, y0, w, h), diagnostics
 
 
 def detect_spots_with_config(
@@ -463,7 +493,15 @@ def detect_spots_with_config(
     config: DetectorConfig,
     persistence_filter: Optional[DetectionPersistenceFilter] = None,
 ):
-    detections, mask, roi_box = detect_spots(
+    # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+    # CO ZMIENIONO: Adapter konfiguracyjny przekazuje nowy próg
+    # `min_top1_top2_margin` oraz propaguje słownik diagnostyczny z detektora.
+    # DLACZEGO: Node nadrzędny potrzebuje jawnej informacji o przyczynie odrzucenia,
+    # aby logować przypadki niejednoznacznych kandydatów.
+    # JAK TO DZIAŁA: Funkcja zwraca teraz 4 elementy (detekcje, maska, ROI, diagnostyka),
+    # a parametry konfiguracji są mapowane 1:1 do `detect_spots`.
+    # TODO: Ustabilizować kontrakt API przez dedykowaną klasę `DetectionDiagnostics`.
+    detections, mask, roi_box, diagnostics = detect_spots(
         frame=frame,
         track_mode=config.track_mode,
         blur=config.blur,
@@ -475,6 +513,7 @@ def detect_spots_with_config(
         max_spots=config.max_spots,
         min_detection_confidence=config.min_detection_confidence,
         min_detection_score=config.min_detection_score,
+        min_top1_top2_margin=config.min_top1_top2_margin,
         legacy_mode=config.legacy_mode,
         color_name=config.color_name,
         hsv_lower=config.hsv_lower,
@@ -494,4 +533,4 @@ def detect_spots_with_config(
         # aby szybciej stroić `association_cost_limit` na danych terenowych.
         detections = persistence_filter.apply(detections=detections, frame=frame, roi_box=roi_box)
         detections = detections[:1]
-    return detections, mask, roi_box
+    return detections, mask, roi_box, diagnostics
