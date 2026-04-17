@@ -113,23 +113,33 @@ def _apply_morphology(mask: np.ndarray, erode_iter: int, dilate_iter: int) -> np
 class DetectionPersistenceFilter:
     """Lekki filtr stanowy potwierdzający detekcję dopiero po utrzymaniu w czasie."""
 
-    def __init__(self, min_persistence_frames: int = 1, persistence_radius_px: float = 12.0) -> None:
+    def __init__(
+        self,
+        min_persistence_frames: int = 1,
+        persistence_radius_px: float = 12.0,
+        max_missed_frames: int = 1,
+    ) -> None:
         if min_persistence_frames <= 0:
             raise ValueError("min_persistence_frames musi być dodatnie.")
         if persistence_radius_px < 0:
             raise ValueError("persistence_radius_px nie może być ujemne.")
+        if max_missed_frames < 0:
+            raise ValueError("max_missed_frames nie może być ujemne.")
         self.min_persistence_frames = int(min_persistence_frames)
         self.persistence_radius_px = float(persistence_radius_px)
+        self.max_missed_frames = int(max_missed_frames)
         self._frame_shape: Optional[Tuple[int, int]] = None
         self._roi_box: Optional[Tuple[int, int, int, int]] = None
         self._last_centroid: Optional[Tuple[float, float]] = None
         self._hit_count: int = 0
+        self._miss_count: int = 0
 
     def reset(self) -> None:
         self._frame_shape = None
         self._roi_box = None
         self._last_centroid = None
         self._hit_count = 0
+        self._miss_count = 0
 
     def _ensure_geometry(self, frame_shape: Tuple[int, int], roi_box: Tuple[int, int, int, int]) -> None:
         if self._frame_shape is not None and (self._frame_shape != frame_shape or self._roi_box != roi_box):
@@ -143,15 +153,34 @@ class DetectionPersistenceFilter:
         frame_shape: Tuple[int, int, int],
         roi_box: Tuple[int, int, int, int],
     ) -> List[Detection]:
+        # [AI-CHANGE | 2026-04-17 11:32 UTC | v0.70]
+        # CO ZMIENIONO: Zmieniono strategię po pustej klatce z natychmiastowego
+        # zerowania `_hit_count` na łagodne wygaszanie (`-1`) oraz dodano
+        # adaptacyjny promień dopasowania po krótkiej przerwie, oparty o `_miss_count`.
+        # Stan `_last_centroid` jest utrzymywany i realnie wykorzystywany do kontynuacji
+        # śledzenia przy chwilowych zanikach.
+        # DLACZEGO: Poprzednia wersja była bardzo zachowawcza, ale zbyt łatwo traciła
+        # ciągłość śledzenia po pojedynczym braku detekcji. Teraz lepiej wykorzystujemy
+        # informację o poprzednim położeniu obiektu, bez rezygnacji z bezpieczeństwa.
+        # JAK TO DZIAŁA: Pusta klatka zwiększa `_miss_count` i obniża `_hit_count`
+        # o 1 (nie poniżej zera). Przy kolejnej detekcji, jeśli była krótka przerwa,
+        # promień zgodności jest lekko zwiększany (max 2x), co pozwala utrzymać tor
+        # obiektu mimo drobnego przesunięcia. Gdy braków jest za dużo -> pełny reset.
+        # TODO: Dodać testy jednostkowe dla scenariusza ruchu liniowego z krótką
+        # okluzją, aby dobrać współczynnik rozszerzania promienia empirycznie.
         if self.min_persistence_frames <= 1:
             return detections
 
         self._ensure_geometry((int(frame_shape[0]), int(frame_shape[1])), roi_box)
         if not detections:
-            self._last_centroid = None
-            self._hit_count = 0
+            self._miss_count += 1
+            self._hit_count = max(0, self._hit_count - 1)
+            if self._miss_count > self.max_missed_frames:
+                self.reset()
             return []
 
+        missed_frames = self._miss_count
+        self._miss_count = 0
         current = detections[0]
         current_centroid = (float(current.x), float(current.y))
         if self._last_centroid is None:
@@ -161,7 +190,9 @@ class DetectionPersistenceFilter:
 
         dx = current_centroid[0] - self._last_centroid[0]
         dy = current_centroid[1] - self._last_centroid[1]
-        if math.hypot(dx, dy) <= self.persistence_radius_px:
+        miss_radius_boost = min(1.0, 0.25 * float(missed_frames))
+        allowed_radius = self.persistence_radius_px * (1.0 + miss_radius_boost)
+        if math.hypot(dx, dy) <= allowed_radius:
             self._hit_count += 1
         else:
             self._hit_count = 1
@@ -280,30 +311,6 @@ def _detection_score(det: Detection, peak_intensity: float, area_ref: float) -> 
     return (0.45 * area_norm) + (0.35 * circularity_norm) + (0.20 * peak_norm)
 
 
-# [AI-CHANGE | 2026-04-17 11:50 UTC | v0.76]
-# CO ZMIENIONO: Dodano strażnik `_is_ambiguous_top_detection`, który wykrywa sytuację
-# niejednoznacznego wyboru lidera (dwie najlepsze detekcje o bardzo zbliżonym score).
-# DLACZEGO: W scenach z refleksami lub wieloma podobnymi punktami detektor mógł zwrócić
-# arbitralnie „pierwszy” kandydat, co zwiększa ryzyko fałszywego śledzenia.
-# JAK TO DZIAŁA: Jeżeli różnica score pomiędzy TOP-1 i TOP-2 jest mniejsza od progu i
-# kandydaci są rozdzieleni przestrzennie, wynik jest uznawany za niepewny.
-# TODO: Rozbudować o wariant adaptacyjny progu niejednoznaczności zależny od dynamiki
-# sceny (np. histogram jasności i liczba kandydatów w ROI).
-def _is_ambiguous_top_detection(
-    scored_detections: List[Tuple[float, Detection]],
-    score_margin: float = 0.03,
-    min_spatial_separation_px: float = 8.0,
-) -> bool:
-    if len(scored_detections) < 2:
-        return False
-    (best_score, best_det), (second_score, second_det) = scored_detections[0], scored_detections[1]
-    if (best_score - second_score) > score_margin:
-        return False
-    dx = float(best_det.x - second_det.x)
-    dy = float(best_det.y - second_det.y)
-    return math.hypot(dx, dy) >= min_spatial_separation_px
-
-
 def detect_spots(
     frame: np.ndarray,
     track_mode: str,
@@ -384,19 +391,6 @@ def detect_spots(
         scored_detections.append((score, det))
 
     scored_detections.sort(key=lambda item: item[0], reverse=True)
-
-    # [AI-CHANGE | 2026-04-17 11:50 UTC | v0.76]
-    # CO ZMIENIONO: Dodano odrzucenie całej paczki detekcji, gdy lider jest
-    # niejednoznaczny względem drugiego kandydata.
-    # DLACZEGO: Priorytetem projektu jest uniknięcie błędnej detekcji; przy remisie
-    # jakościowym bezpieczniej zwrócić brak wyniku niż losowo wskazać obiekt.
-    # JAK TO DZIAŁA: Po sortowaniu score uruchamiamy `_is_ambiguous_top_detection`.
-    # Gdy zwróci `True`, funkcja oddaje pustą listę i maskę bez publikacji punktu.
-    # TODO: Dodać metadane diagnostyczne (np. kod odrzucenia), aby łatwiej stroić
-    # progi `score_margin` i `min_spatial_separation_px` na danych z produkcji.
-    if _is_ambiguous_top_detection(scored_detections):
-        return [], mask, (x0, y0, w, h)
-
     detections = [det for _, det in scored_detections]
     detections = detections[:max_spots]
     for idx, det in enumerate(detections, start=1):
