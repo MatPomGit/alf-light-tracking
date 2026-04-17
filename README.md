@@ -279,6 +279,76 @@ ros2 topic hz /cmd_vel
 
 ---
 
+<!--
+[AI-CHANGE | 2026-04-17 15:53 UTC | v0.120]
+CO ZMIENIONO: Rozbudowano README o sekcję przepływu danych, tabelę kluczowych node'ów, tabelę parametrów startowych oraz troubleshooting.
+DLACZEGO: Brakowało szybkiego kontekstu operacyjnego i mapy zależności runtime, co utrudniało diagnozowanie błędów oraz onboarding.
+JAK TO DZIAŁA: Nowe sekcje porządkują uruchomienie od warstwy danych (kamera/CSV) przez detekcję do sterowania oraz podają gotowe kroki naprawcze dla najczęstszych awarii.
+TODO: Dodać automatycznie generowaną tabelę parametrów z plików YAML/launch, aby uniknąć ręcznej niespójności dokumentacji.
+-->
+
+## Przepływ danych (skrót architektury runtime)
+
+```text
+/camera/image_raw (D435i) lub CSV replay
+            |
+            v
+light_spot_detector_node -> /light_tracking/detection_json
+            |
+            v
+g1_light_follower_node -> /cmd_vel
+            |
+            +--> unitree_cmd_vel_bridge_node -> kanał sterowania robota
+            \--> turtlesim_cmd_vel_bridge_node -> /turtle1/cmd_vel (symulacja)
+```
+
+To jest pipeline preferowany dla walidacji: najpierw potwierdź poprawność detekcji (`detection_json`), dopiero potem analizuj sterowanie.
+
+## Kluczowe node'y i odpowiedzialności
+
+| Node | Wejście | Wyjście | Zastosowanie |
+|---|---|---|---|
+| `light_spot_detector_node` | `/camera/image_raw` | `/light_tracking/detection_json` | Wykrywanie plamki i filtrowanie niepewnych detekcji. |
+| `g1_light_follower_node` | `/light_tracking/detection_json` | `/cmd_vel` | Zamiana pozycji celu na komendy ruchu. |
+| `unitree_cmd_vel_bridge_node` | `/cmd_vel` | interfejs Unitree | Mostek do robota w trybie online. |
+| `turtlesim_cmd_vel_bridge_node` | `/cmd_vel` | `/turtle1/cmd_vel` | Symulacyjne testy bez sprzętu. |
+| `csv_detection_replay_node` | CSV | `/light_tracking/detection_json` | Odtwarzanie datasetu detekcji offline. |
+| `arm_skill_bridge_node` | serwisy Trigger | kanał arm SDK | Proste akcje pick/place/stop dla manipulatora. |
+
+## Najważniejsze parametry startowe
+
+| Parametr | Gdzie | Domyślnie | Uwagi operacyjne |
+|---|---|---|---|
+| `playback_rate` | `csv_detection_replay_node` | `1.0` | Używaj wartości `> 0`; wartości niepoprawne są korygowane do `1.0`. |
+| `loop` | `csv_detection_replay_node` | `true` | `false` kończy replay po ostatnim rekordzie. |
+| `control_config` | `light_tracking_stack.launch.py` | `config/control.yaml` | Strojenie followera i ograniczeń prędkości. |
+| `bridge_config` | `light_tracking_stack.launch.py` | `config/bridge.yaml` | Parametry transportu komend do Unitree. |
+| `legacy_mode` | `config/perception.yaml` | `false` | `true` włącza starszy tryb selekcji detekcji. |
+
+## Troubleshooting (najczęstsze problemy)
+
+1. **Brak publikacji na `/light_tracking/detection_json`**
+   - sprawdź, czy działa źródło obrazu: `ros2 topic hz /camera/image_raw`,
+   - zweryfikuj konfigurację percepcji i ROI (`config/perception.yaml`),
+   - uruchom tryb CSV, aby odseparować problem kamery od problemu detektora.
+
+2. **Follower publikuje zero lub niestabilne `/cmd_vel`**
+   - podejrzyj payload: `ros2 topic echo /light_tracking/detection_json`,
+   - sprawdź progi confidence/rank oraz deadband w `control.yaml`,
+   - przy niestabilnej detekcji najpierw popraw percepcję (zgodnie z zasadą odrzucania niepewnych danych).
+
+3. **CSV replay nie startuje**
+   - upewnij się, że parametr `csv_file` wskazuje istniejący plik,
+   - sprawdź, czy kolumna `time_sec` zawiera poprawne liczby,
+   - uruchom z `loop:=false`, by łatwiej analizować pojedyncze przejście logu.
+
+4. **Brak ruchu robota Unitree mimo `/cmd_vel`**
+   - zweryfikuj topic i typ wiadomości mostka (`unitree_cmd_vel_bridge_node`),
+   - sprawdź konfigurację połączenia/namespace w `bridge.yaml`,
+   - porównaj z trybem turtlesim, aby potwierdzić, że problem dotyczy wyłącznie warstwy bridge.
+
+---
+
 ## Linki referencyjne po porządkowaniu repo
 
 - `docs/reference-links/core/` – real-time kernel, ROS2 real-time, tf2, logging.
