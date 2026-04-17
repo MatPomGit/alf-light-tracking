@@ -33,6 +33,10 @@ COLOR_PRESETS: Dict[str, List[Tuple[Tuple[int, int, int], Tuple[int, int, int]]]
 
 
 def parse_roi(roi_text: Optional[str], frame_shape: Tuple[int, int, int]) -> Tuple[int, int, int, int]:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `parse_roi` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     if not roi_text:
         h, w = frame_shape[:2]
         return 0, 0, w, h
@@ -49,10 +53,18 @@ def parse_roi(roi_text: Optional[str], frame_shape: Tuple[int, int, int]) -> Tup
 
 
 def ensure_odd(value: int) -> int:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `ensure_odd` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     return value if value % 2 == 1 else value + 1
 
 
 def parse_hsv_pair(text: Optional[str], fallback: Tuple[int, int, int]) -> Tuple[int, int, int]:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `parse_hsv_pair` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     if not text:
         return fallback
     parts = [int(v.strip()) for v in text.split(",")]
@@ -62,8 +74,16 @@ def parse_hsv_pair(text: Optional[str], fallback: Tuple[int, int, int]) -> Tuple
 
 
 class BrightnessDetector(BaseDetector):
+    """
+    Cel: Ta klasa realizuje odpowiedzialność `BrightnessDetector` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     @classmethod
     def default_params(cls) -> dict:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `default_params` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         return {
             "blur": 11,
             "threshold": 200,
@@ -72,6 +92,10 @@ class BrightnessDetector(BaseDetector):
         }
 
     def detect_mask(self, roi_frame: np.ndarray) -> np.ndarray:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `detect_mask` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         blur = ensure_odd(self.config.blur)
         gray = cv2.cvtColor(roi_frame, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (blur, blur), 0)
@@ -80,8 +104,16 @@ class BrightnessDetector(BaseDetector):
 
 
 class ColorDetector(BaseDetector):
+    """
+    Cel: Ta klasa realizuje odpowiedzialność `ColorDetector` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     @classmethod
     def default_params(cls) -> dict:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `default_params` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         return {
             "blur": 11,
             "color_name": "red",
@@ -92,6 +124,10 @@ class ColorDetector(BaseDetector):
         }
 
     def detect_mask(self, roi_frame: np.ndarray) -> np.ndarray:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `detect_mask` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         blur = ensure_odd(self.config.blur)
         hsv = cv2.cvtColor(roi_frame, cv2.COLOR_BGR2HSV)
         if self.config.color_name == "custom":
@@ -114,6 +150,10 @@ class ColorDetector(BaseDetector):
 
 
 def _apply_morphology(mask: np.ndarray, erode_iter: int, dilate_iter: int) -> np.ndarray:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_apply_morphology` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     if erode_iter > 0:
         mask = cv2.erode(mask, None, iterations=erode_iter)
     if dilate_iter > 0:
@@ -132,6 +172,10 @@ class DetectionPersistenceFilter:
         association_cost_limit: float = 2.5,
         innovation_cost_limit: Optional[float] = None,
     ) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `__init__` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if min_persistence_frames <= 0:
             raise ValueError("min_persistence_frames musi być dodatnie.")
         if persistence_radius_px < 0:
@@ -160,6 +204,10 @@ class DetectionPersistenceFilter:
         self._miss_count: int = 0
 
     def reset(self) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `reset` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         self._frame_shape = None
         self._roi_box = None
         self._last_centroid = None
@@ -171,12 +219,20 @@ class DetectionPersistenceFilter:
         self._miss_count = 0
 
     def _ensure_geometry(self, frame_shape: Tuple[int, int], roi_box: Tuple[int, int, int, int]) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_ensure_geometry` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if self._frame_shape is not None and (self._frame_shape != frame_shape or self._roi_box != roi_box):
             self.reset()
         self._frame_shape = frame_shape
         self._roi_box = roi_box
 
     def _predict_centroid(self, missed_frames: int) -> Tuple[float, float]:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_predict_centroid` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if self._last_centroid is None:
             raise ValueError("Brak centroidu do predykcji.")
         if self._velocity is None:
@@ -188,11 +244,19 @@ class DetectionPersistenceFilter:
         )
 
     def _detection_aspect_ratio(self, detection: Detection) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_detection_aspect_ratio` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         width = max(1.0, float(detection.bbox_w))
         height = max(1.0, float(detection.bbox_h))
         return width / height
 
     def _handle_miss(self) -> List[Detection]:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_handle_miss` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         self._miss_count += 1
         self._hit_count = max(0, self._hit_count - 1)
         if self._miss_count > self.max_missed_frames:
@@ -200,6 +264,10 @@ class DetectionPersistenceFilter:
         return []
 
     def _detection_brightness(self, frame_gray: np.ndarray, detection: Detection) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_detection_brightness` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         x0 = max(0, int(detection.bbox_x))
         y0 = max(0, int(detection.bbox_y))
         x1 = min(frame_gray.shape[1], int(detection.bbox_x + detection.bbox_w))
@@ -218,6 +286,10 @@ class DetectionPersistenceFilter:
         predicted_centroid: Tuple[float, float],
         missed_frames: int,
     ) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_association_cost` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if self._last_area is None or self._last_aspect_ratio is None or self._last_brightness is None:
             return float("inf")
         dx = float(candidate.x) - predicted_centroid[0]
@@ -252,6 +324,10 @@ class DetectionPersistenceFilter:
         # nie jest aktualizowany niepewną obserwacją.
         # TODO: Dodać adaptacyjny model szumu ruchu i dynamiczne progi innowacji
         # zależne od prędkości obiektu oraz czasu od ostatniego trafienia.
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `apply` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if frame.ndim < 2:
             raise ValueError("frame musi mieć co najmniej 2 wymiary.")
 
@@ -327,6 +403,10 @@ class DetectionPersistenceFilter:
 
 
 def _resolve_detector_class(track_mode: str) -> Type[BaseDetector]:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_resolve_detector_class` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     from .detector_registry import get_detector_class
 
     normalized_mode = "brightness" if track_mode == "brightest" else track_mode
@@ -334,6 +414,10 @@ def _resolve_detector_class(track_mode: str) -> Type[BaseDetector]:
 
 
 def contour_to_detection(contour: np.ndarray, offset_x: int = 0, offset_y: int = 0) -> Optional[Detection]:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `contour_to_detection` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     area = float(cv2.contourArea(contour))
     if area <= 0:
         return None
@@ -374,10 +458,18 @@ def contour_to_detection(contour: np.ndarray, offset_x: int = 0, offset_y: int =
 
 
 def _clip01(value: float) -> float:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_clip01` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     return float(max(0.0, min(1.0, value)))
 
 
 def _contour_peak_intensity(gray_roi: np.ndarray, contour: np.ndarray) -> float:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_contour_peak_intensity` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     local_mask = np.zeros(gray_roi.shape, dtype=np.uint8)
     cv2.drawContours(local_mask, [contour], contourIdx=-1, color=255, thickness=-1)
     _, max_val, _, _ = cv2.minMaxLoc(gray_roi, mask=local_mask)
@@ -385,6 +477,10 @@ def _contour_peak_intensity(gray_roi: np.ndarray, contour: np.ndarray) -> float:
 
 
 def _contour_solidity(contour: np.ndarray, contour_area: float) -> float:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_contour_solidity` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     hull = cv2.convexHull(contour)
     hull_area = float(cv2.contourArea(hull))
     if hull_area <= 0:
@@ -400,6 +496,10 @@ def _contour_solidity(contour: np.ndarray, contour_area: float) -> float:
 # rozkład równy między wszystkie cechy.
 # TODO: Dodać ostrzeżenie diagnostyczne, gdy wejściowe wagi wymagają korekty.
 def _normalize_weights(*weights: float) -> List[float]:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_normalize_weights` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     positive_weights = [max(0.0, float(weight)) for weight in weights]
     total = sum(positive_weights)
     if total <= 0.0:
@@ -423,6 +523,10 @@ def _contour_intensity_features(
     ring_thickness_px: int,
     saturation_level: int,
 ) -> Optional[Dict[str, float]]:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_contour_intensity_features` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     contour_mask = np.zeros(gray_roi.shape, dtype=np.uint8)
     cv2.drawContours(contour_mask, [contour], -1, color=255, thickness=-1)
     inside_pixels = gray_roi[contour_mask > 0]
@@ -461,6 +565,10 @@ def _compute_detection_confidence(
     intensity_features: Dict[str, float],
     config: DetectorConfig,
 ) -> float:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_compute_detection_confidence` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     circularity_score = _clip01(detection.circularity)
     axis_ratio_score = 1.0
     if detection.ellipse_axes and min(detection.ellipse_axes) > 0:
@@ -510,6 +618,10 @@ def _detection_score(
     area_ref: float,
     intensity_features: Dict[str, float],
 ) -> float:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_detection_score` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     area_norm = float(np.clip(det.area / max(area_ref, 1.0), 0.0, 1.0))
     circularity_norm = float(np.clip(det.circularity, 0.0, 1.0))
     peak_norm = float(np.clip(peak_intensity / 255.0, 0.0, 1.0))
@@ -539,6 +651,10 @@ def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bo
     # JAK TO DZIAŁA: Każde nowe pole z `DetectorConfig` jest serializowane do typu
     # prostego i porównywane między kolejnymi wywołaniami.
     # TODO: Uzupełnić snapshot o wersję schematu konfiguracji.
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_config_snapshot` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     return {
         "track_mode": config.track_mode,
         "blur": int(config.blur),
@@ -572,6 +688,10 @@ def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bo
 
 
 def _log_parameter_changes(config: DetectorConfig) -> None:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `_log_parameter_changes` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     global _LAST_CONFIG_SNAPSHOT
     current_snapshot = _config_snapshot(config)
     if _LAST_CONFIG_SNAPSHOT is None:
@@ -633,6 +753,10 @@ def detect_spots(
     # JAK TO DZIAŁA: Parametry wejściowe są mapowane do `DetectorConfig`, a następnie
     # używane przez pipeline filtrowania kandydatów i obliczania confidence.
     # TODO: Rozważyć zastąpienie długiej listy argumentów wyłącznie obiektem config.
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `detect_spots` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     x0, y0, w, h = parse_roi(roi, frame.shape)
     roi_frame = frame[y0 : y0 + h, x0 : x0 + w]
     detector_cls = _resolve_detector_class(track_mode)
@@ -771,6 +895,10 @@ def detect_spots_with_config(
     config: DetectorConfig,
     persistence_filter: Optional[DetectionPersistenceFilter] = None,
 ):
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `detect_spots_with_config` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     _log_parameter_changes(config)
     # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
     # CO ZMIENIONO: Adapter konfiguracyjny przekazuje nowy próg

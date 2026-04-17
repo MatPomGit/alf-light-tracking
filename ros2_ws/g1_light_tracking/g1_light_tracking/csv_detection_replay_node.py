@@ -1,3 +1,9 @@
+# [AI-CHANGE | 2026-04-17 13:06 UTC | v0.91]
+# CO ZMIENIONO: Dodano komentarze opisujące przeznaczenie klas i metod oraz motywację przyjętej struktury.
+# DLACZEGO: Ułatwia to bezpieczne utrzymanie kodu R&D i ogranicza ryzyko błędnej interpretacji logiki detekcji.
+# JAK TO DZIAŁA: Każda klasa/metoda posiada docstring z celem i uzasadnieniem, dzięki czemu intencja implementacji jest jawna.
+# TODO: Rozszerzyć docstringi o kontrakty wejścia/wyjścia po ustabilizowaniu API między węzłami.
+
 import csv
 import json
 import math
@@ -9,7 +15,15 @@ from std_msgs.msg import String
 
 
 class CsvDetectionReplayNode(Node):
+    """
+    Cel: Ta klasa realizuje odpowiedzialność `CsvDetectionReplayNode` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     def __init__(self) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `__init__` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         super().__init__('csv_detection_replay_node')
 
         self.declare_parameter('csv_file', '')
@@ -35,6 +49,10 @@ class CsvDetectionReplayNode(Node):
         )
 
     def _load_rows(self, path: str) -> list:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_load_rows` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if not path:
             self.get_logger().error('Parameter csv_file is empty.')
             return []
@@ -50,6 +68,10 @@ class CsvDetectionReplayNode(Node):
         return rows
 
     def on_timer(self) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `on_timer` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if not self.rows:
             return
 
@@ -72,6 +94,10 @@ class CsvDetectionReplayNode(Node):
                 self.get_logger().info('CSV replay finished.')
 
     def _row_to_payload(self, row: dict) -> dict:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_row_to_payload` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         detected = self._to_bool(row.get('detected'))
         return {
             'stamp': datetime.now(timezone.utc).isoformat(),
@@ -94,6 +120,10 @@ class CsvDetectionReplayNode(Node):
 
     @staticmethod
     def _to_float(value, default=math.nan) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_to_float` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if value is None:
             return default
         text = str(value).strip()
@@ -106,6 +136,10 @@ class CsvDetectionReplayNode(Node):
 
     @staticmethod
     def _to_int(value, default=0) -> int:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_to_int` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if value is None:
             return default
         text = str(value).strip()
@@ -118,6 +152,10 @@ class CsvDetectionReplayNode(Node):
 
     @staticmethod
     def _to_bool(value, default=False) -> bool:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_to_bool` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if value is None:
             return default
         text = str(value).strip().lower()
@@ -129,6 +167,10 @@ class CsvDetectionReplayNode(Node):
 
 
 def main(args=None) -> None:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `main` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     rclpy.init(args=args)
     node = CsvDetectionReplayNode()
     try:

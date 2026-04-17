@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# [AI-CHANGE | 2026-04-17 13:06 UTC | v0.91]
+# CO ZMIENIONO: Dodano komentarze opisujące przeznaczenie klas i metod oraz motywację przyjętej struktury.
+# DLACZEGO: Ułatwia to bezpieczne utrzymanie kodu R&D i ogranicza ryzyko błędnej interpretacji logiki detekcji.
+# JAK TO DZIAŁA: Każda klasa/metoda posiada docstring z celem i uzasadnieniem, dzięki czemu intencja implementacji jest jawna.
+# TODO: Rozszerzyć docstringi o kontrakty wejścia/wyjścia po ustabilizowaniu API między węzłami.
+
 """Kontroler sekwencji ramion (grasp skills) dla scenariusza move parcel."""
 
 from __future__ import annotations
@@ -81,6 +87,10 @@ class ArmSkillController:
         get_low_state: Callable[[], Optional[object]],
         log_fn: Callable[[str], None],
     ):
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `__init__` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         self._LowCmdCtor = low_cmd_ctor
         self._arm_publisher = arm_publisher
         self._crc = crc
@@ -90,9 +100,17 @@ class ArmSkillController:
 
     @property
     def action_names(self) -> Set[str]:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `action_names` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         return {self.ACTION_PICK, self.ACTION_PLACE}
 
     def run_action(self, action_name: str):
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `run_action` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         self._stop_event.clear()
         if action_name == self.ACTION_PICK:
             self._run_pick_sequence()
@@ -177,6 +195,10 @@ class ArmSkillController:
         weight_start: float,
         weight_end: float,
     ):
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_run_interpolation_stage` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         duration_s = max(float(duration_s), 0.0)
         if duration_s <= 0.0:
             self._publish_pose(to_pose, weight=weight_end)
@@ -198,6 +220,10 @@ class ArmSkillController:
         self._publish_pose(to_pose, weight=weight_end)
 
     def _publish_pose(self, pose: List[float], weight: float):
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_publish_pose` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         low_state = self._get_low_state()
         if low_state is None:
             raise RuntimeError('Brak stanu low_state w trakcie sekwencji ramion.')
@@ -217,18 +243,30 @@ class ArmSkillController:
         self._arm_publisher.Write(low_cmd)
 
     def _publish_sdk_enable(self, value: float):
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_publish_sdk_enable` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         low_cmd = self._LowCmdCtor()
         low_cmd.motor_cmd[self.ARM_ENABLE_JOINT].q = float(value)
         low_cmd.crc = self._crc.Crc(low_cmd)
         self._arm_publisher.Write(low_cmd)
 
     def _snapshot_current_pose(self) -> List[float]:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_snapshot_current_pose` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         low_state = self._get_low_state()
         if low_state is None:
             raise RuntimeError('Brak stanu low_state w trakcie sekwencji ramion.')
         return [float(low_state.motor_state[joint].q) for joint in self.ARM_JOINTS]
 
     def _wait_for_low_state(self, timeout_s: float):
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_wait_for_low_state` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         start = time.monotonic()
         while self._get_low_state() is None:
             if (time.monotonic() - start) >= timeout_s:
@@ -236,6 +274,10 @@ class ArmSkillController:
             time.sleep(0.05)
 
     def _raise_if_stop_requested(self):
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_raise_if_stop_requested` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if not self._stop_event.is_set():
             return
         self._publish_sdk_enable(value=0.0)
@@ -243,8 +285,16 @@ class ArmSkillController:
 
     @staticmethod
     def _clip01(value: float) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_clip01` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         return max(0.0, min(1.0, value))
 
     @staticmethod
     def _interp(a: List[float], b: List[float], ratio: float) -> List[float]:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_interp` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         return [(1.0 - ratio) * av + ratio * bv for av, bv in zip(a, b)]

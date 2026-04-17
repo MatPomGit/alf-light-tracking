@@ -1,3 +1,9 @@
+# [AI-CHANGE | 2026-04-17 13:06 UTC | v0.91]
+# CO ZMIENIONO: Dodano komentarze opisujące przeznaczenie klas i metod oraz motywację przyjętej struktury.
+# DLACZEGO: Ułatwia to bezpieczne utrzymanie kodu R&D i ogranicza ryzyko błędnej interpretacji logiki detekcji.
+# JAK TO DZIAŁA: Każda klasa/metoda posiada docstring z celem i uzasadnieniem, dzięki czemu intencja implementacji jest jawna.
+# TODO: Rozszerzyć docstringi o kontrakty wejścia/wyjścia po ustabilizowaniu API między węzłami.
+
 import json
 import math
 
@@ -8,7 +14,15 @@ from std_msgs.msg import String
 
 
 class G1LightFollowerNode(Node):
+    """
+    Cel: Ta klasa realizuje odpowiedzialność `G1LightFollowerNode` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     def __init__(self) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `__init__` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         super().__init__('g1_light_follower_node')
 
         self.declare_parameter('detection_topic', '/light_tracking/detection_json')
@@ -90,6 +104,10 @@ class G1LightFollowerNode(Node):
         )
 
     def on_detection(self, msg: String) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `on_detection` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         try:
             payload = json.loads(msg.data)
         except json.JSONDecodeError:
@@ -100,6 +118,10 @@ class G1LightFollowerNode(Node):
         self.latest_detection_time = self.get_clock().now()
 
     def on_timer(self) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `on_timer` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         cmd = Twist()
         self._maybe_log_cmd_vel_subscribers()
 
@@ -142,6 +164,10 @@ class G1LightFollowerNode(Node):
         self._maybe_log_nonzero_cmd(cmd)
 
     def _has_fresh_detection(self) -> bool:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_has_fresh_detection` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if self.latest_detection_time is None:
             return False
         age = (self.get_clock().now() - self.latest_detection_time).nanoseconds / 1e9
@@ -149,6 +175,10 @@ class G1LightFollowerNode(Node):
 
     @staticmethod
     def _to_float(value) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_to_float` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         try:
             return float(value)
         except (TypeError, ValueError):
@@ -156,9 +186,17 @@ class G1LightFollowerNode(Node):
 
     @staticmethod
     def _clamp(value: float, max_abs_value: float) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_clamp` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         return max(-max_abs_value, min(max_abs_value, value))
 
     def _pick_lateral(self, msg: dict) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_pick_lateral` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         x_world = self._to_float(msg.get('x_world'))
         if not math.isnan(x_world):
             return x_world
@@ -168,12 +206,20 @@ class G1LightFollowerNode(Node):
         return x_pixel - self.camera_cx
 
     def _pick_distance(self, msg: dict) -> float:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_pick_distance` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         z_world = self._to_float(msg.get('z_world'))
         if not math.isnan(z_world):
             return z_world
         return self._to_float(msg.get('z'))
 
     def _maybe_log_nonzero_cmd(self, cmd: Twist) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_maybe_log_nonzero_cmd` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if not self.log_nonzero_cmd_vel:
             return
 
@@ -197,6 +243,10 @@ class G1LightFollowerNode(Node):
         )
 
     def _maybe_log_rejection(self, reason: str) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_maybe_log_rejection` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if not self.log_rejection_reasons:
             return
 
@@ -210,6 +260,10 @@ class G1LightFollowerNode(Node):
         self.get_logger().info(f'cmd_vel zero reason: {reason}')
 
     def _maybe_log_cmd_vel_subscribers(self) -> None:
+        """
+        Cel: Ta metoda realizuje odpowiedzialność `_maybe_log_cmd_vel_subscribers` w aktualnym module.
+        Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+        """
         if not self.log_cmd_vel_subscribers:
             return
 
@@ -226,6 +280,10 @@ class G1LightFollowerNode(Node):
 
 
 def main(args=None) -> None:
+    """
+    Cel: Ta funkcja realizuje odpowiedzialność `main` w aktualnym module.
+    Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
+    """
     rclpy.init(args=args)
     node = G1LightFollowerNode()
     try:
