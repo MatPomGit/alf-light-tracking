@@ -28,6 +28,24 @@ class DetectorConfig:
     # kandydatów do odrzucenia detekcji przy zbyt małej separacji rankingu.
     # TODO: Rozważyć dynamiczny próg marginesu zależny od kontrastu sceny i poziomu szumu.
     min_top1_top2_margin: float = 0.0
+    # [AI-CHANGE | 2026-04-17 12:42 UTC | v0.87]
+    # CO ZMIENIONO: Dodano progi i wagi cech fotometrycznych opartych o kontrast
+    # kontur-vs-pierścień, ostrość piku oraz karę za prześwietlenie.
+    # DLACZEGO: Sceny indoor/outdoor mają różny poziom tła i saturacji, więc
+    # potrzebne są jawne parametry strojenia bezpieczeństwa detekcji.
+    # JAK TO DZIAŁA: Progi `min_*` i `max_*` służą do odrzucania niepewnych próbek,
+    # a pola `*_weight` składają się na wynik pewności dopasowania kandydata.
+    # TODO: Przygotować gotowe profile presetów (np. indoor/outdoor) ładowane z YAML.
+    ring_thickness_px: int = 2
+    saturation_level: int = 250
+    min_mean_contrast: float = 4.0
+    min_peak_sharpness: float = 6.0
+    max_saturated_ratio: float = 0.35
+    confidence_weight_shape: float = 0.32
+    confidence_weight_brightness: float = 0.22
+    confidence_weight_contrast: float = 0.24
+    confidence_weight_sharpness: float = 0.22
+    confidence_saturation_penalty_weight: float = 0.35
     min_persistence_frames: int = 1
     persistence_radius_px: float = 12.0
     legacy_mode: bool = False
