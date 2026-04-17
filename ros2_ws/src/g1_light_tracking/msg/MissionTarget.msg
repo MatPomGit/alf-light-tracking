@@ -1,0 +1,10 @@
+builtin_interfaces/Time stamp
+string frame_id
+string mode
+string zone_mode
+string target_type
+string class_name
+float32 confidence
+geometry_msgs/Point position
+string color_label
+string payload

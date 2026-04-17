@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>alf-light-tracking - dokumentacja techniczna dla programistów</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --bg2: #0f172a;
+      --panel: rgba(17, 24, 39, 0.97);
+      --panel2: #182235;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
+      --code: #07101d;
+      --shadow: 0 14px 34px rgba(0,0,0,0.28);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(56,189,248,0.08), transparent 30%),
+        linear-gradient(180deg, var(--bg) 0%, #111827 100%);
+      color: var(--text);
+      line-height: 1.65;
+    }
+    a { color: #c8efff; }
+    .wrap { max-width: 1500px; margin: 0 auto; padding: 24px; }
+    .panel, .hero {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+    .hero { padding: 28px; margin-bottom: 24px; }
+    h1, h2, h3 { margin-top: 0; }
+    h1 { font-size: 2.2rem; margin-bottom: 10px; }
+    h2 { font-size: 1.45rem; margin-bottom: 14px; }
+    h3 { font-size: 1.08rem; margin-bottom: 10px; }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    .chips {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px;
+    }
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(56,189,248,0.35);
+      background: rgba(56,189,248,0.12);
+      color: #d5f2ff;
+      font-size: 0.92rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+    }
+    .sidebar {
+      position: sticky;
+      top: 20px;
+      align-self: start;
+      padding: 18px;
+    }
+    .tablist { display: grid; gap: 8px; }
+    .tab-button {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #0f172a;
+      color: var(--text);
+      cursor: pointer;
+      transition: 0.15s ease;
+      font-size: 0.95rem;
+    }
+    .tab-button:hover, .tab-button.active {
+      border-color: var(--accent);
+      background: rgba(56,189,248,0.12);
+    }
+    .section {
+      display: none;
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+    .section.active { display: block; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px,1fr));
+      gap: 14px;
+    }
+    .card {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .callout {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin: 14px 0 18px;
+      background: rgba(15,23,42,0.72);
+    }
+    .callout.ok { border-color: rgba(34,197,94,0.45); }
+    .callout.info { border-color: rgba(56,189,248,0.45); }
+    .callout.warn { border-color: rgba(245,158,11,0.45); }
+    .callout.danger { border-color: rgba(239,68,68,0.45); }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    code {
+      background: rgba(15,23,42,0.96);
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: #dbeafe;
+    }
+    pre {
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 12px 0 18px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: rgba(30,41,59,0.92); }
+    .button-row, .link-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .btn, .seq-btn {
+      display: inline-block;
+      text-decoration: none;
+      color: var(--text);
+      border: 1px solid var(--border);
+      background: #0f172a;
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+    .btn:hover, .seq-btn:hover {
+      border-color: var(--accent);
+      background: rgba(56,189,248,0.1);
+    }
+    .btn.primary { border-color: var(--accent); }
+    .btn.ok, .seq-btn.ok { border-color: var(--ok); }
+    .btn.warn, .seq-btn.warn { border-color: var(--warn); }
+    .console {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #050b16;
+      padding: 12px;
+      min-height: 150px;
+    }
+    .console-line {
+      font-family: ui-monospace, monospace;
+      color: #d1fae5;
+      margin: 0 0 6px;
+    }
+    .mini {
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+    footer {
+      color: var(--muted);
+      font-size: 0.95rem;
+      padding: 10px 2px 30px;
+    }
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero panel">
+    <h1>alf-light-tracking / g1_light_tracking — dokumentacja techniczna dla programistów</h1>
+    <p>
+      Ta wersja dokumentacji jest skierowana do osób rozwijających kod. Zawiera bardziej techniczne
+      omówienie architektury, gotowe przykłady kodu dla ROS2 i Pythona, konwencje implementacyjne,
+      przykłady node’ów, launchy, diagnostyki, pracy headless oraz wzorce bezpiecznego fallbacku.
+    </p>
+    <p class="muted">
+      Docelowe środowisko: <strong>Unitree G1 EDU</strong>, <strong>Ubuntu 22.04</strong>, <strong>ROS2</strong>, praca
+      głównie przez <strong>SSH</strong> i bez GUI. Projekt należy rozwijać tak, aby podstawowa pętla robota nie zależała
+      od modułów pomocniczych.
+    </p>
+    <div class="chips">
+      <span class="chip">Python</span>
+      <span class="chip">ROS 2</span>
+      <span class="chip">Node patterns</span>
+      <span class="chip">Fallbacks</span>
+      <span class="chip">Diagnostics</span>
+      <span class="chip">Headless</span>
+      <span class="chip">Unitree</span>
+      <span class="chip">Ready-to-copy code</span>
+    </div>
+  </section>
+
+  <div class="layout">
+    <aside class="sidebar panel">
+      <h2>Nawigacja</h2>
+      <div class="tablist">
+        <button class="tab-button active" data-tab="overview">Przegląd techniczny</button>
+        <button class="tab-button" data-tab="structure">Struktura repo i pakietu</button>
+        <button class="tab-button" data-tab="pipeline">Pipeline i odpowiedzialności</button>
+        <button class="tab-button" data-tab="patterns">Wzorce implementacyjne</button>
+        <button class="tab-button" data-tab="node-example">Przykład node'a ROS2</button>
+        <button class="tab-button" data-tab="pubsub">Publisher / Subscriber</button>
+        <button class="tab-button" data-tab="params">Parametry i konfiguracja</button>
+        <button class="tab-button" data-tab="logging">Logowanie i diagnostyka</button>
+        <button class="tab-button" data-tab="safety">Fallback i safety</button>
+        <button class="tab-button" data-tab="launch">Launchery i integracja</button>
+        <button class="tab-button" data-tab="offline">Skrypty offline</button>
+        <button class="tab-button" data-tab="terminal">Komendy terminalowe</button>
+        <button class="tab-button" data-tab="headless">Headless / no-display</button>
+        <button class="tab-button" data-tab="checklist">Checklisty developerskie</button>
+      </div>
+    </aside>
+
+    <main>
+      <section id="overview" class="section panel active">
+        <h2>Przegląd techniczny</h2>
+        <p>
+          Repo rozwija warstwowy system robotyczny, w którym kolejne node’y realizują odrębne etapy:
+          percepcję, lokalizację, tracking, logikę logistyczną, misję i sterowanie. Za tor docelowy należy
+          uznawać architekturę <code>modern</code>. Warstwa <code>legacy</code> ma charakter kompatybilnościowy i migracyjny.
+        </p>
+        <div class="grid">
+          <div class="card">
+            <h3>Filozofia rozwoju</h3>
+            <p>Core loop ma być prosty, przewidywalny i bezpieczny. Rozszerzenia mają być opcjonalne.</p>
+          </div>
+          <div class="card">
+            <h3>Preferowany interfejs runtime</h3>
+            <p>ROS2 topics, messages, services, actions, parametry i logi terminalowe.</p>
+          </div>
+          <div class="card">
+            <h3>Preferowany interfejs operatorski</h3>
+            <p>Terminal, TUI, topic echo, raporty tekstowe/YAML/JSON. GUI tylko opcjonalnie.</p>
+          </div>
+          <div class="card">
+            <h3>Najważniejsza zasada</h3>
+            <p>Programista przez SSH ma rozumieć nie tylko stan, ale także zamiary robota.</p>
+          </div>
+        </div>
+        <div class="callout info">
+          <strong>Dla programisty:</strong> jeżeli dodajesz nowy moduł, myśl od razu o tym,
+          jak będzie obserwowany przez logi, TUI i topic diagnostics, oraz jak zachowa się, gdy zabraknie danych.
+        </div>
+      </section>
+
+      <section id="structure" class="section panel">
+        <h2>Struktura repo i pakietu</h2>
+        <pre><code>ros2_ws/
+└── src/
+    └── g1_light_tracking/
+        ├── CMakeLists.txt
+        ├── package.xml
+        ├── config/
+        ├── docs/
+        ├── g1_light_tracking/
+        │   ├── nodes/
+        │   ├── utils/
+        │   ├── vision/
+        │   └── standalone/
+        ├── launch/
+        ├── msg/
+        ├── profiles/
+        ├── scripts/
+        └── test/</code></pre>
+        <table>
+          <thead><tr><th>Katalog</th><th>Co tam trafia</th></tr></thead>
+          <tbody>
+            <tr><td><code>nodes/</code></td><td>Node’y runtime i główna logika ROS2.</td></tr>
+            <tr><td><code>utils/</code></td><td>Pomocnicze funkcje czyste, geometria, adaptery, przeliczenia.</td></tr>
+            <tr><td><code>vision/</code></td><td>Detektory, typy obiektów, logika percepcji.</td></tr>
+            <tr><td><code>standalone/</code></td><td>Narzędzia uruchamiane bez pełnego runtime ROS2, o ile to ma sens.</td></tr>
+            <tr><td><code>launch/</code></td><td>Integracja node’ów w kompletne warianty systemu.</td></tr>
+            <tr><td><code>config/</code></td><td>Parametry YAML. Wszystko, co zależne od środowiska, powinno tu trafiać.</td></tr>
+            <tr><td><code>msg/</code></td><td>Własne wiadomości systemu.</td></tr>
+            <tr><td><code>scripts/</code></td><td>Entry pointy instalowane jako wykonywalne skrypty ROS2.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="pipeline" class="section panel">
+        <h2>Pipeline i odpowiedzialności</h2>
+        <pre><code>camera / source
+  -> perception_node
+  -> localization_node
+  -> tracking_node
+  -> parcel_track_node
+  -> mission_node
+  -> control_node</code></pre>
+
+        <p>Każdy node ma jedną główną odpowiedzialność:</p>
+        <ul>
+          <li><strong>perception_node</strong> — wyłącznie obserwacja 2D i klasyfikacja źródeł percepcji.</li>
+          <li><strong>localization_node</strong> — przejście 2D → 3D i wybór metody estymacji.</li>
+          <li><strong>tracking_node</strong> — spójność identyfikatorów w czasie.</li>
+          <li><strong>parcel_track_node</strong> — domena logistyczna i kojarzenie QR.</li>
+          <li><strong>mission_node</strong> — wybór aktywnego celu i stanu zadania.</li>
+          <li><strong>control_node</strong> — generowanie komend ruchu i ograniczenia safety.</li>
+        </ul>
+
+        <div class="callout warn">
+          <strong>Antywzorzec:</strong> nie łącz percepcji, trackingu, logiki misji i sterowania w jednym node’zie.
+          To utrudnia debugowanie, zwiększa ryzyko i psuje możliwość modularnej rozbudowy.
+        </div>
+
+        <h3>Nagrywanie sesji rosbag</h3>
+        <p>
+          W launchu <code>unified_system.launch.py</code> można opcjonalnie uruchomić
+          <code>rosbag_recorder_node</code> przez argument <code>with_rosbag:=true</code>.
+          Node zarządza procesem <code>ros2 bag record</code>, wspiera kompresję, dzielenie plików
+          i automatyczne włączanie nagrywania tylko podczas aktywnej misji.
+        </p>
+        <pre><code># Przykład uruchomienia systemu z rejestracją bagów
+ros2 launch g1_light_tracking unified_system.launch.py mode:=modern with_rosbag:=true
+
+# Ręczne sterowanie
+ros2 service call /rosbag_recorder/enable std_srvs/srv/SetBool "{data: true}"
+ros2 service call /rosbag_recorder/rotate std_srvs/srv/SetBool "{data: true}"</code></pre>
+        <div class="callout info">
+          Oprócz bag'a zapisywany jest JSON z metadanymi sesji (timestamp, powód zatrzymania,
+          początkowy stan FSM i wskazówka scenariusza), co ułatwia późniejszą analizę logów.
+        </div>
+      </section>
+
+      <section id="patterns" class="section panel">
+        <h2>Wzorce implementacyjne</h2>
+        <h3>Preferowane wzorce</h3>
+        <ul>
+          <li>jedna główna odpowiedzialność na node,</li>
+          <li>parametry ROS2 zamiast hardcode,</li>
+          <li>jawny lokalny stan przez dataclasses,</li>
+          <li>małe funkcje pomocnicze,</li>
+          <li>czytelne fallbacki,</li>
+          <li>logi opisujące stan i zamiary,</li>
+          <li>opcjonalne moduły odseparowane od core loop.</li>
+        </ul>
+
+        <h3>Antywzorce</h3>
+        <ul>
+          <li>ukryta komunikacja poza ROS2,</li>
+          <li>core zależny od GUI,</li>
+          <li>crash przy braku opcjonalnego backendu,</li>
+          <li>brak topiców lub logów diagnostycznych,</li>
+          <li>brak wyjaśnialności dla <code>cmd_vel</code>.</li>
+        </ul>
+
+        <pre><code># Dobra praktyka: jawny fallback przy braku depth
+if self.latest_depth_hint is None:
+    self.get_logger().warning(
+        "Brak DepthNavHint. Sterowanie działa bez warstwy safety z głębi."
+    )
+    return twist</code></pre>
+      </section>
+
+      <section id="node-example" class="section panel">
+        <h2>Przykład node'a ROS2</h2>
+        <p>Poniżej wzorzec prostego node’a zgodnego ze stylem projektu.</p>
+        <pre><code>#!/usr/bin/env python3
+\"\"\"Node ROS 2 odpowiedzialny za publikację prostego statusu systemu.
+
+Node odbiera stan misji i publikuje skrócony status diagnostyczny.
+Moduł nie wpływa na sterowanie robotem i ma charakter obserwacyjny.
+\"\"\"
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from g1_light_tracking.msg import MissionState
+
+
+@dataclass
+class StatusState:
+    \"\"\"Lokalny stan node'a diagnostycznego.\"\"\"
+
+    last_state: str = "-"
+    updates: int = 0
+
+
+class StatusMirrorNode(Node):
+    \"\"\"Prosty node publikujący skrócony stan misji na osobnym topicu.\"\"\"
+
+    def __init__(self) -> None:
+        super().__init__("status_mirror_node")
+
+        self.declare_parameter("mission_state_topic", "/mission/state")
+        self.declare_parameter("status_topic", "/debug/mission_status_text")
+
+        self.mission_state_topic = str(self.get_parameter("mission_state_topic").value)
+        self.status_topic = str(self.get_parameter("status_topic").value)
+
+        self.state = StatusState()
+        self.pub = self.create_publisher(String, self.status_topic, 10)
+        self.create_subscription(MissionState, self.mission_state_topic, self.on_mission_state, 10)
+
+        self.get_logger().info(
+            f"StatusMirrorNode started. mission_state_topic={self.mission_state_topic}, "
+            f"status_topic={self.status_topic}"
+        )
+
+    def on_mission_state(self, msg: MissionState) -> None:
+        \"\"\"Aktualizuje lokalny stan i publikuje uproszczony tekst diagnostyczny.\"\"\"
+
+        self.state.last_state = msg.state
+        self.state.updates += 1
+
+        out = String()
+        out.data = f"state={msg.state} prev={msg.previous_state} updates={self.state.updates}"
+        self.pub.publish(out)
+
+
+def main(args=None) -> None:
+    rclpy.init(args=args)
+    node = StatusMirrorNode()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()</code></pre>
+      </section>
+
+      <section id="pubsub" class="section panel">
+        <h2>Publisher / Subscriber</h2>
+        <h3>Przykład subskrypcji detekcji i publikacji alarmu</h3>
+        <pre><code>from std_msgs.msg import String
+from g1_light_tracking.msg import Detection2D
+
+class DetectionAlarmNode(Node):
+    \"\"\"Node wykrywający brak detekcji przez dłuższy czas.\"\"\"
+
+    def __init__(self) -> None:
+        super().__init__("detection_alarm_node")
+        self.pub = self.create_publisher(String, "/debug/detection_alarm", 10)
+        self.create_subscription(Detection2D, "/perception/detections", self.on_detection, 50)
+        self.last_detection_time = None
+        self.timer = self.create_timer(1.0, self.check_timeout)
+
+    def on_detection(self, msg: Detection2D) -> None:
+        self.last_detection_time = self.get_clock().now()
+
+    def check_timeout(self) -> None:
+        if self.last_detection_time is None:
+            alarm = String()
+            alarm.data = "Brak jakichkolwiek detekcji od startu node'a."
+            self.pub.publish(alarm)
+            return
+
+        age = (self.get_clock().now() - self.last_detection_time).nanoseconds / 1e9
+        if age > 2.0:
+            alarm = String()
+            alarm.data = f"Brak świeżych detekcji od {age:.2f}s"
+            self.pub.publish(alarm)</code></pre>
+
+        <h3>Przykład buforowania lokalnego stanu z wielu topiców</h3>
+        <pre><code>from dataclasses import dataclass
+from geometry_msgs.msg import Twist
+from g1_light_tracking.msg import MissionTarget, DepthNavHint
+
+@dataclass
+class ControlInputs:
+    latest_target: MissionTarget | None = None
+    latest_depth_hint: DepthNavHint | None = None
+
+class ExampleControlNode(Node):
+    def __init__(self) -> None:
+        super().__init__("example_control_node")
+        self.inputs = ControlInputs()
+        self.pub = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.create_subscription(MissionTarget, "/mission/target", self.on_target, 10)
+        self.create_subscription(DepthNavHint, "/navigation/depth_hint", self.on_depth_hint, 10)
+
+    def on_target(self, msg: MissionTarget) -> None:
+        self.inputs.latest_target = msg
+        self.update_control()
+
+    def on_depth_hint(self, msg: DepthNavHint) -> None:
+        self.inputs.latest_depth_hint = msg
+
+    def update_control(self) -> None:
+        if self.inputs.latest_target is None:
+            return
+        twist = Twist()
+        # TODO: Rozwinąć pełną logikę sterowania zależną od aktywnego celu.
+        self.pub.publish(twist)</code></pre>
+      </section>
+
+      <section id="params" class="section panel">
+        <h2>Parametry i konfiguracja</h2>
+        <p>Wszystko, co zależy od środowiska, strojenia lub sprzętu, powinno być parametrem ROS2.</p>
+
+        <pre><code>class ExampleNode(Node):
+    def __init__(self) -> None:
+        super().__init__("example_node")
+
+        self.declare_parameter("input_topic", "/input")
+        self.declare_parameter("output_topic", "/output")
+        self.declare_parameter("timeout_sec", 1.5)
+        self.declare_parameter("enable_debug", True)
+
+        self.input_topic = str(self.get_parameter("input_topic").value)
+        self.output_topic = str(self.get_parameter("output_topic").value)
+        self.timeout_sec = float(self.get_parameter("timeout_sec").value)
+        self.enable_debug = bool(self.get_parameter("enable_debug").value)</code></pre>
+
+        <h3>Przykład YAML</h3>
+        <pre><code>example_node:
+  ros__parameters:
+    input_topic: /mission/target
+    output_topic: /debug/example_status
+    timeout_sec: 1.5
+    enable_debug: true</code></pre>
+
+        <h3>Uruchomienie z plikiem parametrów</h3>
+        <pre><code>cd ros2_ws
+source install/setup.bash
+# Przykład: podmień <example_wrapper_name> na nazwę rzeczywiście instalowanego wrappera z scripts/
+ros2 run g1_light_tracking <example_wrapper_name> --ros-args --params-file src/g1_light_tracking/config/example.yaml</code></pre>
+      </section>
+
+      <section id="logging" class="section panel">
+        <h2>Logowanie i diagnostyka</h2>
+        <p>Log ma pomagać operatorowi i programiście pracującemu przez SSH.</p>
+
+        <h3>Dobre logi startowe</h3>
+        <pre><code>self.get_logger().info(
+    f"Perception node started. image_topic={self.image_topic}, "
+    f"camera_info_topic={self.camera_info_topic}, "
+    f"enable_qr={self.enable_qr}, enable_apriltag={self.enable_apriltag}"
+)</code></pre>
+
+        <h3>Dobre logi zmiany stanu</h3>
+        <pre><code>if new_state != self.current_state:
+    self.get_logger().info(
+        f"Mission state changed: {self.current_state} -> {new_state}, reason={reason}"
+    )
+    self.current_state = new_state</code></pre>
+
+        <h3>Dobre logi fallbacku</h3>
+        <pre><code>if self.apriltag_detector is None:
+    self.get_logger().warning(
+        "AprilTag backend unavailable. Node działa dalej bez detekcji AprilTag."
+    )</code></pre>
+
+        <div class="callout warn">
+          <strong>Zasada:</strong> nie spamuj każdej klatki, ale zawsze loguj:
+          start, zmianę stanu, degradację, włączenie fallbacku, utratę krytycznych danych i powody blokowania ruchu.
+        </div>
+      </section>
+
+      <section id="safety" class="section panel">
+        <h2>Fallback i safety</h2>
+        <p>Brak danych nie może wyglądać jak poprawne działanie. Gdy dane są stare, niespójne albo niebezpieczne, preferowany jest bezpieczny fallback.</p>
+
+        <h3>Przykład: neutralny <code>cmd_vel</code> przy braku celu</h3>
+        <pre><code>from geometry_msgs.msg import Twist
+
+def make_safe_stop() -> Twist:
+    \"\"\"Tworzy neutralną komendę zatrzymania robota.\"\"\"
+    return Twist()
+
+if self.latest_target is None:
+    self.get_logger().warning(
+        "Brak aktywnego celu misji. Publikuję zerowe cmd_vel."
+    )
+    self.pub.publish(make_safe_stop())
+    return</code></pre>
+
+        <h3>Przykład: depth hint blokuje ruch do przodu</h3>
+        <pre><code>def apply_depth_navigation(self, twist: Twist) -> Twist:
+    \"\"\"Modyfikuje komendę ruchu na podstawie lokalnej oceny przeszkód.\"\"\"
+
+    if self.latest_depth_hint is None:
+        self.get_logger().warning(
+            "Brak DepthNavHint. Sterowanie działa bez warstwy safety z głębi."
+        )
+        return twist
+
+    if self.latest_depth_hint.obstacle_ahead:
+        self.get_logger().warning(
+            f"Obstacle ahead. forward_clearance_m="
+            f"{self.latest_depth_hint.forward_clearance_m:.2f}. Zeruję ruch do przodu."
+        )
+        twist.linear.x = 0.0
+
+    return twist</code></pre>
+
+        <h3>Przykład: opcjonalny backend nie zabija node’a</h3>
+        <pre><code>try:
+    from pupil_apriltags import Detector as AprilTagDetector
+except ImportError:
+    AprilTagDetector = None
+
+if self.enable_apriltag and AprilTagDetector is None:
+    self.get_logger().warning(
+        "pupil_apriltags nie jest dostępny. AprilTag detection została wyłączona."
+    )</code></pre>
+      </section>
+
+      <section id="launch" class="section panel">
+        <h2>Launchery i integracja</h2>
+        <p>Launchery mają składać system, a nie ukrywać logikę biznesową. Moduły opcjonalne należy uruchamiać warunkowo.</p>
+
+        <h3>Minimalny launcher z argumentem</h3>
+        <pre><code>from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+def generate_launch_description():
+    with_debug = LaunchConfiguration("with_debug")
+
+    return LaunchDescription([
+        DeclareLaunchArgument("with_debug", default_value="true"),
+
+        Node(
+            package="g1_light_tracking",
+            executable="mission_node",
+            output="screen",
+        ),
+
+        Node(
+            package="g1_light_tracking",
+            executable="debug_node",
+            output="screen",
+            condition=IfCondition(with_debug),
+        ),
+    ])</code></pre>
+
+        <h3>Wzorzec dla modułów opcjonalnych</h3>
+        <ul>
+          <li>diagnostyka, TUI, replay, recorder i GUI powinny być uruchamiane warunkowo,</li>
+          <li>brak modułu opcjonalnego nie może zepsuć launchu core,</li>
+          <li>launch ma jasno komunikować, które node’y startują.</li>
+        </ul>
+      </section>
+
+      <section id="offline" class="section panel">
+        <h2>Skrypty offline</h2>
+        <p>Jeżeli funkcja nie wymaga ROS runtime, preferuj zwykły skrypt Python zamiast wciskania wszystkiego do node’a.</p>
+
+        <h3>Przykład skryptu offline</h3>
+        <pre><code>\"\"\"Skrypt offline do analizy folderu zdjęć i wygenerowania raportu tekstowego.\"\"\"
+
+from pathlib import Path
+
+def main() -> int:
+    image_folder = Path("calibration/images")
+    report_path = Path("calibration/report.txt")
+
+    # TODO: Dodać raport JSON do dalszej automatycznej analizy.
+    report_path.write_text("Analiza zakończona.", encoding="utf-8")
+    print(f"Zapisano raport do: {report_path}")
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())</code></pre>
+
+        <h3>Przykład: kalibracja z folderu zdjęć</h3>
+        <pre><code>python calibrate_from_folder.py \
+  --image-folder calibration/images \
+  --board-cols 9 \
+  --board-rows 6 \
+  --square-size-m 0.024 \
+  --min-samples 20 \
+  --output-yaml calibration/camera_intrinsics.yaml \
+  --output-report calibration/camera_intrinsics_report.txt \
+  --save-previews \
+  --preview-output-dir calibration/previews</code></pre>
+      </section>
+
+      <section id="terminal" class="section panel">
+        <h2>Komendy terminalowe</h2>
+        <div class="button-row">
+          <button class="seq-btn ok" data-seq="build">Build</button>
+          <button class="seq-btn ok" data-seq="modern">Modern</button>
+          <button class="seq-btn ok" data-seq="hybrid">Hybrid</button>
+          <button class="seq-btn warn" data-seq="legacy">Legacy</button>
+          <button class="seq-btn" data-seq="debug">Debug node</button>
+          <button class="seq-btn" data-seq="tui">TUI</button>
+          <button class="seq-btn" data-seq="tests">Testy</button>
+        </div>
+        <div id="sequenceConsole" class="console"></div>
+
+        <h3>Przydatne one-linery</h3>
+        <pre><code># Czy żyją główne topiki?
+ros2 topic list
+
+# Czy jest stan misji?
+ros2 topic echo /mission/state
+
+# Czy robot publikuje ruch?
+ros2 topic echo /cmd_vel
+
+# Czy działa depth safety?
+ros2 topic echo /navigation/depth_hint
+
+# Czy kamera daje obraz?
+ros2 topic echo /camera/image_raw --once</code></pre>
+      </section>
+
+      <section id="headless" class="section panel">
+        <h2>Headless / no-display</h2>
+        <p>Projekt działa na robocie bez monitora. GUI może być dodatkiem, ale nie może być warunkiem działania core.</p>
+
+        <h3>Wymagania dla kodu</h3>
+        <ul>
+          <li>nie zakładaj obecności <code>DISPLAY</code>,</li>
+          <li>nie wymagaj <code>cv2.imshow</code>, Qt ani Matplotlib GUI,</li>
+          <li>preferuj TUI, logi i topic diagnostics,</li>
+          <li>błędy <code>no display</code> powinny kończyć się warningiem i wyłączeniem GUI, a nie crashem core.</li>
+        </ul>
+
+        <pre><code>import os
+
+if not os.environ.get("DISPLAY"):
+    self.get_logger().warning(
+        "Brak DISPLAY. Przechodzę w tryb headless i wyłączam wizualizację GUI."
+    )
+    self.enable_gui = False</code></pre>
+      </section>
+
+      <section id="checklist" class="section panel">
+        <h2>Checklisty developerskie</h2>
+        <h3>Przed dodaniem nowego node’a</h3>
+        <ol>
+          <li>Czy ma jedną główną odpowiedzialność?</li>
+          <li>Czy wejścia/wyjścia są jawne i idą przez ROS2?</li>
+          <li>Czy brak danych prowadzi do przewidywalnego fallbacku?</li>
+          <li>Czy logi tłumaczą stan i decyzje?</li>
+          <li>Czy działa przez SSH i headless?</li>
+          <li>Czy da się go wydzielić do osobnej paczki, jeśli urośnie?</li>
+        </ol>
+
+        <h3>Przed zmianą logiki sterowania</h3>
+        <ol>
+          <li>Czy operator będzie rozumiał, dlaczego robot jedzie lub stoi?</li>
+          <li>Czy ruch jest blokowany bezpiecznie przy starych lub złych danych?</li>
+          <li>Czy <code>cmd_vel</code> ma ścieżkę diagnostyczną?</li>
+          <li>Czy fallback publikuje bezpieczną wartość neutralną?</li>
+        </ol>
+
+        <h3>Przed mergem</h3>
+        <ol>
+          <li>Czy komentarze i docstringi po polsku nadal są zgodne z kodem?</li>
+          <li>Czy TODO zostały zachowane lub zaktualizowane?</li>
+          <li>Czy launch, README i docs nie rozjechały się z implementacją?</li>
+          <li>Czy build i podstawowe smoke testy przechodzą?</li>
+        </ol>
+
+        <div class="callout ok">
+          <strong>Najważniejsza zasada developerska:</strong>
+          kod ma być nie tylko poprawny technicznie, ale też zrozumiały,
+          obserwowalny i bezpieczny operacyjnie na robocie działającym headless.
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    Wersja techniczna dokumentacji HTML. Najlepiej utrzymywać ją równolegle z README, RUNBOOK,
+    DEPLOYMENT i plikami AGENTS, tak aby architektura, komendy i wzorce implementacyjne nie rozjeżdżały się z kodem.
+  </footer>
+</div>
+
+<script>
+const tabButtons = document.querySelectorAll('.tab-button');
+const sections = document.querySelectorAll('.section');
+
+tabButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    tabButtons.forEach(b => b.classList.toggle('active', b === btn));
+    sections.forEach(section => section.classList.toggle('active', section.id === tab));
+  });
+});
+
+const sequences = {
+  build: [
+    '$ cd ros2_ws',
+    '$ colcon build --packages-select g1_light_tracking',
+    '$ source install/setup.bash',
+    '',
+    'Kanoniczny build pakietu.'
+  ],
+  modern: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=modern',
+    '',
+    'Domyślne uruchomienie toru nowoczesnego.'
+  ],
+  hybrid: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=hybrid',
+    '',
+    'Tryb hybrydowy do migracji.'
+  ],
+  legacy: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=legacy',
+    '',
+    'Tryb kompatybilności legacy.'
+  ],
+  debug: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 run g1_light_tracking debug_node',
+    '',
+    'Logowanie najważniejszych topiców w terminalu.'
+  ],
+  tui: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 run g1_light_tracking tui_monitor_node',
+    '',
+    'Terminal User Interface do obserwacji systemu.'
+  ],
+  tests: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ python3 -m pytest src/g1_light_tracking/test -v',
+    '',
+    'Podstawowa weryfikacja testowa pakietu.'
+  ],
+  rosbag: [
+    '$ cd ros2_ws',
+    '$ source install/setup.bash',
+    '$ ros2 launch g1_light_tracking unified_system.launch.py mode:=modern with_rosbag:=true',
+    '$ ros2 service call /rosbag_recorder/enable std_srvs/srv/SetBool "{data: true}"',
+    '',
+    'Uruchomienie i sterowanie rejestratorem sesji rosbag.'
+  ]
+};
+
+const consoleEl = document.getElementById('sequenceConsole');
+
+function renderSequence(key) {
+  consoleEl.innerHTML = '';
+  (sequences[key] || ['Brak danych']).forEach(line => {
+    const div = document.createElement('div');
+    div.className = 'console-line';
+    div.textContent = line;
+    consoleEl.appendChild(div);
+  });
+}
+
+document.querySelectorAll('[data-seq]').forEach(btn => {
+  btn.addEventListener('click', () => renderSequence(btn.dataset.seq));
+});
+
+renderSequence('build');
+</script>
+</body>
+</html>

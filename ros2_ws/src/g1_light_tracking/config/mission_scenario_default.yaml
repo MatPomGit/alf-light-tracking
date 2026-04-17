@@ -1,0 +1,115 @@
+# Scenariusz domyślny dla mission_node.
+# Ten plik można rozwijać o nowe warianty zachowania bez przepisywania node'a.
+#
+# Obsługiwane warunki:
+# - parcel_exists
+# - parcel_has_qr
+# - parcel_identified
+# - person_exists
+# - shelf_exists
+# - light_exists
+# - planar_exists
+# - light_color_in_zone
+# - light_aligned_for_drop
+# - person_missing_timeout
+# - parcel_missing_timeout
+# - light_missing_timeout
+# - navigate_missing_timeout
+# - drop_finished_timeout
+#
+# Składnia warunków:
+# condition: "predicate_name"
+# condition: {all: ["predicate_a", "predicate_b"]}
+# condition: {any: ["predicate_a", "predicate_b"]}
+# condition: {not: "predicate_name"}
+
+name: default_delivery_flow
+initial_state: search
+terminal_states:
+  - drop
+
+states:
+  search:
+    target_policy: generic
+    reason: searching for person, parcel, shelf or drop cue
+    transitions:
+      - target: verify_qr
+        condition:
+          all: [parcel_exists, parcel_has_qr]
+        actions: [set_active_parcel_from_parcel]
+
+      - target: receive_parcel
+        condition: parcel_exists
+        actions: [set_active_parcel_from_parcel]
+
+      - target: approach_person
+        condition: person_exists
+
+      - target: navigate
+        condition: shelf_exists
+
+  approach_person:
+    target_policy: person
+    reason: person detected but no active parcel yet
+    transitions:
+      - target: verify_qr
+        condition:
+          all: [parcel_exists, parcel_has_qr]
+        actions: [set_active_parcel_from_parcel]
+
+      - target: receive_parcel
+        condition: parcel_exists
+        actions: [set_active_parcel_from_parcel]
+
+      - target: search
+        condition: person_missing_timeout
+
+  receive_parcel:
+    target_policy: parcel
+    reason: parcel visible but QR not identified yet
+    transitions:
+      - target: verify_qr
+        condition:
+          all: [parcel_exists, parcel_has_qr]
+        actions: [set_active_parcel_from_parcel]
+
+      - target: search
+        condition: parcel_missing_timeout
+
+  verify_qr:
+    target_policy: parcel
+    reason: parcel has QR or binding, waiting for identification
+    transitions:
+      - target: navigate
+        condition: parcel_identified
+
+      - target: search
+        condition: parcel_missing_timeout
+
+  navigate:
+    target_policy: parcel
+    reason: identified parcel available, navigating to destination cues
+    transitions:
+      - target: align
+        condition: light_color_in_zone
+
+      - target: search
+        condition: navigate_missing_timeout
+
+  align:
+    target_policy: align
+    reason: drop target visible, performing final alignment
+    transitions:
+      - target: drop
+        condition: light_aligned_for_drop
+
+      - target: navigate
+        condition: light_missing_timeout
+
+  drop:
+    target_policy: drop
+    reason: drop conditions satisfied
+    transitions:
+      - target: search
+        condition: drop_finished_timeout
+        actions: [clear_active_parcel]

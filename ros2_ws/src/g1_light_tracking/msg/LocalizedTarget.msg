@@ -1,0 +1,16 @@
+builtin_interfaces/Time stamp
+string frame_id
+string target_type
+string class_name
+float32 confidence
+geometry_msgs/Point position
+geometry_msgs/Vector3 dimensions
+float32 center_u
+float32 center_v
+float32 x_min
+float32 y_min
+float32 x_max
+float32 y_max
+string color_label
+string payload
+string source_method

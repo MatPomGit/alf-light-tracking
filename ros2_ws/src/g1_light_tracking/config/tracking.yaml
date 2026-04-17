@@ -1,0 +1,43 @@
+tracking_node:
+  ros__parameters:
+    min_spot_area: 3          # dla lasera
+    max_spot_area: 500        # dla większych plamek
+    min_circularity: 0.5      # odrzuca refleksy liniowe
+    measurement_noise: 25.0   # ufność pomiarom (px)
+    tracking_timeout_ms: 200  # jak długo przewidujemy bez pomiaru
+    localized_topic: /localization/targets
+    tracked_topic: /tracking/targets
+    debug_motion_topic: /tracking/global_motion_debug
+    association_distance_m: 0.75
+    association_uv_px: 75.0
+    ema_alpha: 0.30
+    max_missed_frames: 8
+    min_confirmed_hits: 3
+    kalman_target_types: ["person", "parcel_box", "shelf"]
+    process_noise_pos: 1.0e-2
+    process_noise_vel: 5.0e-2
+    measurement_noise_pos: 8.0e-2
+    publish_unconfirmed: false
+    reject_low_confidence_before_hits: 2
+    min_confidence_default: 0.45
+    min_confidence_person: 0.55
+    min_confidence_parcel_box: 0.50
+    min_confidence_shelf: 0.45
+    min_confidence_qr: 0.80
+    min_confidence_apriltag: 0.80
+    min_confidence_light_spot: 0.95
+    bbox_iou_gate: 0.10
+    max_bbox_center_jump_px: 110.0
+    stale_unconfirmed_purge_hits: 1
+    enable_global_motion_compensation: true
+    motion_source_topic: /debug/calibration_preview
+    gmc_alpha: 0.25
+    gmc_max_shift_px: 60.0
+    gmc_max_corners: 250
+    gmc_quality_level: 0.01
+    gmc_min_distance: 8.0
+    gmc_block_size: 7
+    gmc_lk_win_size: 21
+    gmc_lk_max_level: 3
+    gmc_homography_ransac_thresh: 3.0
+    ignore_gmc_for_marker_types: ["qr", "apriltag"]

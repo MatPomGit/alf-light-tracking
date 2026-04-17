@@ -1,0 +1,7 @@
+numpy
+opencv-python
+pyrealsense2
+
+# Optional ROS message packages required only for hardware bridges:
+# - unitree_api
+# - unitree_hg

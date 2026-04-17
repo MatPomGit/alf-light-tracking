@@ -1,0 +1,22 @@
+topdown_odom_viewer_node:
+  ros__parameters:
+    odom_topic: /visual_slam/odom
+    tracked_topic: /tracking/targets
+    parcel_track_topic: /tracking/parcel_tracks
+    mission_target_topic: /mission/target
+    window_name: g1_light_tracking ROS2 Top-Down
+    scale_px_per_m: 80.0
+    canvas_width: 920
+    canvas_height: 920
+    max_points: 3000
+    use_global_frame: true
+    global_frame: map
+    odom_frame: odom
+    base_frame: base_link
+    draw_local_path: true
+    grid_spacing_m: 0.5
+    major_grid_every: 2
+    draw_targets: true
+    draw_parcels: true
+    draw_mission_target: true
+    draw_legend: true

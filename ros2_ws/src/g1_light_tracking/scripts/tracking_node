@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+from g1_light_tracking.nodes.tracking_node import main
+
+if __name__ == '__main__':
+    main()

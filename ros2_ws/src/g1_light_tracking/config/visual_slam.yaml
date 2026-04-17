@@ -1,0 +1,17 @@
+visual_slam_node:
+  ros__parameters:
+    image_topic: /camera/image_raw
+    depth_image_topic: /camera/depth/image_raw
+    camera_info_topic: /camera/camera_info
+    odom_topic: /visual_slam/odom
+    path_topic: /visual_slam/path
+    debug_image_topic: /visual_slam/debug_image
+    use_depth_if_available: true
+    depth_timeout_sec: 1.0
+    max_features: 1200
+    good_match_ratio: 0.75
+    min_inliers: 25
+    feature_quality_reset_frames: 8
+    scale_from_depth_min_m: 0.20
+    scale_from_depth_max_m: 6.0
+    debug_draw_matches: true

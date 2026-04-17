@@ -1,0 +1,13 @@
+perception_node:
+  ros__parameters:
+    image_topic: /camera/image_raw
+    camera_info_topic: /camera/camera_info
+    detection_topic: /perception/detections
+    debug_image_topic: /debug/perception_image
+    yolo_model_path: yolov8n.pt
+    yolo_confidence: 0.35
+    enable_qr: true
+    enable_apriltag: true
+    enable_light_spot: true
+    light_threshold: 240
+    target_classes: ["person", "box", "package", "shelf", "bookcase", "table"]

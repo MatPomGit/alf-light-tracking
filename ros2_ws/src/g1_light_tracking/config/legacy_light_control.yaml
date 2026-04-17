@@ -1,0 +1,15 @@
+g1_light_follower_node:
+  ros__parameters:
+    detection_topic: /light_tracking/detection_json
+    cmd_vel_topic: /cmd_vel
+    control_rate_hz: 20.0
+    target_distance_m: 0.8
+    detection_timeout_s: 0.6
+    min_area: 5.0
+    k_linear: 0.7
+    k_angular: 0.01
+    max_linear_speed: 1.0
+    max_angular_speed: 1.0
+    allow_backward: false
+    linear_no_depth_speed: 0.35
+    camera_cx: 319.5
