@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from typing import Dict, List, Optional, Tuple, Type
 
@@ -8,6 +9,16 @@ import numpy as np
 
 from .detector_interfaces import BaseDetector, DetectorConfig
 from .types import Detection
+
+# [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+# CO ZMIENIONO: Wprowadzono logger modułowy i pamięć ostatniej konfiguracji
+# (`_LAST_CONFIG_SNAPSHOT`) do wykrywania zmian parametrów pomiędzy wywołaniami.
+# DLACZEGO: Pozwala to raportować zmiany strojenia bez ingerencji w API funkcji.
+# JAK TO DZIAŁA: Snapshot ostatniej konfiguracji jest porównywany z bieżącym
+# i aktualizowany po każdym wywołaniu adaptera konfiguracyjnego.
+# TODO: Dodać możliwość całkowitego wyłączenia tych logów flagą środowiskową.
+LOGGER = logging.getLogger(__name__)
+_LAST_CONFIG_SNAPSHOT: Optional[Dict[str, float | int | str | bool | None]] = None
 
 
 COLOR_PRESETS: Dict[str, List[Tuple[Tuple[int, int, int], Tuple[int, int, int]]]] = {
@@ -370,6 +381,61 @@ def _detection_score(det: Detection, peak_intensity: float, area_ref: float) -> 
     return (0.45 * area_norm) + (0.35 * circularity_norm) + (0.20 * peak_norm)
 
 
+def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bool | None]:
+    # [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+    # CO ZMIENIONO: Dodano normalizację `DetectorConfig` do słownika prymitywów.
+    # DLACZEGO: Jednolita reprezentacja upraszcza porównanie parametrów i logowanie.
+    # JAK TO DZIAŁA: Funkcja konwertuje pola konfiguracji do typów prostych
+    # (`int`, `float`, `str`, `bool`, `None`) gotowych do porównania i serializacji.
+    # TODO: Rozważyć automatyczne generowanie snapshotu z adnotacji dataclass.
+    return {
+        "track_mode": config.track_mode,
+        "blur": int(config.blur),
+        "threshold": int(config.threshold),
+        "erode_iter": int(config.erode_iter),
+        "dilate_iter": int(config.dilate_iter),
+        "min_area": float(config.min_area),
+        "max_area": float(config.max_area),
+        "max_spots": int(config.max_spots),
+        "min_detection_confidence": float(config.min_detection_confidence),
+        "min_detection_score": float(config.min_detection_score),
+        "min_top1_top2_margin": float(config.min_top1_top2_margin),
+        "min_persistence_frames": int(config.min_persistence_frames),
+        "persistence_radius_px": float(config.persistence_radius_px),
+        "legacy_mode": bool(config.legacy_mode),
+        "color_name": config.color_name,
+        "hsv_lower": config.hsv_lower,
+        "hsv_upper": config.hsv_upper,
+        "roi": config.roi,
+    }
+
+
+def _log_parameter_changes(config: DetectorConfig) -> None:
+    global _LAST_CONFIG_SNAPSHOT
+    current_snapshot = _config_snapshot(config)
+    if _LAST_CONFIG_SNAPSHOT is None:
+        _LAST_CONFIG_SNAPSHOT = current_snapshot
+        return
+    changed_params = [
+        (name, _LAST_CONFIG_SNAPSHOT[name], current_value)
+        for name, current_value in current_snapshot.items()
+        if _LAST_CONFIG_SNAPSHOT.get(name) != current_value
+    ]
+    # [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+    # CO ZMIENIONO: Dodano logowanie zmian parametrów detektora pomiędzy kolejnymi
+    # wywołaniami, bazujące na migawce konfiguracji.
+    # DLACZEGO: Przy strojeniu online ważna jest szybka diagnoza, które parametry
+    # zostały zmienione i jak wpływają na wynik detekcji.
+    # JAK TO DZIAŁA: Funkcja porównuje bieżący snapshot z poprzednim i emituje log
+    # `INFO` tylko dla różniących się pól, po czym aktualizuje snapshot referencyjny.
+    # TODO: Zastąpić globalny snapshot cachem per-strumień kamery, gdy pipeline
+    # będzie obsługiwać wiele źródeł obrazu równolegle.
+    if changed_params:
+        details = ", ".join([f"{name}: {old_value} -> {new_value}" for name, old_value, new_value in changed_params])
+        LOGGER.info("DetectorConfig changed: %s", details)
+    _LAST_CONFIG_SNAPSHOT = current_snapshot
+
+
 def detect_spots(
     frame: np.ndarray,
     track_mode: str,
@@ -493,6 +559,7 @@ def detect_spots_with_config(
     config: DetectorConfig,
     persistence_filter: Optional[DetectionPersistenceFilter] = None,
 ):
+    _log_parameter_changes(config)
     # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
     # CO ZMIENIONO: Adapter konfiguracyjny przekazuje nowy próg
     # `min_top1_top2_margin` oraz propaguje słownik diagnostyczny z detektora.
