@@ -223,6 +223,48 @@ To przełącza pipeline na starszą logikę selekcji detekcji (sortowanie po `ar
 
 ---
 
+
+<!--
+[AI-CHANGE | 2026-04-17 13:32 UTC | v0.109]
+CO ZMIENIONO: Dodano sekcję operacyjną opisującą minimalną integrację narzędzia kalibracji percepcji z nagrania wzorcowego oraz checklistę walidacji po kalibracji.
+DLACZEGO: Użytkownik potrzebuje krótkiej i praktycznej instrukcji uruchomienia kalibratora oraz kryteriów oceny jakości wyniku względem konfiguracji bazowej.
+JAK TO DZIAŁA: Sekcja podaje gotową komendę CLI, wyjaśnia znaczenie plików `perception.yaml` i raportu Markdown oraz sugeruje wymagania dla materiału referencyjnego. Checklista prowadzi przez walidację na innym fragmencie, aby ograniczyć ryzyko false-positive.
+TODO: Dodać tabelę z progami akceptacji (np. max false-positive/min recall) dla różnych scen testowych i warunków oświetlenia.
+-->
+
+## Kalibracja percepcji z nagrania wzorcowego
+
+Minimalny przebieg (uruchomienie z katalogu repozytorium):
+
+```bash
+python3 ros2_ws/g1_light_tracking/tools/calibrate_perception.py \
+  --video /ABS/PATH/to/reference_clip.mp4 \
+  --base-config ros2_ws/g1_light_tracking/config/perception.yaml \
+  --output-config ros2_ws/g1_light_tracking/config/perception.yaml \
+  --output-report ros2_ws/g1_light_tracking/logs/perception_calibration_report.md
+```
+
+Pliki wynikowe:
+
+- `perception.yaml` – końcowa konfiguracja progów detekcji używana przez node detektora.
+  Narzędzie zachowuje tryb bezpieczny: gdy kalibracja jest niewiarygodna, utrzymuje wartości bazowe (preferencja odrzucenia próbki zamiast błędnej detekcji).
+- raport (`perception_calibration_report.md`) – podsumowanie statystyk próbki, status wiarygodności i uzasadnienie decyzji o zastosowaniu lub odrzuceniu nowych progów.
+
+Zalecenia dla nagrania referencyjnego:
+
+- nagranie powinno zawierać zarówno poprawne trafienia plamki, jak i trudne tło (odbicia, prześwietlenia),
+- utrzymaj stabilne parametry kamery (ekspozycja/ISO/balans bieli) zgodne z docelowym deploymentem,
+- unikaj zbyt krótkich klipów; materiał musi mieć reprezentatywną liczbę klatek dla stabilnych statystyk kalibracji,
+- po każdej istotnej zmianie optyki, pozycji kamery lub oświetlenia wykonaj rekalibrację.
+
+### Checklista walidacji po kalibracji
+
+- [ ] Uruchom detektor na **innym** fragmencie nagrania niż materiał kalibracyjny i potwierdź stabilność wyniku.
+- [ ] Porównaj względem konfiguracji bazowej liczbę odrzuceń (`detected=false`/brak publikacji) oraz false-positive.
+- [ ] Jeśli false-positive rosną lub wynik jest niestabilny, wróć do konfiguracji bazowej i powtórz kalibrację na lepszej próbce.
+
+---
+
 ## Dzienniki i diagnostyka
 
 - Log przykładowego uruchomienia: `ros2_ws/g1_light_tracking/logs/running_log_g1_20260414.log`
