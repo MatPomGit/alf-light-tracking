@@ -124,6 +124,14 @@ def _apply_morphology(mask: np.ndarray, erode_iter: int, dilate_iter: int) -> np
 class DetectionPersistenceFilter:
     """Lekki filtr stanowy potwierdzający detekcję dopiero po utrzymaniu w czasie."""
 
+    # [AI-CHANGE | 2026-04-17 13:05 UTC | v0.94]
+    # CO ZMIENIONO: Stan ruchu toru został zapisany jawnie jako składowe prędkości
+    # `vx` i `vy` oraz flaga `_has_velocity`.
+    # DLACZEGO: Rozdzielenie składowych upraszcza predykcję i aktualizację modelu
+    # ruchu oraz eliminuje niejawne przypadki `None` w obliczeniach.
+    # JAK TO DZIAŁA: Po inicjalizacji i resecie prędkość wynosi 0, a predykcja
+    # korzysta z (vx, vy) dopiero gdy `_has_velocity=True`.
+    # TODO: Rozważyć przechowywanie niepewności prędkości do adaptacji progów.
     def __init__(
         self,
         min_persistence_frames: int = 1,
@@ -152,7 +160,9 @@ class DetectionPersistenceFilter:
         self._frame_shape: Optional[Tuple[int, int]] = None
         self._roi_box: Optional[Tuple[int, int, int, int]] = None
         self._last_centroid: Optional[Tuple[float, float]] = None
-        self._velocity: Optional[Tuple[float, float]] = None
+        self._velocity_x: float = 0.0
+        self._velocity_y: float = 0.0
+        self._has_velocity: bool = False
         self._last_area: Optional[float] = None
         self._last_aspect_ratio: Optional[float] = None
         self._last_brightness: Optional[float] = None
@@ -163,7 +173,9 @@ class DetectionPersistenceFilter:
         self._frame_shape = None
         self._roi_box = None
         self._last_centroid = None
-        self._velocity = None
+        self._velocity_x = 0.0
+        self._velocity_y = 0.0
+        self._has_velocity = False
         self._last_area = None
         self._last_aspect_ratio = None
         self._last_brightness = None
@@ -179,12 +191,12 @@ class DetectionPersistenceFilter:
     def _predict_centroid(self, missed_frames: int) -> Tuple[float, float]:
         if self._last_centroid is None:
             raise ValueError("Brak centroidu do predykcji.")
-        if self._velocity is None:
+        if not self._has_velocity:
             return self._last_centroid
         dt_frames = max(1.0, float(missed_frames + 1))
         return (
-            self._last_centroid[0] + (self._velocity[0] * dt_frames),
-            self._last_centroid[1] + (self._velocity[1] * dt_frames),
+            self._last_centroid[0] + (self._velocity_x * dt_frames),
+            self._last_centroid[1] + (self._velocity_y * dt_frames),
         )
 
     def _detection_aspect_ratio(self, detection: Detection) -> float:
@@ -225,11 +237,40 @@ class DetectionPersistenceFilter:
         miss_radius_boost = min(1.0, 0.25 * float(missed_frames))
         allowed_radius = max(1.0, self.persistence_radius_px * (1.0 + miss_radius_boost))
         distance_cost = math.hypot(dx, dy) / allowed_radius
-        area_cost = abs(float(candidate.area) - self._last_area) / max(self._last_area, 1.0)
+        # [AI-CHANGE | 2026-04-17 13:05 UTC | v0.94]
+        # CO ZMIENIONO: Zastosowano nieliniowe kary za zmianę pola i aspect ratio.
+        # DLACZEGO: Duże rozbieżności rozmiaru/kształtu częściej oznaczają błędną
+        # asocjację, więc koszt powinien rosnąć szybciej niż liniowo.
+        # JAK TO DZIAŁA: Najpierw liczona jest relatywna delta, a następnie
+        # wzmacniana przez czynnik zależny od samej delty (`delta * (1+k*delta)`).
+        # TODO: Skalibrować współczynniki nieliniowości per tryb detektora.
+        area_delta = abs(float(candidate.area) - self._last_area) / max(self._last_area, 1.0)
+        area_cost = area_delta * (1.0 + (0.60 * area_delta))
         candidate_aspect_ratio = self._detection_aspect_ratio(candidate)
-        shape_cost = abs(candidate_aspect_ratio - self._last_aspect_ratio) / max(self._last_aspect_ratio, 1e-3)
+        shape_delta = abs(candidate_aspect_ratio - self._last_aspect_ratio) / max(self._last_aspect_ratio, 1e-3)
+        shape_cost = shape_delta * (1.0 + (0.80 * shape_delta))
         brightness_cost = abs(candidate_brightness - self._last_brightness) / 255.0
         return (0.50 * distance_cost) + (0.20 * area_cost) + (0.20 * shape_cost) + (0.10 * brightness_cost)
+
+    # [AI-CHANGE | 2026-04-17 13:05 UTC | v0.94]
+    # CO ZMIENIONO: Dodano jawny koszt innowacji liczony wyłącznie względem
+    # przewidzianej pozycji (model stałej prędkości) oraz normalizowanej odległości.
+    # DLACZEGO: Separacja kosztu asocjacji i innowacji pozwala odrzucać pojedyncze
+    # skoki pozycji bez utraty informacji o różnicach cech geometrycznych.
+    # JAK TO DZIAŁA: Funkcja zwraca odległość od centroidu przewidzianego przez
+    # (vx, vy), znormalizowaną przez promień asocjacji rozszerzony o miss-count.
+    # TODO: Dodać wariant z progowaniem Mahalanobisa po estymacji kowariancji ruchu.
+    def _innovation_cost(
+        self,
+        candidate: Detection,
+        predicted_centroid: Tuple[float, float],
+        missed_frames: int,
+    ) -> float:
+        dx = float(candidate.x) - predicted_centroid[0]
+        dy = float(candidate.y) - predicted_centroid[1]
+        miss_radius_boost = min(1.0, 0.25 * float(missed_frames))
+        allowed_radius = max(1.0, self.persistence_radius_px * (1.0 + miss_radius_boost))
+        return math.hypot(dx, dy) / allowed_radius
 
     def apply(
         self,
@@ -237,21 +278,19 @@ class DetectionPersistenceFilter:
         frame: np.ndarray,
         roi_box: Tuple[int, int, int, int],
     ) -> List[Detection]:
-        # [AI-CHANGE | 2026-04-17 19:00 UTC | v0.89]
-        # CO ZMIENIONO: Filtr przechowuje stan prędkości (vx, vy), przewiduje kolejną
-        # pozycję toru i asocjuje detekcje do tej predykcji. Koszt asocjacji został
-        # rozszerzony o karę za zmianę rozmiaru i proporcji bbox, a dodatkowy próg
-        # innowacji odrzuca niepewne klatki zamiast aktualizacji toru.
-        # DLACZEGO: Asocjacja wyłącznie do ostatniej obserwacji była mniej odporna
-        # na szybki ruch oraz fałszywe dopasowania obiektów o innym kształcie.
-        # Odrzucanie dużej innowacji realizuje zasadę „lepiej brak niż błędny wynik”.
-        # JAK TO DZIAŁA: Predykcja centroidu wykorzystuje model stałej prędkości.
-        # Dla kandydatów liczony jest koszt: odległość od predykcji + różnica pola +
-        # różnica aspect ratio + różnica jasności. Jeśli najlepszy koszt przekracza
-        # próg asocjacji lub próg innowacji, klatka jest traktowana jako miss i tor
-        # nie jest aktualizowany niepewną obserwacją.
-        # TODO: Dodać adaptacyjny model szumu ruchu i dynamiczne progi innowacji
-        # zależne od prędkości obiektu oraz czasu od ostatniego trafienia.
+        # [AI-CHANGE | 2026-04-17 13:05 UTC | v0.94]
+        # CO ZMIENIONO: Zmieniono logikę filtra tak, aby:
+        # 1) utrzymywać jawny stan prędkości (vx, vy),
+        # 2) asocjować kandydatów względem pozycji przewidzianej,
+        # 3) wzmacniać karę przy dużej zmianie rozmiaru/kształtu,
+        # 4) odrzucać klatkę przy przekroczeniu progu innowacji.
+        # DLACZEGO: To ogranicza błędne „przeskoki” toru i wymusza konserwatywne
+        # zachowanie filtra, zgodnie z zasadą „lepiej brak wyniku niż wynik błędny”.
+        # JAK TO DZIAŁA: Najpierw liczona jest predykcja z modelu stałej prędkości.
+        # Następnie wybierany jest kandydat o minimalnym koszcie asocjacji (predykcja
+        # + cechy obiektu), a po wyborze sprawdzany jest osobny koszt innowacji.
+        # Gdy innowacja jest zbyt duża, klatka trafia do ścieżki miss/no detection.
+        # TODO: Rozszerzyć stan o przyspieszenie i wygładzanie prędkości EMA.
         if frame.ndim < 2:
             raise ValueError("frame musi mieć co najmniej 2 wymiary.")
 
@@ -273,7 +312,9 @@ class DetectionPersistenceFilter:
         ):
             init_candidate, init_brightness = max(brightness_cache, key=lambda item: item[0].confidence)
             self._last_centroid = (float(init_candidate.x), float(init_candidate.y))
-            self._velocity = (0.0, 0.0)
+            self._velocity_x = 0.0
+            self._velocity_y = 0.0
+            self._has_velocity = False
             self._last_area = float(init_candidate.area)
             self._last_aspect_ratio = self._detection_aspect_ratio(init_candidate)
             self._last_brightness = float(init_brightness)
@@ -303,8 +344,15 @@ class DetectionPersistenceFilter:
         if best_candidate is None:
             return self._handle_miss()
 
-        innovation_limit = min(self.association_cost_limit, self.innovation_cost_limit)
-        if best_cost > innovation_limit:
+        if best_cost > self.association_cost_limit:
+            return self._handle_miss()
+
+        innovation_cost = self._innovation_cost(
+            candidate=best_candidate,
+            predicted_centroid=predicted_centroid,
+            missed_frames=missed_frames,
+        )
+        if innovation_cost > self.innovation_cost_limit:
             return self._handle_miss()
 
         previous_centroid = self._last_centroid
@@ -314,10 +362,9 @@ class DetectionPersistenceFilter:
         self._hit_count += 1
         self._last_centroid = (float(best_candidate.x), float(best_candidate.y))
         delta_frames = max(1.0, float(missed_frames + 1))
-        self._velocity = (
-            (self._last_centroid[0] - previous_centroid[0]) / delta_frames,
-            (self._last_centroid[1] - previous_centroid[1]) / delta_frames,
-        )
+        self._velocity_x = (self._last_centroid[0] - previous_centroid[0]) / delta_frames
+        self._velocity_y = (self._last_centroid[1] - previous_centroid[1]) / delta_frames
+        self._has_velocity = True
         self._last_area = float(best_candidate.area)
         self._last_aspect_ratio = self._detection_aspect_ratio(best_candidate)
         self._last_brightness = float(best_brightness)
