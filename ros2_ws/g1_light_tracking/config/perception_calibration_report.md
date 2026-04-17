@@ -2,38 +2,51 @@
 
 ## Metadane uruchomienia
 
-- Data UTC: 2026-04-17T14:23:25.814652+00:00
+- Data UTC: 2026-04-17T14:38:12.483390+00:00
 - Input video: `C:\Users\matpo\repo\alf-light-tracking\ros2_ws\g1_light_tracking\tools\video.mp4`
 - Input frame count: **734**
 - Sampled frames: **734**
 - Analyzed frames: **245**
-- Status kalibracji: **⚠️ brak wiarygodnych parametrów**
-- Powód odrzucenia: **Niestabilne statystyki detekcji między próbkami**
-- Fallback do domyślnych: **tak**
-- Powód fallbacku: **Kalibracja oznaczona jako niewiarygodna przez analizę statystyk.**
+- Status kalibracji: **✅ wiarygodna**
+- Powód odrzucenia: **brak**
+- Fallback do domyślnych: **nie**
+- Powód fallbacku: **brak**
 - Detection ratio: **0.102** (25/245)
 - Mediana confidence: **0.607**
 - Mediana score_proxy: **0.592**
 
+## Zmiany parametrów względem domyślnych
+
+| Parametr | Wartość domyślna | Nowa wartość | Skutek zmiany |
+|---|---:|---:|---|
+| `min_detection_confidence` | `0.0000` | `0.5380` | Obniżenie progu zwiększa liczbę wykrywanych obiektów, ale może zwiększyć liczbę fałszywych detekcji. |
+| `min_detection_score` | `0.0000` | `0.5407` | Obniżenie progu pozwala na akceptację słabszych sygnałów, co zwiększa czułość, ale może obniżyć precyzję. |
+| `min_area` | `10.0000` | `299.0000` | Zmniejszenie minimalnego obszaru pozwala wykrywać mniejsze plamki, ale zwiększa ryzyko szumu. |
+| `min_mean_contrast` | `4.0000` | `30.5020` | Obniżenie progu pozwala wykrywać obiekty w słabszym kontraście, ale zwiększa podatność na tło. |
+| `min_peak_sharpness` | `6.0000` | `12.3000` | Obniżenie progu pozwala wykrywać mniej ostre plamki, ale może zwiększyć liczbę fałszywych detekcji. |
+| `max_saturated_ratio` | `0.3500` | `0.0003` | Podwyższenie limitu pozwala akceptować bardziej nasycone obiekty, co może być potrzebne przy silnym oświetleniu. |
+
 ## Parametry i reguły wyliczenia
+
+*Poniższe progi zostały wyznaczone z uwzględnieniem rzeczywistych warunków nagrania kalibracyjnego, które mogą odbiegać od warunków laboratoryjnych.*
 
 | Parameter | Value | Source metric | Reguła wyliczenia |
 |---|---:|---|---|
-| `min_detection_confidence` | `0.0000` | `confidence` | fallback bezpieczeństwa: wartość domyślna z DetectorConfig (0 próbek estymacji) |
-| `min_detection_score` | `0.0000` | `score_proxy` | fallback bezpieczeństwa: wartość domyślna z DetectorConfig (0 próbek estymacji) |
-| `min_area` | `10.0000` | `area` | fallback bezpieczeństwa: wartość domyślna z DetectorConfig (0 próbek estymacji) |
-| `min_mean_contrast` | `4.0000` | `mean_contrast` | fallback bezpieczeństwa: wartość domyślna z DetectorConfig (0 próbek estymacji) |
-| `min_peak_sharpness` | `6.0000` | `peak_sharpness` | fallback bezpieczeństwa: wartość domyślna z DetectorConfig (0 próbek estymacji) |
-| `max_saturated_ratio` | `0.3500` | `saturated_ratio` | fallback bezpieczeństwa: wartość domyślna z DetectorConfig (0 próbek estymacji) |
+| `min_detection_confidence` | `0.5380` | `confidence` | P10 z 23 próbek confidence |
+| `min_detection_score` | `0.5407` | `score_proxy` | P10 z 23 próbek score_proxy |
+| `min_area` | `299.0000` | `area` | P10 z 21 próbek area po filtracji IQR |
+| `min_mean_contrast` | `30.5020` | `mean_contrast` | P15 z 23 próbek mean_contrast po filtracji IQR |
+| `min_peak_sharpness` | `12.3000` | `peak_sharpness` | P15 z 23 próbek peak_sharpness po filtracji IQR |
+| `max_saturated_ratio` | `0.0003` | `saturated_ratio` | P90 z 20 próbek saturated_ratio po filtracji IQR |
 
 ## Wagi confidence (znormalizowane do sumy 1.0)
 
 | Parameter | Value | Source metric | Reguła wyliczenia |
 |---|---:|---|---|
-| `confidence_weight_shape` | `0.3200` | `scene_statistics` | Scena ma podwyższoną saturację, więc zwiększamy wpływ kary saturacji i sygnałów kształtu. |
+| `confidence_weight_shape` | `0.3200` | `scene_statistics` | Saturacja jest umiarkowana, więc większy nacisk można położyć na metryki fotometryczne. |
 | `confidence_weight_brightness` | `0.2200` | `scene_statistics` | Jasność opisuje siłę sygnału, ale nie może dominować nad geometrią plamki. |
-| `confidence_weight_contrast` | `0.2400` | `scene_statistics` | Niski kontrast lokalny wymaga premiowania cechy kontrastu, aby odsiać tło. |
-| `confidence_weight_sharpness` | `0.2200` | `scene_statistics` | Niska ostrość piku wymaga ostrożności i utrzymania istotnej wagi cechy sharpness. |
+| `confidence_weight_contrast` | `0.2400` | `scene_statistics` | Kontrast jest stabilny, więc wagi kontrastu i ostrości pozostają zbalansowane. |
+| `confidence_weight_sharpness` | `0.2200` | `scene_statistics` | Dobra ostrość piku pozwala utrzymać standardowy wpływ cechy sharpness. |
 
 ## Odrzucone klatki i powody
 

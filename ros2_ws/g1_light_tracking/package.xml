@@ -4,7 +4,7 @@
   <version>0.1.0</version>
   <description>Single-package ROS2 stack for Unitree G1 light tracking using JSON messages.</description>
 
-  <maintainer email="you@example.com">Your Name</maintainer>
+  <maintainer email="Tomek@example.com">Tomek</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_python</buildtool_depend>

@@ -4,13 +4,13 @@ light_spot_detector_node:
     detection_topic: /light_tracking/detection_json
     camera_frame: camera_link
     brightness_threshold: 245
-    min_area: 10.0
-    min_detection_confidence: 0.0
-    min_detection_score: 0.0
+    min_area: 299.0
+    min_detection_confidence: 0.5379932478783044
+    min_detection_score: 0.5407465036347824
     min_top1_top2_margin: 0.0
-    min_mean_contrast: 4.0
-    min_peak_sharpness: 6.0
-    max_saturated_ratio: 0.35
+    min_mean_contrast: 30.501951164496106
+    min_peak_sharpness: 12.3
+    max_saturated_ratio: 0.00025182504612495873
     confidence_weight_shape: 0.32
     confidence_weight_brightness: 0.22
     confidence_weight_contrast: 0.24
