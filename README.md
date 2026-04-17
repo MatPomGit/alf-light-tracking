@@ -1,11 +1,11 @@
 # ROS2 Unitree G1 light tracking PoC
 
 <!--
-[AI-CHANGE | 2026-04-17 11:58 UTC | v0.79]
-CO ZMIENIONO: Przebudowano README do formatu operacyjnego: dodano opis struktury repozytorium, wymagania, szybki start i zestaw praktycznych wariantów uruchamiania (robot, turtlesim, testy punktowe, serwisy ramion, replay danych, diagnostyka).
-DLACZEGO: Dotychczasowy opis był skrócony i utrudniał szybkie wejście nowej osoby do projektu oraz spójne odtwarzanie scenariuszy testowych R&D.
-JAK TO DZIAŁA: README prowadzi użytkownika krok po kroku: od przygotowania środowiska, przez budowanie pakietu, po uruchamianie konkretnych node'ów i launchy z parametrami. Dodatkowo opisuje strukturę katalogów i linki referencyjne po porządkowaniu repo.
-TODO: Dodać sekcję "Troubleshooting" z typowymi błędami ROS2 (DDS, QoS, uprawnienia urządzeń) i gotowymi komendami diagnostycznymi.
+[AI-CHANGE | 2026-04-17 12:04 UTC | v0.80]
+CO ZMIENIONO: Przebudowano README do formatu operacyjnego oraz poprawiono nieaktualne odwołania ścieżek w przykładzie uruchomienia (zamieniono na ścieżki zgodne z układem `ros2_ws/g1_light_tracking`).
+DLACZEGO: Dotychczasowy opis był skrócony i utrudniał szybkie wejście nowej osoby do projektu, a pozostawione nieaktualne ścieżki mogły wprowadzać w błąd podczas uruchamiania.
+JAK TO DZIAŁA: README prowadzi użytkownika krok po kroku: od przygotowania środowiska, przez budowanie pakietu, po uruchamianie konkretnych node'ów i launchy z parametrami. Wszystkie przykładowe ścieżki są teraz spójne z aktualną strukturą repozytorium.
+TODO: Dodać sekcję "Troubleshooting" z typowymi błędami ROS2 (DDS, QoS, uprawnienia urządzeń), oraz tabelę mapującą importy Pythona na wymagane zależności systemowe/pip.
 -->
 
 ## Cel projektu
@@ -89,8 +89,8 @@ Przykład z nadpisaniem parametrów w locie:
 
 ```bash
 ros2 launch g1_light_tracking light_tracking_stack.launch.py \
-  control_config:=src/g1_light_tracking/config/control.yaml \
-  bridge_config:=src/g1_light_tracking/config/bridge.yaml
+  control_config:=ros2_ws/g1_light_tracking/config/control.yaml \
+  bridge_config:=ros2_ws/g1_light_tracking/config/bridge.yaml
 ```
 
 ---
