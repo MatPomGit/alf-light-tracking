@@ -19,6 +19,15 @@ class DetectorConfig:
     max_area: float = 0.0
     min_detection_confidence: float = 0.0
     min_detection_score: float = 0.0
+    # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+    # CO ZMIENIONO: Dodano parametr `min_top1_top2_margin`, który definiuje
+    # minimalny bezwzględny margines punktacji między najlepszym i drugim kandydatem.
+    # DLACZEGO: Gdy kandydaci mają bardzo podobne wyniki, detekcja jest niejednoznaczna
+    # i zgodnie z polityką bezpieczeństwa lepiej zwrócić brak wyniku niż fałszywy pozytyw.
+    # JAK TO DZIAŁA: Wartość konfiguracyjna jest używana w etapie post-sortowania
+    # kandydatów do odrzucenia detekcji przy zbyt małej separacji rankingu.
+    # TODO: Rozważyć dynamiczny próg marginesu zależny od kontrastu sceny i poziomu szumu.
+    min_top1_top2_margin: float = 0.0
     min_persistence_frames: int = 1
     persistence_radius_px: float = 12.0
     legacy_mode: bool = False

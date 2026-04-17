@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from typing import Dict, List, Optional, Tuple, Type
 
@@ -8,6 +9,16 @@ import numpy as np
 
 from .detector_interfaces import BaseDetector, DetectorConfig
 from .types import Detection
+
+# [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+# CO ZMIENIONO: Wprowadzono logger modułowy i pamięć ostatniej konfiguracji
+# (`_LAST_CONFIG_SNAPSHOT`) do wykrywania zmian parametrów pomiędzy wywołaniami.
+# DLACZEGO: Pozwala to raportować zmiany strojenia bez ingerencji w API funkcji.
+# JAK TO DZIAŁA: Snapshot ostatniej konfiguracji jest porównywany z bieżącym
+# i aktualizowany po każdym wywołaniu adaptera konfiguracyjnego.
+# TODO: Dodać możliwość całkowitego wyłączenia tych logów flagą środowiskową.
+LOGGER = logging.getLogger(__name__)
+_LAST_CONFIG_SNAPSHOT: Optional[Dict[str, float | int | str | bool | None]] = None
 
 
 COLOR_PRESETS: Dict[str, List[Tuple[Tuple[int, int, int], Tuple[int, int, int]]]] = {
@@ -370,6 +381,61 @@ def _detection_score(det: Detection, peak_intensity: float, area_ref: float) -> 
     return (0.45 * area_norm) + (0.35 * circularity_norm) + (0.20 * peak_norm)
 
 
+def _config_snapshot(config: DetectorConfig) -> Dict[str, float | int | str | bool | None]:
+    # [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+    # CO ZMIENIONO: Dodano normalizację `DetectorConfig` do słownika prymitywów.
+    # DLACZEGO: Jednolita reprezentacja upraszcza porównanie parametrów i logowanie.
+    # JAK TO DZIAŁA: Funkcja konwertuje pola konfiguracji do typów prostych
+    # (`int`, `float`, `str`, `bool`, `None`) gotowych do porównania i serializacji.
+    # TODO: Rozważyć automatyczne generowanie snapshotu z adnotacji dataclass.
+    return {
+        "track_mode": config.track_mode,
+        "blur": int(config.blur),
+        "threshold": int(config.threshold),
+        "erode_iter": int(config.erode_iter),
+        "dilate_iter": int(config.dilate_iter),
+        "min_area": float(config.min_area),
+        "max_area": float(config.max_area),
+        "max_spots": int(config.max_spots),
+        "min_detection_confidence": float(config.min_detection_confidence),
+        "min_detection_score": float(config.min_detection_score),
+        "min_top1_top2_margin": float(config.min_top1_top2_margin),
+        "min_persistence_frames": int(config.min_persistence_frames),
+        "persistence_radius_px": float(config.persistence_radius_px),
+        "legacy_mode": bool(config.legacy_mode),
+        "color_name": config.color_name,
+        "hsv_lower": config.hsv_lower,
+        "hsv_upper": config.hsv_upper,
+        "roi": config.roi,
+    }
+
+
+def _log_parameter_changes(config: DetectorConfig) -> None:
+    global _LAST_CONFIG_SNAPSHOT
+    current_snapshot = _config_snapshot(config)
+    if _LAST_CONFIG_SNAPSHOT is None:
+        _LAST_CONFIG_SNAPSHOT = current_snapshot
+        return
+    changed_params = [
+        (name, _LAST_CONFIG_SNAPSHOT[name], current_value)
+        for name, current_value in current_snapshot.items()
+        if _LAST_CONFIG_SNAPSHOT.get(name) != current_value
+    ]
+    # [AI-CHANGE | 2026-04-17 12:31 UTC | v0.85]
+    # CO ZMIENIONO: Dodano logowanie zmian parametrów detektora pomiędzy kolejnymi
+    # wywołaniami, bazujące na migawce konfiguracji.
+    # DLACZEGO: Przy strojeniu online ważna jest szybka diagnoza, które parametry
+    # zostały zmienione i jak wpływają na wynik detekcji.
+    # JAK TO DZIAŁA: Funkcja porównuje bieżący snapshot z poprzednim i emituje log
+    # `INFO` tylko dla różniących się pól, po czym aktualizuje snapshot referencyjny.
+    # TODO: Zastąpić globalny snapshot cachem per-strumień kamery, gdy pipeline
+    # będzie obsługiwać wiele źródeł obrazu równolegle.
+    if changed_params:
+        details = ", ".join([f"{name}: {old_value} -> {new_value}" for name, old_value, new_value in changed_params])
+        LOGGER.info("DetectorConfig changed: %s", details)
+    _LAST_CONFIG_SNAPSHOT = current_snapshot
+
+
 def detect_spots(
     frame: np.ndarray,
     track_mode: str,
@@ -382,12 +448,13 @@ def detect_spots(
     max_spots: int,
     min_detection_confidence: float,
     min_detection_score: float,
+    min_top1_top2_margin: float,
     color_name: str,
     hsv_lower: Optional[str],
     hsv_upper: Optional[str],
     roi: Optional[str],
     legacy_mode: bool = False,
-) -> Tuple[List[Detection], np.ndarray, Tuple[int, int, int, int]]:
+) -> Tuple[List[Detection], np.ndarray, Tuple[int, int, int, int], Dict[str, float | str | bool]]:
     x0, y0, w, h = parse_roi(roi, frame.shape)
     roi_frame = frame[y0 : y0 + h, x0 : x0 + w]
     detector_cls = _resolve_detector_class(track_mode)
@@ -422,7 +489,7 @@ def detect_spots(
         detections = detections[:max_spots]
         for idx, det in enumerate(detections, start=1):
             det.rank = idx
-        return detections, mask, (x0, y0, w, h)
+        return detections, mask, (x0, y0, w, h), {}
 
     roi_gray = cv2.cvtColor(roi_frame, cv2.COLOR_BGR2GRAY)
     scored_detections: List[Tuple[float, Detection]] = []
@@ -450,12 +517,41 @@ def detect_spots(
         scored_detections.append((score, det))
 
     scored_detections.sort(key=lambda item: item[0], reverse=True)
+    diagnostics: Dict[str, float | str | bool] = {}
+    # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+    # CO ZMIENIONO: Dodano obliczanie marginesu `top1-top2` po sortowaniu ocen
+    # kandydatów i warunek odrzucenia wyniku przy zbyt małej separacji.
+    # DLACZEGO: Mały margines oznacza niejednoznaczność klasyfikacji; zgodnie
+    # z zasadą jakości bezpieczniej zwrócić pusty wynik niż ryzykować błędną detekcję.
+    # JAK TO DZIAŁA: Dla >=2 kandydatów liczony jest `top1_top2_margin` oraz
+    # `top1_top2_margin_pct` (względem `best_score`). Jeżeli margines absolutny
+    # jest mniejszy niż `min_top1_top2_margin`, funkcja zwraca `[]` i zapisuje
+    # diagnostykę `rejection_reason=ambiguous_candidates`.
+    # TODO: Dodać alternatywny próg względny (percentylowy), aby lepiej skalować
+    # decyzję dla scen o różnych rozkładach jasności.
+    if len(scored_detections) >= 2:
+        best_score = float(scored_detections[0][0])
+        second_score = float(scored_detections[1][0])
+        top1_top2_margin = best_score - second_score
+        top1_top2_margin_pct = (top1_top2_margin / best_score * 100.0) if best_score > 0.0 else 0.0
+        diagnostics.update(
+            {
+                "top1_top2_margin": float(top1_top2_margin),
+                "top1_top2_margin_pct": float(top1_top2_margin_pct),
+                "min_top1_top2_margin": float(min_top1_top2_margin),
+            }
+        )
+        if top1_top2_margin < float(min_top1_top2_margin):
+            diagnostics["rejection_reason"] = "ambiguous_candidates"
+            diagnostics["rejected"] = True
+            return [], mask, (x0, y0, w, h), diagnostics
+
     detections = [det for _, det in scored_detections]
     detections = detections[:max_spots]
     for idx, det in enumerate(detections, start=1):
         det.rank = idx
 
-    return detections, mask, (x0, y0, w, h)
+    return detections, mask, (x0, y0, w, h), diagnostics
 
 
 def detect_spots_with_config(
@@ -463,7 +559,16 @@ def detect_spots_with_config(
     config: DetectorConfig,
     persistence_filter: Optional[DetectionPersistenceFilter] = None,
 ):
-    detections, mask, roi_box = detect_spots(
+    _log_parameter_changes(config)
+    # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+    # CO ZMIENIONO: Adapter konfiguracyjny przekazuje nowy próg
+    # `min_top1_top2_margin` oraz propaguje słownik diagnostyczny z detektora.
+    # DLACZEGO: Node nadrzędny potrzebuje jawnej informacji o przyczynie odrzucenia,
+    # aby logować przypadki niejednoznacznych kandydatów.
+    # JAK TO DZIAŁA: Funkcja zwraca teraz 4 elementy (detekcje, maska, ROI, diagnostyka),
+    # a parametry konfiguracji są mapowane 1:1 do `detect_spots`.
+    # TODO: Ustabilizować kontrakt API przez dedykowaną klasę `DetectionDiagnostics`.
+    detections, mask, roi_box, diagnostics = detect_spots(
         frame=frame,
         track_mode=config.track_mode,
         blur=config.blur,
@@ -475,6 +580,7 @@ def detect_spots_with_config(
         max_spots=config.max_spots,
         min_detection_confidence=config.min_detection_confidence,
         min_detection_score=config.min_detection_score,
+        min_top1_top2_margin=config.min_top1_top2_margin,
         legacy_mode=config.legacy_mode,
         color_name=config.color_name,
         hsv_lower=config.hsv_lower,
@@ -494,4 +600,4 @@ def detect_spots_with_config(
         # aby szybciej stroić `association_cost_limit` na danych terenowych.
         detections = persistence_filter.apply(detections=detections, frame=frame, roi_box=roi_box)
         detections = detections[:1]
-    return detections, mask, roi_box
+    return detections, mask, roi_box, diagnostics

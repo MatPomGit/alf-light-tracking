@@ -29,6 +29,7 @@ class LightSpotDetectorNode(Node):
         self.declare_parameter('min_area', 10.0)
         self.declare_parameter('min_detection_confidence', 0.62)
         self.declare_parameter('min_detection_score', 0.0)
+        self.declare_parameter('min_top1_top2_margin', 0.0)
         self.declare_parameter('min_persistence_frames', 1)
         self.declare_parameter('legacy_mode', False)
 
@@ -58,6 +59,15 @@ class LightSpotDetectorNode(Node):
         # (klamrowanie), aby szybciej diagnozować nieprawidłową konfigurację.
         min_detection_score = float(self.get_parameter('min_detection_score').value)
         min_detection_score = max(0.0, min(1.0, min_detection_score))
+        # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+        # CO ZMIENIONO: Dodano odczyt parametru `min_top1_top2_margin` z walidacją
+        # dolnego ograniczenia do zera przed przekazaniem do konfiguracji detektora.
+        # DLACZEGO: Parametr steruje odrzucaniem niejednoznacznych detekcji, więc
+        # wartości ujemne nie mają sensu i mogłyby osłabić regułę bezpieczeństwa.
+        # JAK TO DZIAŁA: Wartość pobierana z ROS jest klamrowana przez `max(0.0, ...)`,
+        # a potem używana w `DetectorConfig` do decyzji top1-vs-top2.
+        # TODO: Udostępnić dynamiczną rekonfigurację progu bez restartu noda.
+        min_top1_top2_margin = max(0.0, float(self.get_parameter('min_top1_top2_margin').value))
         min_persistence_frames = max(1, int(self.get_parameter('min_persistence_frames').value))
         legacy_mode = bool(self.get_parameter('legacy_mode').value)
         self.detector_config = DetectorConfig(
@@ -75,6 +85,7 @@ class LightSpotDetectorNode(Node):
             roi=None,
             min_detection_confidence=max(0.0, min(1.0, min_detection_confidence)),
             min_detection_score=min_detection_score,  # Próg drugiego etapu filtrowania jakości detekcji.
+            min_top1_top2_margin=min_top1_top2_margin,
             min_persistence_frames=min_persistence_frames,
             persistence_radius_px=12.0,
             legacy_mode=legacy_mode,
@@ -107,7 +118,7 @@ class LightSpotDetectorNode(Node):
             # (detected=false) zamiast ryzykować publikację błędnych danych.
             # Innymi słowy: lepiej nie zwrócić detekcji niż zwrócić "głupoty".
             try:
-                detections, _, _ = detect_spots_with_config(
+                detections, _, _, diagnostics = detect_spots_with_config(
                     frame,
                     self.detector_config,
                     persistence_filter=self.persistence_filter,
@@ -128,6 +139,25 @@ class LightSpotDetectorNode(Node):
                             'rank': int(best.rank),
                             'kalman_predicted': False,
                         }
+                    )
+                # [AI-CHANGE | 2026-04-17 12:19 UTC | v0.84]
+                # CO ZMIENIONO: Dodano throttlowane logowanie przyczyn odrzucenia
+                # detekcji, w szczególności `ambiguous_candidates` i marginesu top1-top2.
+                # DLACZEGO: Diagnostyka ułatwia strojenie progu i pozwala odróżnić
+                # brak detekcji od aktywnego odrzucenia niepewnego wyniku.
+                # JAK TO DZIAŁA: Gdy detekcja jest pusta i moduł poda `rejection_reason`,
+                # node emituje ostrzeżenie z wartościami marginesu i progu, z throttlingiem.
+                # TODO: Wystawić powód odrzucenia także w payloadzie diagnostycznym ROS.
+                if best is None and diagnostics.get('rejection_reason'):
+                    reason = str(diagnostics.get('rejection_reason'))
+                    margin = float(diagnostics.get('top1_top2_margin', 0.0))
+                    margin_pct = float(diagnostics.get('top1_top2_margin_pct', 0.0))
+                    min_margin = float(diagnostics.get('min_top1_top2_margin', 0.0))
+                    self.get_logger().warn(
+                        'Detection rejected: '
+                        f'reason={reason}, margin={margin:.4f}, '
+                        f'margin_pct={margin_pct:.2f}%, min_margin={min_margin:.4f}',
+                        throttle_duration_sec=2.0,
                     )
             except Exception as exc:
                 # Uwaga: ostrzeżenie jest throttlowane, żeby nie floodować logów przy
