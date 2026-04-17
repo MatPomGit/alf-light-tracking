@@ -130,6 +130,7 @@ class DetectionPersistenceFilter:
         persistence_radius_px: float = 12.0,
         max_missed_frames: int = 1,
         association_cost_limit: float = 2.5,
+        innovation_cost_limit: Optional[float] = None,
     ) -> None:
         if min_persistence_frames <= 0:
             raise ValueError("min_persistence_frames musi być dodatnie.")
@@ -139,14 +140,21 @@ class DetectionPersistenceFilter:
             raise ValueError("max_missed_frames nie może być ujemne.")
         if association_cost_limit <= 0:
             raise ValueError("association_cost_limit musi być dodatnie.")
+        if innovation_cost_limit is not None and innovation_cost_limit <= 0:
+            raise ValueError("innovation_cost_limit musi być dodatnie, gdy jest ustawione.")
         self.min_persistence_frames = int(min_persistence_frames)
         self.persistence_radius_px = float(persistence_radius_px)
         self.max_missed_frames = int(max_missed_frames)
         self.association_cost_limit = float(association_cost_limit)
+        self.innovation_cost_limit = (
+            float(innovation_cost_limit) if innovation_cost_limit is not None else float(association_cost_limit)
+        )
         self._frame_shape: Optional[Tuple[int, int]] = None
         self._roi_box: Optional[Tuple[int, int, int, int]] = None
         self._last_centroid: Optional[Tuple[float, float]] = None
+        self._velocity: Optional[Tuple[float, float]] = None
         self._last_area: Optional[float] = None
+        self._last_aspect_ratio: Optional[float] = None
         self._last_brightness: Optional[float] = None
         self._hit_count: int = 0
         self._miss_count: int = 0
@@ -155,7 +163,9 @@ class DetectionPersistenceFilter:
         self._frame_shape = None
         self._roi_box = None
         self._last_centroid = None
+        self._velocity = None
         self._last_area = None
+        self._last_aspect_ratio = None
         self._last_brightness = None
         self._hit_count = 0
         self._miss_count = 0
@@ -165,6 +175,22 @@ class DetectionPersistenceFilter:
             self.reset()
         self._frame_shape = frame_shape
         self._roi_box = roi_box
+
+    def _predict_centroid(self, missed_frames: int) -> Tuple[float, float]:
+        if self._last_centroid is None:
+            raise ValueError("Brak centroidu do predykcji.")
+        if self._velocity is None:
+            return self._last_centroid
+        dt_frames = max(1.0, float(missed_frames + 1))
+        return (
+            self._last_centroid[0] + (self._velocity[0] * dt_frames),
+            self._last_centroid[1] + (self._velocity[1] * dt_frames),
+        )
+
+    def _detection_aspect_ratio(self, detection: Detection) -> float:
+        width = max(1.0, float(detection.bbox_w))
+        height = max(1.0, float(detection.bbox_h))
+        return width / height
 
     def _handle_miss(self) -> List[Detection]:
         self._miss_count += 1
@@ -189,18 +215,21 @@ class DetectionPersistenceFilter:
         self,
         candidate: Detection,
         candidate_brightness: float,
+        predicted_centroid: Tuple[float, float],
         missed_frames: int,
     ) -> float:
-        if self._last_centroid is None or self._last_area is None or self._last_brightness is None:
+        if self._last_area is None or self._last_aspect_ratio is None or self._last_brightness is None:
             return float("inf")
-        dx = float(candidate.x) - self._last_centroid[0]
-        dy = float(candidate.y) - self._last_centroid[1]
+        dx = float(candidate.x) - predicted_centroid[0]
+        dy = float(candidate.y) - predicted_centroid[1]
         miss_radius_boost = min(1.0, 0.25 * float(missed_frames))
         allowed_radius = max(1.0, self.persistence_radius_px * (1.0 + miss_radius_boost))
         distance_cost = math.hypot(dx, dy) / allowed_radius
         area_cost = abs(float(candidate.area) - self._last_area) / max(self._last_area, 1.0)
+        candidate_aspect_ratio = self._detection_aspect_ratio(candidate)
+        shape_cost = abs(candidate_aspect_ratio - self._last_aspect_ratio) / max(self._last_aspect_ratio, 1e-3)
         brightness_cost = abs(candidate_brightness - self._last_brightness) / 255.0
-        return (0.60 * distance_cost) + (0.25 * area_cost) + (0.15 * brightness_cost)
+        return (0.50 * distance_cost) + (0.20 * area_cost) + (0.20 * shape_cost) + (0.10 * brightness_cost)
 
     def apply(
         self,
@@ -208,18 +237,21 @@ class DetectionPersistenceFilter:
         frame: np.ndarray,
         roi_box: Tuple[int, int, int, int],
     ) -> List[Detection]:
-        # [AI-CHANGE | 2026-04-17 18:36 UTC | v0.82]
-        # CO ZMIENIONO: Filtr asocjuje pełną listę kandydatów względem poprzedniego
-        # toru i wybiera detekcję o najmniejszym koszcie (dystans + różnica pola +
-        # różnica jasności), zamiast brać pierwszy element listy.
-        # DLACZEGO: Wybór pierwszego kandydata był podatny na pomyłki rankingowe.
-        # Asocjacja kosztowa stabilizuje tor i ogranicza skoki między obiektami.
-        # JAK TO DZIAŁA: Dla każdego kandydata liczony jest koszt znormalizowany
-        # do geometrii poprzedniego kroku. Kandydat jest akceptowany tylko gdy koszt
-        # <= `association_cost_limit`. Gdy brak dopasowania, filtr zwraca pusty wynik,
-        # zgodnie z zasadą bezpieczeństwa „lepiej brak niż błędna detekcja”.
-        # TODO: Rozszerzyć koszt o predykcję ruchu (np. prosty model prędkości),
-        # aby poprawić asocjację przy szybkich manewrach obiektu.
+        # [AI-CHANGE | 2026-04-17 19:00 UTC | v0.89]
+        # CO ZMIENIONO: Filtr przechowuje stan prędkości (vx, vy), przewiduje kolejną
+        # pozycję toru i asocjuje detekcje do tej predykcji. Koszt asocjacji został
+        # rozszerzony o karę za zmianę rozmiaru i proporcji bbox, a dodatkowy próg
+        # innowacji odrzuca niepewne klatki zamiast aktualizacji toru.
+        # DLACZEGO: Asocjacja wyłącznie do ostatniej obserwacji była mniej odporna
+        # na szybki ruch oraz fałszywe dopasowania obiektów o innym kształcie.
+        # Odrzucanie dużej innowacji realizuje zasadę „lepiej brak niż błędny wynik”.
+        # JAK TO DZIAŁA: Predykcja centroidu wykorzystuje model stałej prędkości.
+        # Dla kandydatów liczony jest koszt: odległość od predykcji + różnica pola +
+        # różnica aspect ratio + różnica jasności. Jeśli najlepszy koszt przekracza
+        # próg asocjacji lub próg innowacji, klatka jest traktowana jako miss i tor
+        # nie jest aktualizowany niepewną obserwacją.
+        # TODO: Dodać adaptacyjny model szumu ruchu i dynamiczne progi innowacji
+        # zależne od prędkości obiektu oraz czasu od ostatniego trafienia.
         if frame.ndim < 2:
             raise ValueError("frame musi mieć co najmniej 2 wymiary.")
 
@@ -233,10 +265,17 @@ class DetectionPersistenceFilter:
             for candidate in detections
         ]
 
-        if self._last_centroid is None or self._last_area is None or self._last_brightness is None:
+        if (
+            self._last_centroid is None
+            or self._last_area is None
+            or self._last_aspect_ratio is None
+            or self._last_brightness is None
+        ):
             init_candidate, init_brightness = max(brightness_cache, key=lambda item: item[0].confidence)
             self._last_centroid = (float(init_candidate.x), float(init_candidate.y))
+            self._velocity = (0.0, 0.0)
             self._last_area = float(init_candidate.area)
+            self._last_aspect_ratio = self._detection_aspect_ratio(init_candidate)
             self._last_brightness = float(init_brightness)
             self._miss_count = 0
             self._hit_count = 1
@@ -245,6 +284,7 @@ class DetectionPersistenceFilter:
             return [init_candidate]
 
         missed_frames = self._miss_count
+        predicted_centroid = self._predict_centroid(missed_frames=missed_frames)
         best_candidate: Optional[Detection] = None
         best_brightness: float = 0.0
         best_cost = float("inf")
@@ -252,6 +292,7 @@ class DetectionPersistenceFilter:
             cost = self._association_cost(
                 candidate=candidate,
                 candidate_brightness=candidate_brightness,
+                predicted_centroid=predicted_centroid,
                 missed_frames=missed_frames,
             )
             if cost < best_cost:
@@ -259,13 +300,26 @@ class DetectionPersistenceFilter:
                 best_candidate = candidate
                 best_brightness = candidate_brightness
 
-        if best_candidate is None or best_cost > self.association_cost_limit:
+        if best_candidate is None:
             return self._handle_miss()
 
+        innovation_limit = min(self.association_cost_limit, self.innovation_cost_limit)
+        if best_cost > innovation_limit:
+            return self._handle_miss()
+
+        previous_centroid = self._last_centroid
+        if previous_centroid is None:
+            return self._handle_miss()
         self._miss_count = 0
         self._hit_count += 1
         self._last_centroid = (float(best_candidate.x), float(best_candidate.y))
+        delta_frames = max(1.0, float(missed_frames + 1))
+        self._velocity = (
+            (self._last_centroid[0] - previous_centroid[0]) / delta_frames,
+            (self._last_centroid[1] - previous_centroid[1]) / delta_frames,
+        )
         self._last_area = float(best_candidate.area)
+        self._last_aspect_ratio = self._detection_aspect_ratio(best_candidate)
         self._last_brightness = float(best_brightness)
         if self._hit_count < self.min_persistence_frames:
             return []
