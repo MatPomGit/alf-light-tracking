@@ -31,7 +31,7 @@ class G1LightFollowerNode(Node):
         self.declare_parameter('rejection_log_interval_s', 1.0)
         self.declare_parameter('log_cmd_vel_subscribers', True)
         self.declare_parameter('cmd_vel_subscribers_log_interval_s', 2.0)
-        # [AI-CHANGE | 2026-04-17 12:55 UTC | v0.91]
+        # [MatPom-CHANGE | 2026-04-17 12:55 UTC | v0.91]
         # CO ZMIENIONO: Dodano parametry jakości i stabilności toru:
         #   - min_confidence_for_control,
         #   - required_stable_frames.
@@ -85,7 +85,7 @@ class G1LightFollowerNode(Node):
         self.cmd_vel_subscribers_log_interval_s = float(
             self.get_parameter('cmd_vel_subscribers_log_interval_s').get_parameter_value().double_value
         )
-        # [AI-CHANGE | 2026-04-17 12:55 UTC | v0.91]
+        # [MatPom-CHANGE | 2026-04-17 12:55 UTC | v0.91]
         # CO ZMIENIONO: Odczytano nowe parametry i zainicjalizowano licznik stabilności toru.
         # DLACZEGO: Potrzebujemy kontrolować minimalne confidence oraz liczbę kolejnych ramek
         #   dla tego samego track_id, aby ograniczyć ryzyko sterowania na niestabilnych danych.
@@ -141,7 +141,7 @@ class G1LightFollowerNode(Node):
             self._maybe_log_rejection('detection_flag_false')
             return
 
-        # [AI-CHANGE | 2026-04-17 12:55 UTC | v0.91]
+        # [MatPom-CHANGE | 2026-04-17 12:55 UTC | v0.91]
         # CO ZMIENIONO: Dodano twarde odrzucenie sterowania dla niskiego confidence
         #   oraz niestabilnego toru wynikającego z rank/track_id.
         # DLACZEGO: Priorytetem jest brak błędnego sterowania; świeżo przełączone tory
