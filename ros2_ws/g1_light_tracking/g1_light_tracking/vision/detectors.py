@@ -118,6 +118,7 @@ class DetectionPersistenceFilter:
         min_persistence_frames: int = 1,
         persistence_radius_px: float = 12.0,
         max_missed_frames: int = 1,
+        association_cost_limit: float = 2.5,
     ) -> None:
         if min_persistence_frames <= 0:
             raise ValueError("min_persistence_frames musi być dodatnie.")
@@ -125,12 +126,17 @@ class DetectionPersistenceFilter:
             raise ValueError("persistence_radius_px nie może być ujemne.")
         if max_missed_frames < 0:
             raise ValueError("max_missed_frames nie może być ujemne.")
+        if association_cost_limit <= 0:
+            raise ValueError("association_cost_limit musi być dodatnie.")
         self.min_persistence_frames = int(min_persistence_frames)
         self.persistence_radius_px = float(persistence_radius_px)
         self.max_missed_frames = int(max_missed_frames)
+        self.association_cost_limit = float(association_cost_limit)
         self._frame_shape: Optional[Tuple[int, int]] = None
         self._roi_box: Optional[Tuple[int, int, int, int]] = None
         self._last_centroid: Optional[Tuple[float, float]] = None
+        self._last_area: Optional[float] = None
+        self._last_brightness: Optional[float] = None
         self._hit_count: int = 0
         self._miss_count: int = 0
 
@@ -138,6 +144,8 @@ class DetectionPersistenceFilter:
         self._frame_shape = None
         self._roi_box = None
         self._last_centroid = None
+        self._last_area = None
+        self._last_brightness = None
         self._hit_count = 0
         self._miss_count = 0
 
@@ -147,59 +155,110 @@ class DetectionPersistenceFilter:
         self._frame_shape = frame_shape
         self._roi_box = roi_box
 
+    def _handle_miss(self) -> List[Detection]:
+        self._miss_count += 1
+        self._hit_count = max(0, self._hit_count - 1)
+        if self._miss_count > self.max_missed_frames:
+            self.reset()
+        return []
+
+    def _detection_brightness(self, frame_gray: np.ndarray, detection: Detection) -> float:
+        x0 = max(0, int(detection.bbox_x))
+        y0 = max(0, int(detection.bbox_y))
+        x1 = min(frame_gray.shape[1], int(detection.bbox_x + detection.bbox_w))
+        y1 = min(frame_gray.shape[0], int(detection.bbox_y + detection.bbox_h))
+        if x1 <= x0 or y1 <= y0:
+            return 0.0
+        patch = frame_gray[y0:y1, x0:x1]
+        if patch.size == 0:
+            return 0.0
+        return float(np.mean(patch))
+
+    def _association_cost(
+        self,
+        candidate: Detection,
+        candidate_brightness: float,
+        missed_frames: int,
+    ) -> float:
+        if self._last_centroid is None or self._last_area is None or self._last_brightness is None:
+            return float("inf")
+        dx = float(candidate.x) - self._last_centroid[0]
+        dy = float(candidate.y) - self._last_centroid[1]
+        miss_radius_boost = min(1.0, 0.25 * float(missed_frames))
+        allowed_radius = max(1.0, self.persistence_radius_px * (1.0 + miss_radius_boost))
+        distance_cost = math.hypot(dx, dy) / allowed_radius
+        area_cost = abs(float(candidate.area) - self._last_area) / max(self._last_area, 1.0)
+        brightness_cost = abs(candidate_brightness - self._last_brightness) / 255.0
+        return (0.60 * distance_cost) + (0.25 * area_cost) + (0.15 * brightness_cost)
+
     def apply(
         self,
         detections: List[Detection],
-        frame_shape: Tuple[int, int, int],
+        frame: np.ndarray,
         roi_box: Tuple[int, int, int, int],
     ) -> List[Detection]:
-        # [AI-CHANGE | 2026-04-17 11:32 UTC | v0.70]
-        # CO ZMIENIONO: Zmieniono strategię po pustej klatce z natychmiastowego
-        # zerowania `_hit_count` na łagodne wygaszanie (`-1`) oraz dodano
-        # adaptacyjny promień dopasowania po krótkiej przerwie, oparty o `_miss_count`.
-        # Stan `_last_centroid` jest utrzymywany i realnie wykorzystywany do kontynuacji
-        # śledzenia przy chwilowych zanikach.
-        # DLACZEGO: Poprzednia wersja była bardzo zachowawcza, ale zbyt łatwo traciła
-        # ciągłość śledzenia po pojedynczym braku detekcji. Teraz lepiej wykorzystujemy
-        # informację o poprzednim położeniu obiektu, bez rezygnacji z bezpieczeństwa.
-        # JAK TO DZIAŁA: Pusta klatka zwiększa `_miss_count` i obniża `_hit_count`
-        # o 1 (nie poniżej zera). Przy kolejnej detekcji, jeśli była krótka przerwa,
-        # promień zgodności jest lekko zwiększany (max 2x), co pozwala utrzymać tor
-        # obiektu mimo drobnego przesunięcia. Gdy braków jest za dużo -> pełny reset.
-        # TODO: Dodać testy jednostkowe dla scenariusza ruchu liniowego z krótką
-        # okluzją, aby dobrać współczynnik rozszerzania promienia empirycznie.
-        if self.min_persistence_frames <= 1:
-            return detections
+        # [AI-CHANGE | 2026-04-17 18:36 UTC | v0.82]
+        # CO ZMIENIONO: Filtr asocjuje pełną listę kandydatów względem poprzedniego
+        # toru i wybiera detekcję o najmniejszym koszcie (dystans + różnica pola +
+        # różnica jasności), zamiast brać pierwszy element listy.
+        # DLACZEGO: Wybór pierwszego kandydata był podatny na pomyłki rankingowe.
+        # Asocjacja kosztowa stabilizuje tor i ogranicza skoki między obiektami.
+        # JAK TO DZIAŁA: Dla każdego kandydata liczony jest koszt znormalizowany
+        # do geometrii poprzedniego kroku. Kandydat jest akceptowany tylko gdy koszt
+        # <= `association_cost_limit`. Gdy brak dopasowania, filtr zwraca pusty wynik,
+        # zgodnie z zasadą bezpieczeństwa „lepiej brak niż błędna detekcja”.
+        # TODO: Rozszerzyć koszt o predykcję ruchu (np. prosty model prędkości),
+        # aby poprawić asocjację przy szybkich manewrach obiektu.
+        if frame.ndim < 2:
+            raise ValueError("frame musi mieć co najmniej 2 wymiary.")
 
-        self._ensure_geometry((int(frame_shape[0]), int(frame_shape[1])), roi_box)
+        self._ensure_geometry((int(frame.shape[0]), int(frame.shape[1])), roi_box)
         if not detections:
-            self._miss_count += 1
-            self._hit_count = max(0, self._hit_count - 1)
-            if self._miss_count > self.max_missed_frames:
-                self.reset()
-            return []
+            return self._handle_miss()
+
+        frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        brightness_cache: List[Tuple[Detection, float]] = [
+            (candidate, self._detection_brightness(frame_gray=frame_gray, detection=candidate))
+            for candidate in detections
+        ]
+
+        if self._last_centroid is None or self._last_area is None or self._last_brightness is None:
+            init_candidate, init_brightness = max(brightness_cache, key=lambda item: item[0].confidence)
+            self._last_centroid = (float(init_candidate.x), float(init_candidate.y))
+            self._last_area = float(init_candidate.area)
+            self._last_brightness = float(init_brightness)
+            self._miss_count = 0
+            self._hit_count = 1
+            if self._hit_count < self.min_persistence_frames:
+                return []
+            return [init_candidate]
 
         missed_frames = self._miss_count
-        self._miss_count = 0
-        current = detections[0]
-        current_centroid = (float(current.x), float(current.y))
-        if self._last_centroid is None:
-            self._last_centroid = current_centroid
-            self._hit_count = 1
-            return []
+        best_candidate: Optional[Detection] = None
+        best_brightness: float = 0.0
+        best_cost = float("inf")
+        for candidate, candidate_brightness in brightness_cache:
+            cost = self._association_cost(
+                candidate=candidate,
+                candidate_brightness=candidate_brightness,
+                missed_frames=missed_frames,
+            )
+            if cost < best_cost:
+                best_cost = cost
+                best_candidate = candidate
+                best_brightness = candidate_brightness
 
-        dx = current_centroid[0] - self._last_centroid[0]
-        dy = current_centroid[1] - self._last_centroid[1]
-        miss_radius_boost = min(1.0, 0.25 * float(missed_frames))
-        allowed_radius = self.persistence_radius_px * (1.0 + miss_radius_boost)
-        if math.hypot(dx, dy) <= allowed_radius:
-            self._hit_count += 1
-        else:
-            self._hit_count = 1
-        self._last_centroid = current_centroid
+        if best_candidate is None or best_cost > self.association_cost_limit:
+            return self._handle_miss()
+
+        self._miss_count = 0
+        self._hit_count += 1
+        self._last_centroid = (float(best_candidate.x), float(best_candidate.y))
+        self._last_area = float(best_candidate.area)
+        self._last_brightness = float(best_brightness)
         if self._hit_count < self.min_persistence_frames:
             return []
-        return detections
+        return [best_candidate]
 
 
 def _resolve_detector_class(track_mode: str) -> Type[BaseDetector]:
@@ -423,5 +482,16 @@ def detect_spots_with_config(
         roi=config.roi,
     )
     if persistence_filter is not None:
-        detections = persistence_filter.apply(detections=detections, frame_shape=frame.shape, roi_box=roi_box)
+        # [AI-CHANGE | 2026-04-17 18:36 UTC | v0.82]
+        # CO ZMIENIONO: Przekazywana jest pełna lista kandydatów do filtra
+        # persystencji, a po filtracji wynik jest redukowany do 0/1 detekcji.
+        # DLACZEGO: Filtr musi mieć pełen kontekst kandydatów, aby wykonać
+        # asocjację minimalnego kosztu i odrzucić niepewne dopasowania.
+        # JAK TO DZIAŁA: `DetectionPersistenceFilter.apply` dostaje wszystkie
+        # kandydatury i całą ramkę. Jeżeli nie ma bezpiecznego dopasowania,
+        # zwraca `[]`; w przeciwnym razie pojedynczy wynik toru.
+        # TODO: Dodać metrykę diagnostyczną (np. odsetek odrzuceń przez koszt),
+        # aby szybciej stroić `association_cost_limit` na danych terenowych.
+        detections = persistence_filter.apply(detections=detections, frame=frame, roi_box=roi_box)
+        detections = detections[:1]
     return detections, mask, roi_box
