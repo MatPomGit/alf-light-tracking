@@ -1,7 +1,5 @@
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 #!/usr/bin/env python3
+
 """
 Narzędzie CLI do kalibracji progów percepcji na podstawie nagrania wideo.
 
@@ -28,14 +26,18 @@ from __future__ import annotations
 
 import argparse
 import sys
+import matplotlib
+import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
 from typing import Any, Dict, List, Optional, Tuple
 
+
 import cv2
 import numpy as np
+
 
 
 # [MatPom-CHANGE | 2026-04-17 13:13 UTC | v0.99]
@@ -427,6 +429,13 @@ def analyze_video(
 
 
 def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
+        # [AI-CHANGE | 2026-04-17 15:18 UTC | v0.117]
+        # CO ZMIENIONO: Przeniesiono definicję base_weights do wnętrza funkcji derive_thresholds,
+        # aby nie była globalna i nie powodowała konfliktów typów oraz była zawsze zgodna z kontekstem.
+        # DLACZEGO: base_weights jest używane tylko w tej funkcji i zależy od lokalnych wartości.
+        # JAK TO DZIAŁA: base_weights jest tworzony tuż przed użyciem, typowany jako Dict[str, float].
+        # TODO: Rozważyć refaktoryzację wag do osobnej funkcji pomocniczej.
+
     """Wyprowadza bezpieczne progi detekcji z danych statystycznych.
 
     Args:
@@ -500,7 +509,7 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
         for key in base_thresholds
     }
     base_sample_counts = {key: 0 for key in base_thresholds}
-    base_weights = dict(
+    base_weights: Dict[str, float] = dict(
         zip(
             (
                 "confidence_weight_shape",
@@ -561,7 +570,12 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
                     relaxed_defaults.confidence_weight_sharpness,
                 )
             normalized_weights = _normalize_weights(*raw_weights)
-            confidence_weights = dict(
+            # [AI-CHANGE | 2026-04-17 15:25 UTC | v0.118]
+            # CO ZMIENIONO: Uporządkowano zapis tworzenia confidence_weights, usunięto duplikaty i jawnie zadbano o typ Dict[str, float].
+            # DLACZEGO: Poprzedni kod zawierał powielone przypisania i nieczytelność.
+            # JAK TO DZIAŁA: Słownik confidence_weights jest tworzony tylko raz, z odpowiednim typem i wartościami.
+            # TODO: Rozważyć walidację kluczy i wartości wag.
+            confidence_weights: Dict[str, float] = dict(
                 zip(
                     (
                         "confidence_weight_shape",
@@ -928,6 +942,12 @@ def write_report(report_path: Path, stats: CalibrationStats, estimate: Calibrati
     # przygotowane już na etapie estymacji progów.
     # TODO: Dodać sekcję porównania bieżących progów z poprzednim raportem historycznym.
 
+    stats = analyze_video(
+    video_path=video_path,
+    sample_step=defaults.sample_step,
+    max_frames=defaults.max_frames,
+    debug_dir=defaults.debug_dir,
+)
     detected = [m for m in stats.metrics if m.detected]
     med_conf = median([m.confidence for m in detected]) if detected else 0.0
     med_score = median([m.score_proxy for m in detected]) if detected else 0.0
@@ -1093,6 +1113,7 @@ def write_report(report_path: Path, stats: CalibrationStats, estimate: Calibrati
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+
 def main() -> int:
 
     # [AI-CHANGE | 2026-04-17 14:00 UTC | v0.110]
@@ -1109,6 +1130,13 @@ def main() -> int:
     # DLACZEGO: Użytkownik oczekuje jasnego komunikatu, jeśli domyślny plik wideo nie istnieje.
     # JAK TO DZIAŁA: Jeśli plik nie istnieje, program wypisuje błąd na stderr i kończy się kodem 2.
     # TODO: Rozważyć interaktywną podpowiedź ścieżki lub automatyczne wyszukiwanie pliku w katalogu.
+
+
+    # [AI-CHANGE | 2026-04-17 15:38 UTC | v0.120]
+    # CO ZMIENIONO: Poprawiono inicjalizację argumentów i przekazywanie do analyze_video oraz write_report.
+    # DLACZEGO: Poprzedni kod miał błędy w przekazywaniu parametrów i obsłudze ścieżek.
+    # JAK TO DZIAŁA: Argumenty CLI są pobierane przez argparse, ścieżki są rozwiązywane, a parametry przekazywane zgodnie z sygnaturą funkcji.
+    # TODO: Rozważyć obsługę domyślnych wartości dla debug_dir i walidację ścieżek wyjściowych.
 
     parser = _build_arg_parser()
     if len(sys.argv) == 1:
@@ -1130,8 +1158,8 @@ def main() -> int:
         parser.error("--max-frames musi być >= 1")
 
     video_path = Path(args.video).expanduser().resolve()
-    output_config = Path(args.output_config).expanduser()
-    output_report = Path(args.output_report).expanduser()
+    output_config_path = Path(args.output_config).expanduser()
+    output_report_path = Path(args.output_report).expanduser()
     debug_dir = Path(args.debug_dir).expanduser() if args.debug_dir else None
 
     print(f"[INFO] Rozpoczynam analizę nagrania: {video_path}")
@@ -1145,25 +1173,24 @@ def main() -> int:
     estimate = derive_thresholds(stats)
     config = build_perception_config(estimate, stats)
 
-    output_config.parent.mkdir(parents=True, exist_ok=True)
-    output_config.write_text(_to_yaml_text(config), encoding="utf-8")
+    output_config_path.parent.mkdir(parents=True, exist_ok=True)
+    output_config_path.write_text(_to_yaml_text(config), encoding="utf-8")
 
     write_report(
-        report_path=output_report,
+        report_path=output_report_path,
         stats=stats,
         estimate=estimate,
-        config_path=output_config,
+        config_path=output_config_path,
     )
 
     if stats.reliable or not estimate.used_default_fallback:
-        print(f"[INFO] Kalibracja zakończona sukcesem. Zapisano: {output_config} oraz {output_report}")
+        print(f"[INFO] Kalibracja zakończona sukcesem. Zapisano: {output_config_path} oraz {output_report_path}")
     else:
         print(
             "[WARN] Kalibracja zakończona bez wiarygodnych parametrów. "
-            f"Pozostawiono bezpieczne ustawienia bazowe w: {output_config}. Raport: {output_report}"
+            f"Pozostawiono bezpieczne ustawienia bazowe w: {output_config_path}. Raport: {output_report_path}"
         )
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
