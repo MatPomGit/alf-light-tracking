@@ -70,6 +70,14 @@ class FrameMetrics:
 class CalibrationStats:
     """Zbiorcze statystyki analizy klipu potrzebne do wyznaczania progów."""
 
+    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # CO ZMIENIONO: Rozszerzono statystyki o metadane wejścia (`input_video_path`,
+    # `input_frame_count`), żeby raport zapisywał źródło danych i liczność klipu.
+    # DLACZEGO: Użytkownik wymaga jawnych metadanych uruchomienia w pliku Markdown.
+    # JAK TO DZIAŁA: Pola są ustawiane podczas analizy wideo i później używane w `write_report`.
+    # TODO: Dodać zapis FPS oraz rozdzielczości wejściowej do metadanych raportu.
+    input_video_path: str
+    input_frame_count: int
     sampled_frames: int
     analyzed_frames: int
     detection_count: int
@@ -96,8 +104,18 @@ MIN_SAMPLES_PER_PARAMETER = 10
 class CalibrationEstimate:
     """Wynik estymacji parametrów percepcji wraz z metadanymi jakości."""
 
+    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # CO ZMIENIONO: Dodano mapy `threshold_sources` i `threshold_rules` opisujące
+    # źródłową metrykę oraz konkretną regułę liczbową wyznaczenia parametru.
+    # DLACZEGO: Raport ma zawierać tabelę parametr -> wartość -> metryka -> reguła
+    # oraz uzasadnienia typu „P15 z N próbek”.
+    # JAK TO DZIAŁA: Podczas estymacji każdy próg dostaje wpis z metryką i regułą,
+    # a `write_report` renderuje te dane do tabeli Markdown.
+    # TODO: Dodać pole z przedziałem ufności dla każdej reguły percentylowej.
     thresholds: Dict[str, float]
     sample_counts: Dict[str, int]
+    threshold_sources: Dict[str, str]
+    threshold_rules: Dict[str, str]
     confidence_weights: Dict[str, float]
     confidence_weight_rationale: Dict[str, str]
     used_default_fallback: bool
@@ -112,9 +130,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default="ros2_ws/g1_light_tracking/config/perception.yaml",
         help="Ścieżka wyjściowego pliku YAML z konfiguracją percepcji.",
     )
+    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # CO ZMIENIONO: Zmieniono domyślną ścieżkę `--output-report` na plik w katalogu
+    # `config/perception_calibration_report.md`.
+    # DLACZEGO: Wymaganie użytkownika wskazuje konkretną lokalizację raportu obok konfiguracji.
+    # JAK TO DZIAŁA: Bez podawania flagi CLI raport trafia teraz domyślnie do katalogu pakietu.
+    # TODO: Dodać walidację, czy katalog docelowy jest zapisywalny przed uruchomieniem analizy.
     parser.add_argument(
         "--output-report",
-        default="calibration_report.md",
+        default="ros2_ws/g1_light_tracking/config/perception_calibration_report.md",
         help="Ścieżka wyjściowego raportu Markdown.",
     )
     parser.add_argument(
@@ -263,6 +287,7 @@ def analyze_video(
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise FileNotFoundError(f"Nie udało się otworzyć pliku wideo: {video_path}")
+    input_frame_count = int(max(0.0, float(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
 
     if debug_dir is not None:
         debug_dir.mkdir(parents=True, exist_ok=True)
@@ -360,8 +385,16 @@ def analyze_video(
                 stable = False
                 rejection_reason = "Niestabilne statystyki detekcji między próbkami"
 
+    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # CO ZMIENIONO: Do wyniku `CalibrationStats` dodano metadane wejścia: ścieżkę pliku
+    # i deklarowaną przez kontener liczbę klatek (`CAP_PROP_FRAME_COUNT`).
+    # DLACZEGO: Raport ma pokazywać metadane uruchomienia, a nie tylko agregaty detekcji.
+    # JAK TO DZIAŁA: Wartości są odczytywane po otwarciu strumienia i serializowane w raporcie.
+    # TODO: Uzupełnić o fallback liczenia klatek ręcznie dla kontenerów bez poprawnego CAP_PROP.
     reliable = stable and rejection_reason is None
     return CalibrationStats(
+        input_video_path=str(video_path),
+        input_frame_count=input_frame_count,
         sampled_frames=sampled_frames,
         analyzed_frames=analyzed_frames,
         detection_count=detection_count,
@@ -404,6 +437,26 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
         "min_peak_sharpness": float(defaults.min_peak_sharpness),
         "max_saturated_ratio": float(defaults.max_saturated_ratio),
     }
+    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # CO ZMIENIONO: Dodano metadane estymacji progów (`base_sources`, `base_rules`)
+    # używane w tabeli raportu również w przypadku fallbacku.
+    # DLACZEGO: Raport ma pokazywać źródło metryki i regułę wyliczenia dla każdego parametru,
+    # nawet gdy stosujemy wartości domyślne zamiast estymacji percentylowej.
+    # JAK TO DZIAŁA: Dla fallbacku wpisujemy „wartość domyślna DetectorConfig”, a dla
+    # poprawnej kalibracji nadpisujemy reguły konkretnym percentilem i licznością próbek.
+    # TODO: Rozszerzyć `base_sources` o wskazanie wersji modelu/algorytmu, z którego pochodzą domyślne progi.
+    base_sources: Dict[str, str] = {
+        "min_detection_confidence": "confidence",
+        "min_detection_score": "score_proxy",
+        "min_area": "area",
+        "min_mean_contrast": "mean_contrast",
+        "min_peak_sharpness": "peak_sharpness",
+        "max_saturated_ratio": "saturated_ratio",
+    }
+    base_rules = {
+        key: "fallback bezpieczeństwa: wartość domyślna z DetectorConfig (0 próbek estymacji)"
+        for key in base_thresholds
+    }
     base_sample_counts = {key: 0 for key in base_thresholds}
     base_weights = dict(
         zip(
@@ -426,6 +479,8 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
         return CalibrationEstimate(
             thresholds=base_thresholds,
             sample_counts=base_sample_counts,
+            threshold_sources=base_sources,
+            threshold_rules=base_rules,
             confidence_weights=base_weights,
             confidence_weight_rationale=_build_weight_rationale(1.0, 0.0, 0.0),
             used_default_fallback=True,
@@ -447,6 +502,8 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
         return CalibrationEstimate(
             thresholds=base_thresholds,
             sample_counts=base_sample_counts,
+            threshold_sources=base_sources,
+            threshold_rules=base_rules,
             confidence_weights=base_weights,
             confidence_weight_rationale=_build_weight_rationale(1.0, 0.0, 0.0),
             used_default_fallback=True,
@@ -475,6 +532,8 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
         return CalibrationEstimate(
             thresholds=base_thresholds,
             sample_counts=sample_counts,
+            threshold_sources=base_sources,
+            threshold_rules=base_rules,
             confidence_weights=base_weights,
             confidence_weight_rationale=_build_weight_rationale(1.0, 0.0, 0.0),
             used_default_fallback=True,
@@ -515,9 +574,19 @@ def derive_thresholds(stats: CalibrationStats) -> CalibrationEstimate:
         "min_peak_sharpness": max(0.0, float(np.percentile(sharpness_values, 15))),
         "max_saturated_ratio": _clamp(float(np.percentile(saturation_values, 90)), 0.0, 1.0),
     }
+    threshold_rules = {
+        "min_detection_confidence": f"P10 z {sample_counts['min_detection_confidence']} próbek confidence",
+        "min_detection_score": f"P10 z {sample_counts['min_detection_score']} próbek score_proxy",
+        "min_area": f"P10 z {sample_counts['min_area']} próbek area po filtracji IQR",
+        "min_mean_contrast": f"P15 z {sample_counts['min_mean_contrast']} próbek mean_contrast po filtracji IQR",
+        "min_peak_sharpness": f"P15 z {sample_counts['min_peak_sharpness']} próbek peak_sharpness po filtracji IQR",
+        "max_saturated_ratio": f"P90 z {sample_counts['max_saturated_ratio']} próbek saturated_ratio po filtracji IQR",
+    }
     return CalibrationEstimate(
         thresholds=thresholds,
         sample_counts=sample_counts,
+        threshold_sources=base_sources,
+        threshold_rules=threshold_rules,
         confidence_weights=confidence_weights,
         confidence_weight_rationale=_build_weight_rationale(
             saturated_ratio_median=scene_saturation,
@@ -604,6 +673,37 @@ def _to_yaml_text(config: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+# [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+# CO ZMIENIONO: Dodano funkcję `_build_rejection_summary`, która agreguje odrzucone
+# klatki według przyczyn (np. brak detekcji, zbyt niski contrast, zbyt wysoka saturacja).
+# DLACZEGO: Raport ma zawierać sekcję „odrzucone klatki i powody” opartą o konkretne kryteria.
+# JAK TO DZIAŁA: Każda klatka jest porównywana z domyślnymi progami bezpieczeństwa
+# `DetectorConfig`, a wynik to posortowana lista (powód, liczba, przykładowe indeksy).
+# TODO: Rozszerzyć podsumowanie o histogram odrzuceń w funkcji czasu (okna po 100 klatek).
+def _build_rejection_summary(stats: CalibrationStats) -> List[Tuple[str, int, List[int]]]:
+    """Buduje listę powodów odrzuceń klatek wraz z licznością i przykładami indeksów."""
+    defaults = DetectorConfig()
+    reasons_to_frames: Dict[str, List[int]] = {}
+    for metric in stats.metrics:
+        if not metric.detected:
+            reasons_to_frames.setdefault("brak_detekcji", []).append(metric.frame_index)
+            continue
+        if metric.confidence < defaults.min_detection_confidence:
+            reasons_to_frames.setdefault("confidence<min_detection_confidence", []).append(metric.frame_index)
+        if metric.score_proxy < defaults.min_detection_score:
+            reasons_to_frames.setdefault("score_proxy<min_detection_score", []).append(metric.frame_index)
+        if metric.area < defaults.min_area:
+            reasons_to_frames.setdefault("area<min_area", []).append(metric.frame_index)
+        if metric.mean_contrast < defaults.min_mean_contrast:
+            reasons_to_frames.setdefault("mean_contrast<min_mean_contrast", []).append(metric.frame_index)
+        if metric.peak_sharpness < defaults.min_peak_sharpness:
+            reasons_to_frames.setdefault("peak_sharpness<min_peak_sharpness", []).append(metric.frame_index)
+        if metric.saturated_ratio > defaults.max_saturated_ratio:
+            reasons_to_frames.setdefault("saturated_ratio>max_saturated_ratio", []).append(metric.frame_index)
+    ordered = sorted(reasons_to_frames.items(), key=lambda item: (-len(item[1]), item[0]))
+    return [(reason, len(frames), frames[:8]) for reason, frames in ordered]
+
+
 def write_report(report_path: Path, stats: CalibrationStats, estimate: CalibrationEstimate, config_path: Path) -> None:
     """Zapisuje raport Markdown z przebiegu kalibracji i końcową decyzją bezpieczeństwa.
 
@@ -617,55 +717,95 @@ def write_report(report_path: Path, stats: CalibrationStats, estimate: Calibrati
         None. Funkcja tworzy raport na dysku.
     """
 
+    # [AI-CHANGE | 2026-04-17 13:26 UTC | v0.107]
+    # CO ZMIENIONO: Przebudowano raport Markdown tak, aby zawierał:
+    # - metadane uruchomienia (data UTC, plik wejściowy, liczba klatek),
+    # - tabelę parametryczną z wartością, metryką źródłową i regułą liczbową,
+    # - sekcję odrzuconych klatek z przyczynami,
+    # - sekcję ryzyk/ograniczeń i rekomendacje dalszego strojenia.
+    # DLACZEGO: To bezpośrednia realizacja wymagań użytkownika dla raportu kalibracyjnego.
+    # JAK TO DZIAŁA: Raport składa dane z `CalibrationStats`, `CalibrationEstimate`
+    # i agregacji `_build_rejection_summary`, a reguły typu „P15 z N próbek” są
+    # przygotowane już na etapie estymacji progów.
+    # TODO: Dodać sekcję porównania bieżących progów z poprzednim raportem historycznym.
     detected = [m for m in stats.metrics if m.detected]
     med_conf = median([m.confidence for m in detected]) if detected else 0.0
     med_score = median([m.score_proxy for m in detected]) if detected else 0.0
+    rejection_summary = _build_rejection_summary(stats)
 
     status = "✅ wiarygodna" if stats.reliable else "⚠️ brak wiarygodnych parametrów"
     reason = stats.rejection_reason or "brak"
 
-    # [AI-CHANGE | 2026-04-17 13:31 UTC | v0.103]
-    # CO ZMIENIONO: Rozszerzono raport o:
-    # - informację o fallbacku,
-    # - liczebność próbek użytych dla każdego parametru,
-    # - znormalizowane wagi confidence i ich uzasadnienie scenowe.
-    # DLACZEGO: Raport ma dokumentować źródło estymacji i decyzje bezpieczeństwa,
-    # aby łatwo ocenić czy strojenie jest wiarygodne.
-    # JAK TO DZIAŁA: Sekcje markdown są budowane z `CalibrationEstimate`, który
-    # przenosi metadane obliczone podczas kalibracji.
-    # TODO: Dodać sekcję trendów czasowych metryk (początek/środek/koniec nagrania).
     lines = [
         "# Raport kalibracji percepcji",
         "",
+        "## Metadane uruchomienia",
+        "",
         f"- Data UTC: {datetime.now(timezone.utc).isoformat()}",
+        f"- Input video: `{stats.input_video_path}`",
+        f"- Input frame count: **{stats.input_frame_count}**",
+        f"- Sampled frames: **{stats.sampled_frames}**",
+        f"- Analyzed frames: **{stats.analyzed_frames}**",
         f"- Status kalibracji: **{status}**",
         f"- Powód odrzucenia: **{reason}**",
-        f"- Przeanalizowane klatki: **{stats.analyzed_frames}** / próbkowane: **{stats.sampled_frames}**",
-        f"- Liczba detekcji: **{stats.detection_count}** (ratio={stats.detection_ratio:.3f})",
-        f"- Mediana confidence: **{med_conf:.3f}**",
-        f"- Mediana score_proxy: **{med_score:.3f}**",
         f"- Fallback do domyślnych: **{'tak' if estimate.used_default_fallback else 'nie'}**",
         f"- Powód fallbacku: **{estimate.fallback_reason or 'brak'}**",
+        f"- Detection ratio: **{stats.detection_ratio:.3f}** ({stats.detection_count}/{stats.analyzed_frames if stats.analyzed_frames > 0 else 1})",
+        f"- Mediana confidence: **{med_conf:.3f}**",
+        f"- Mediana score_proxy: **{med_score:.3f}**",
         "",
-        "## Wyznaczone progi",
+        "## Parametry i reguły wyliczenia",
         "",
+        "| Parameter | Value | Source metric | Reguła wyliczenia |",
+        "|---|---:|---|---|",
     ]
     for key, value in estimate.thresholds.items():
-        lines.append(f"- `{key}`: {value:.4f} (próbki: {estimate.sample_counts.get(key, 0)})")
+        source_metric = estimate.threshold_sources.get(key, "n/a")
+        rule = estimate.threshold_rules.get(key, "n/a")
+        lines.append(f"| `{key}` | `{value:.4f}` | `{source_metric}` | {rule} |")
 
     lines.extend(
         [
             "",
             "## Wagi confidence (znormalizowane do sumy 1.0)",
             "",
+            "| Parameter | Value | Source metric | Reguła wyliczenia |",
+            "|---|---:|---|---|",
         ]
     )
     for key, value in estimate.confidence_weights.items():
         rationale = estimate.confidence_weight_rationale.get(key, "Brak dodatkowego uzasadnienia.")
-        lines.append(f"- `{key}`: {value:.4f} — {rationale}")
+        lines.append(f"| `{key}` | `{value:.4f}` | `scene_statistics` | {rationale} |")
+
+    lines.extend(["", "## Odrzucone klatki i powody", ""])
+    if rejection_summary:
+        lines.extend(
+            [
+                "| Powód odrzucenia | Liczba klatek | Przykładowe indeksy klatek |",
+                "|---|---:|---|",
+            ]
+        )
+        for reason_key, count, example_frames in rejection_summary:
+            sample_frames = ", ".join(str(index) for index in example_frames) if example_frames else "-"
+            lines.append(f"| `{reason_key}` | {count} | {sample_frames} |")
+    else:
+        lines.append("- Brak odrzuconych klatek.")
 
     lines.extend(
         [
+            "",
+            "## Ryzyka i ograniczenia",
+            "",
+            "- Kalibracja bazuje na pojedynczym materiale wejściowym; zmiana ekspozycji kamery lub tła może wymagać ponownego strojenia.",
+            "- Reguły percentylowe (P10/P15/P90) zakładają reprezentatywność próbek; przy biasie sceny mogą zaniżać lub zawyżać progi.",
+            "- Odrzucanie outlierów IQR poprawia stabilność, ale może usunąć rzadkie, poprawne przypadki graniczne.",
+            "- Zgodnie z polityką bezpieczeństwa przy niskiej wiarygodności pozostawiane są wartości domyślne, co może zmniejszyć czułość.",
+            "",
+            "## Rekomendacje dalszego strojenia",
+            "",
+            "- Przygotować osobne profile `indoor` i `outdoor` oraz przełączać je na podstawie metryk `mean_contrast` i `saturated_ratio`.",
+            "- Dodać walidację krzyżową na kilku klipach referencyjnych (różne pory dnia) i raportować rozrzut progów między klipami.",
+            "- Rozważyć adaptacyjne `min_detection_score` zależne od stabilności `peak_sharpness` w oknie czasowym.",
             "",
             "## Wynik",
             "",
