@@ -20,6 +20,12 @@ setup(
         # JAK TO DZIAŁA: Podczas instalacji pakietu plik launch trafia do `share/robot_emergency_stop/launch`.
         # TODO: Rozszerzyć pakiet o przykładowy plik YAML z parametrami bezpieczeństwa do launcha standalone.
         ('share/' + package_name + '/launch', ['launch/emergency_stop_standalone.launch.py']),
+        # [AI-CHANGE | 2026-04-19 22:13 UTC | v0.133]
+        # CO ZMIENIONO: Dodano instalację pliku `config/emergency_stop.yaml` w pakiecie.
+        # DLACZEGO: Parametry bezpieczeństwa muszą być dostępne po instalacji przez `ros2 launch/run` bez ręcznego kopiowania.
+        # JAK TO DZIAŁA: Instalator umieszcza YAML w `share/robot_emergency_stop/config`, skąd może być wczytany przez launch.
+        # TODO: Dodać automatyczny test integracyjny sprawdzający, że plik config jest obecny w install space.
+        ('share/' + package_name + '/config', ['config/emergency_stop.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
