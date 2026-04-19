@@ -4,89 +4,139 @@ import copy
 
 import rclpy
 from geometry_msgs.msg import Twist
+from rclpy.duration import Duration
 from rclpy.node import Node
-from std_msgs.msg import Bool
-from std_srvs.srv import Trigger
+from rclpy.time import Time
+from std_msgs.msg import Bool, Empty
 
 
 class EmergencyStopNode(Node):
-    """Węzeł filtrujący komendy ruchu na podstawie stanu awaryjnego STOP."""
+    """Węzeł fail-safe filtrujący komendy ruchu na podstawie sygnału E-STOP i heartbeat."""
 
     def __init__(self) -> None:
         super().__init__('emergency_stop_node')
 
-        # [AI-CHANGE | 2026-04-19 20:47 UTC | v0.125]
-        # CO ZMIENIONO: Dodano pełny interfejs topic/service dla awaryjnego zatrzymania:
-        #   - subskrypcja `~/input_cmd_vel` (Twist),
-        #   - subskrypcja `~/trigger` (Bool),
-        #   - publikacja `~/output_cmd_vel` (Twist),
-        #   - publikacja `~/status` (Bool),
-        #   - usługa `~/reset` (Trigger).
-        # DLACZEGO: Interfejs ma działać niezależnie od innych pakietów i zapewniać bezpieczne odcięcie ruchu po aktywacji STOP.
-        # JAK TO DZIAŁA: Po `trigger=True` węzeł wymusza publikację zerowej prędkości i odrzuca każdą kolejną komendę ruchu aż do ręcznego resetu usługą.
-        # TODO: Rozszerzyć logikę o timeout bezpieczeństwa (automatyczny STOP przy braku heartbeat z kontrolera nadrzędnego).
-        self._stop_active = False
+        # [AI-CHANGE | 2026-04-19 21:11 UTC | v0.127]
+        # CO ZMIENIONO: Przebudowano interfejs na wymagane wejścia/wyjścia:
+        #   - subskrypcja `cmd_vel_in` (Twist),
+        #   - subskrypcja `estop_signal` (Bool),
+        #   - opcjonalna subskrypcja heartbeat `estop_heartbeat` jako Empty albo Bool,
+        #   - publikacja `cmd_vel_out` (Twist).
+        #   Dodano parametry bezpieczeństwa:
+        #   - `use_heartbeat` (domyślnie False),
+        #   - `heartbeat_msg_type` (`empty` lub `bool`),
+        #   - `heartbeat_timeout_s` (domyślnie 0.5 sekundy).
+        # DLACZEGO: Użytkownik oczekuje prostego filtra bezpieczeństwa, który ma domyślnie zatrzymywać robota
+        #   i odblokowywać ruch wyłącznie po spełnieniu jawnych warunków bezpieczeństwa.
+        # JAK TO DZIAŁA: Każda przychodząca komenda `cmd_vel_in` jest weryfikowana metodą `_is_safe_to_forward()`;
+        #   jeśli warunki nie są spełnione, publikowane jest zero na `cmd_vel_out`.
+        # TODO: Dodać diagnostykę na osobnym topicu (np. `diagnostics`) z precyzyjnym powodem blokady ruchu.
+        self.declare_parameter('use_heartbeat', False)
+        self.declare_parameter('heartbeat_msg_type', 'empty')
+        self.declare_parameter('heartbeat_timeout_s', 0.5)
+
+        self._use_heartbeat = bool(self.get_parameter('use_heartbeat').value)
+        self._heartbeat_msg_type = str(self.get_parameter('heartbeat_msg_type').value).strip().lower()
+        self._heartbeat_timeout_s = float(self.get_parameter('heartbeat_timeout_s').value)
+
+        if self._heartbeat_timeout_s <= 0.0:
+            self.get_logger().warn(
+                'Parametr heartbeat_timeout_s <= 0.0, ustawiam wartość bezpieczną 0.5s.'
+            )
+            self._heartbeat_timeout_s = 0.5
+
+        if self._heartbeat_msg_type not in {'empty', 'bool'}:
+            self.get_logger().warn(
+                "Nieobsługiwany heartbeat_msg_type='%s'; używam bezpiecznego domyślnego 'empty'."
+                % self._heartbeat_msg_type
+            )
+            self._heartbeat_msg_type = 'empty'
+
+        self._heartbeat_timeout = Duration(seconds=self._heartbeat_timeout_s)
+
+        # [AI-CHANGE | 2026-04-19 21:11 UTC | v0.127]
+        # CO ZMIENIONO: Wprowadzono stan startowy fail-safe:
+        #   - `_estop_asserted = True` (na starcie traktujemy układ jako zatrzymany),
+        #   - `_last_heartbeat_time = None` (brak heartbeat do czasu pierwszej wiadomości).
+        # DLACZEGO: Zgodnie z zasadą bezpieczeństwa lepiej odrzucić sterowanie niż przepuścić niepewne dane.
+        # JAK TO DZIAŁA: Odblokowanie ruchu wymaga co najmniej `estop_signal=False`; a jeśli heartbeat jest włączony,
+        #   to dodatkowo wymagany jest świeży heartbeat w dopuszczalnym oknie czasu.
+        # TODO: Rozważyć parametr `require_estop_release` z potwierdzeniem dwukanałowym dla systemów SIL.
+        self._estop_asserted = True
         self._last_cmd = Twist()
+        self._last_heartbeat_time: Time | None = None
 
-        self._cmd_in_sub = self.create_subscription(
-            Twist,
-            '~/input_cmd_vel',
-            self._on_input_cmd_vel,
-            10,
-        )
-        self._trigger_sub = self.create_subscription(
-            Bool,
-            '~/trigger',
-            self._on_trigger,
-            10,
-        )
+        self._cmd_in_sub = self.create_subscription(Twist, 'cmd_vel_in', self._on_cmd_vel_in, 10)
+        self._estop_signal_sub = self.create_subscription(Bool, 'estop_signal', self._on_estop_signal, 10)
+        self._cmd_out_pub = self.create_publisher(Twist, 'cmd_vel_out', 10)
 
-        self._cmd_out_pub = self.create_publisher(Twist, '~/output_cmd_vel', 10)
-        self._status_pub = self.create_publisher(Bool, '~/status', 10)
-        self._reset_srv = self.create_service(Trigger, '~/reset', self._on_reset)
+        self._heartbeat_sub = None
+        if self._use_heartbeat:
+            if self._heartbeat_msg_type == 'bool':
+                self._heartbeat_sub = self.create_subscription(
+                    Bool,
+                    'estop_heartbeat',
+                    self._on_heartbeat_bool,
+                    10,
+                )
+            else:
+                self._heartbeat_sub = self.create_subscription(
+                    Empty,
+                    'estop_heartbeat',
+                    self._on_heartbeat_empty,
+                    10,
+                )
 
-        self._publish_status()
-        self.get_logger().info('Emergency stop node started.')
+        # Natychmiastowa publikacja zera po starcie dla deterministycznego wejścia w tryb bezpieczny.
+        self._publish_zero_cmd()
+        self.get_logger().info('EmergencyStopNode uruchomiony w trybie fail-safe (zatrzymany).')
 
-    def _on_input_cmd_vel(self, msg: Twist) -> None:
-        """Przekazuje komendę ruchu tylko wtedy, gdy STOP nie jest aktywny."""
-        if self._stop_active:
-            self._cmd_out_pub.publish(Twist())
-            return
-
+    def _on_cmd_vel_in(self, msg: Twist) -> None:
+        """Przepuszcza komendę tylko przy spełnionych warunkach bezpieczeństwa."""
         self._last_cmd = copy.deepcopy(msg)
-        self._cmd_out_pub.publish(msg)
-
-    def _on_trigger(self, msg: Bool) -> None:
-        """Aktywuje/dezaktywuje stop; aktywacja zawsze natychmiast publikuje komendę zerową."""
-        if msg.data:
-            if not self._stop_active:
-                self.get_logger().warn('Emergency STOP activated.')
-            self._stop_active = True
-            self._cmd_out_pub.publish(Twist())
-            self._publish_status()
+        if self._is_safe_to_forward():
+            self._cmd_out_pub.publish(msg)
             return
 
-        # Bezpieczna polityka: ignorujemy `False` na triggerze, aby przypadkowo nie zwolnić blokady.
-        self.get_logger().debug('Received trigger=False; stop remains unchanged until manual reset.')
+        self._publish_zero_cmd()
 
-    def _on_reset(self, _request: Trigger.Request, response: Trigger.Response) -> Trigger.Response:
-        """Ręcznie resetuje blokadę awaryjnego zatrzymania."""
-        self._stop_active = False
-        self._publish_status()
-        response.success = True
-        response.message = 'Emergency stop has been reset.'
+    def _on_estop_signal(self, msg: Bool) -> None:
+        """Aktualizuje stan E-STOP: True wymusza zatrzymanie, False pozwala na potencjalne odblokowanie."""
+        self._estop_asserted = bool(msg.data)
+        if self._estop_asserted:
+            self.get_logger().warn('Odebrano estop_signal=True. Wymuszam zatrzymanie.')
+            self._publish_zero_cmd()
+        else:
+            self.get_logger().info('Odebrano estop_signal=False. Oczekuję na spełnienie pozostałych warunków bezpieczeństwa.')
 
-        # Po resecie publikujemy ostatnią znaną komendę, aby wznowienie było jawne i deterministyczne.
-        self._cmd_out_pub.publish(copy.deepcopy(self._last_cmd))
-        self.get_logger().info('Emergency STOP reset via service.')
-        return response
+    def _on_heartbeat_empty(self, _msg: Empty) -> None:
+        """Rejestruje heartbeat typu Empty."""
+        self._last_heartbeat_time = self.get_clock().now()
 
-    def _publish_status(self) -> None:
-        """Publikuje aktualny status awaryjnego zatrzymania."""
-        status = Bool()
-        status.data = self._stop_active
-        self._status_pub.publish(status)
+    def _on_heartbeat_bool(self, msg: Bool) -> None:
+        """Rejestruje heartbeat typu Bool tylko gdy wartość jest jawnie True."""
+        if not msg.data:
+            # Przy heartbeat typu Bool wartość False traktujemy jako brak ważnego heartbeat.
+            return
+        self._last_heartbeat_time = self.get_clock().now()
+
+    def _is_safe_to_forward(self) -> bool:
+        """Ocena bezpieczeństwa: True = wolno przepuścić cmd_vel, False = należy publikować zero."""
+        if self._estop_asserted:
+            return False
+
+        if not self._use_heartbeat:
+            return True
+
+        if self._last_heartbeat_time is None:
+            return False
+
+        elapsed = self.get_clock().now() - self._last_heartbeat_time
+        return elapsed <= self._heartbeat_timeout
+
+    def _publish_zero_cmd(self) -> None:
+        """Publikuje zerową prędkość na wyjście bezpieczeństwa."""
+        self._cmd_out_pub.publish(Twist())
 
 
 def main(args: list[str] | None = None) -> None:
