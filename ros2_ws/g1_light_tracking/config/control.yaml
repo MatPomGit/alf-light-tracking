@@ -1,7 +1,12 @@
 g1_light_follower_node:
   ros__parameters:
     detection_topic: /light_tracking/detection_json
-    cmd_vel_topic: /cmd_vel
+    # [AI-CHANGE | 2026-04-19 22:08 UTC | v0.131]
+    # CO ZMIENIONO: Domyślną publikację kontrolera przestawiono na `/cmd_vel_raw`.
+    # DLACZEGO: Wymusza to przepływ przez `emergency_stop_node` przed wystawieniem komend na `/cmd_vel`.
+    # JAK TO DZIAŁA: `g1_light_follower_node` publikuje surowe komendy na wejście warstwy bezpieczeństwa.
+    # TODO: Rozważyć profile konfiguracyjne (sim/hw) z automatycznym przełączaniem topiców.
+    cmd_vel_topic: /cmd_vel_raw
     control_rate_hz: 20.0
     target_distance_m: 0.8
     detection_timeout_s: 0.6

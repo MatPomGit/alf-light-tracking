@@ -28,6 +28,25 @@ def generate_launch_description() -> LaunchDescription:
             output='screen',
             parameters=[os.path.join(config_dir, 'control.yaml')],
         ),
+
+        # [AI-CHANGE | 2026-04-19 22:08 UTC | v0.131]
+        # CO ZMIENIONO: Dodano uruchamianie `emergency_stop_node` z mapowaniem topiców
+        #   `/cmd_vel_raw` -> `/cmd_vel` wewnątrz stosu śledzenia światła.
+        # DLACZEGO: Architektura fail-safe wymaga, by komendy sterowania były filtrowane przez E-STOP
+        #   przed przekazaniem do dalszych węzłów wykonawczych.
+        # JAK TO DZIAŁA: Node bezpieczeństwa subskrybuje `cmd_vel_in` zmapowane na `/cmd_vel_raw`
+        #   i publikuje `cmd_vel_out` zmapowane na `/cmd_vel`, co tworzy bezpieczny bufor decyzyjny.
+        # TODO: Dodać argument launch do konfiguracji heartbeat E-STOP bez modyfikacji kodu.
+        Node(
+            package='robot_emergency_stop',
+            executable='emergency_stop_node',
+            name='emergency_stop_node',
+            output='screen',
+            remappings=[
+                ('cmd_vel_in', '/cmd_vel_raw'),
+                ('cmd_vel_out', '/cmd_vel'),
+            ],
+        ),
     ]
 
     try:

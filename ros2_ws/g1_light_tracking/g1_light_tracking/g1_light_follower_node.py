@@ -19,7 +19,14 @@ class G1LightFollowerNode(Node):
         super().__init__('g1_light_follower_node')
 
         self.declare_parameter('detection_topic', '/light_tracking/detection_json')
-        self.declare_parameter('cmd_vel_topic', '/cmd_vel')
+        # [AI-CHANGE | 2026-04-19 22:08 UTC | v0.131]
+        # CO ZMIENIONO: Zmieniono domyślny topic publikacji komend ruchu z `/cmd_vel` na `/cmd_vel_raw`.
+        # DLACZEGO: Komendy z kontrolera mają najpierw przejść przez warstwę bezpieczeństwa E-STOP,
+        #   aby do mostka/aktuatorów trafiał wyłącznie strumień po filtracji fail-safe.
+        # JAK TO DZIAŁA: Bez nadpisania parametru node publikuje na `/cmd_vel_raw`; docelowy `/cmd_vel`
+        #   jest generowany przez `emergency_stop_node` po walidacji warunków bezpieczeństwa.
+        # TODO: Dodać test integracyjny sprawdzający, że domyślny tor komend zawsze przechodzi przez E-STOP.
+        self.declare_parameter('cmd_vel_topic', '/cmd_vel_raw')
         self.declare_parameter('control_rate_hz', 20.0)
         self.declare_parameter('target_distance_m', 0.8)
         self.declare_parameter('detection_timeout_s', 0.3)

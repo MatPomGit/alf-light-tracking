@@ -14,6 +14,12 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml', 'README.md']),
+        # [AI-CHANGE | 2026-04-19 22:08 UTC | v0.131]
+        # CO ZMIENIONO: Dodano instalację katalogu `launch` z plikiem standalone.
+        # DLACZEGO: Umożliwia uruchomienie `emergency_stop_node` niezależnie przez `ros2 launch`.
+        # JAK TO DZIAŁA: Podczas instalacji pakietu plik launch trafia do `share/robot_emergency_stop/launch`.
+        # TODO: Rozszerzyć pakiet o przykładowy plik YAML z parametrami bezpieczeństwa do launcha standalone.
+        ('share/' + package_name + '/launch', ['launch/emergency_stop_standalone.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
