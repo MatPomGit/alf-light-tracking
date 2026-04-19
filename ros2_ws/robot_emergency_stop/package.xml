@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <!-- [AI-CHANGE | 2026-04-19 20:47 UTC | v0.125]
+       CO ZMIENIONO: Utworzono nowy manifest pakietu ROS2 `robot_emergency_stop` z minimalnym zestawem zależności.
+       DLACZEGO: Pakiet ma działać jako niezależny interfejs awaryjnego zatrzymania przez topic/service bez zależności od `g1_light_tracking`.
+       JAK TO DZIAŁA: `ament_python` buduje pakiet Python, a zależności `rclpy`, `geometry_msgs`, `std_msgs` i opcjonalne `std_srvs` zapewniają interfejs komunikacji.
+       TODO: Dodać walidację kontraktu komunikatów w testach integracyjnych ROS2 (np. przez `launch_testing`). -->
+  <name>robot_emergency_stop</name>
+  <version>0.1.0</version>
+  <description>Niezależny pakiet ROS2 do awaryjnego zatrzymania robota przez topic/service.</description>
+
+  <maintainer email="you@example.com">Your Name</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
