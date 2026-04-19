@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from enum import Enum
 
 import rclpy
 from geometry_msgs.msg import Twist
@@ -8,6 +9,14 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
 from std_msgs.msg import Bool, Empty
+from std_srvs.srv import Trigger
+
+
+class RunState(str, Enum):
+    """Prosta maszyna stanów dostępu do ruchu."""
+
+    STOPPED = 'STOPPED'
+    RUN_ALLOWED = 'RUN_ALLOWED'
 
 
 class EmergencyStopNode(Node):
@@ -16,28 +25,28 @@ class EmergencyStopNode(Node):
     def __init__(self) -> None:
         super().__init__('emergency_stop_node')
 
-        # [AI-CHANGE | 2026-04-19 21:11 UTC | v0.127]
-        # CO ZMIENIONO: Przebudowano interfejs na wymagane wejścia/wyjścia:
-        #   - subskrypcja `cmd_vel_in` (Twist),
-        #   - subskrypcja `estop_signal` (Bool),
-        #   - opcjonalna subskrypcja heartbeat `estop_heartbeat` jako Empty albo Bool,
-        #   - publikacja `cmd_vel_out` (Twist).
-        #   Dodano parametry bezpieczeństwa:
-        #   - `use_heartbeat` (domyślnie False),
-        #   - `heartbeat_msg_type` (`empty` lub `bool`),
-        #   - `heartbeat_timeout_s` (domyślnie 0.5 sekundy).
-        # DLACZEGO: Użytkownik oczekuje prostego filtra bezpieczeństwa, który ma domyślnie zatrzymywać robota
-        #   i odblokowywać ruch wyłącznie po spełnieniu jawnych warunków bezpieczeństwa.
-        # JAK TO DZIAŁA: Każda przychodząca komenda `cmd_vel_in` jest weryfikowana metodą `_is_safe_to_forward()`;
-        #   jeśli warunki nie są spełnione, publikowane jest zero na `cmd_vel_out`.
-        # TODO: Dodać diagnostykę na osobnym topicu (np. `diagnostics`) z precyzyjnym powodem blokady ruchu.
+        # [AI-CHANGE | 2026-04-19 22:02 UTC | v0.129]
+        # CO ZMIENIONO: Rozszerzono konfigurację o opcjonalne serwisy Trigger i jawny sygnał arm:
+        #   - `enable_trigger_services` steruje wystawieniem `/emergency_stop/trigger` i `/emergency_stop/clear`,
+        #   - `require_arm_to_clear` wymusza aktywny arm przy `clear`,
+        #   - subskrypcja `estop_arm` (Bool) uzupełnia warunek bezpieczeństwa.
+        #   Zachowano `estop_signal` jako główny interfejs produkcyjny.
+        # DLACZEGO: Integracja między projektami wymaga prostego interfejsu topic (`estop_signal`) oraz
+        #   opcjonalnego API serwisowego do ręcznego trigger/clear z dodatkowymi zabezpieczeniami.
+        # JAK TO DZIAŁA: `estop_signal=True` zawsze zatrzymuje, `estop_signal=False` może odblokować ruch
+        #   tylko po spełnieniu warunków heartbeat (jeśli aktywny) oraz arm (jeśli wymagany).
+        # TODO: Dodać parametr określający minimalny czas stabilnego arm przed akceptacją `clear`.
         self.declare_parameter('use_heartbeat', False)
         self.declare_parameter('heartbeat_msg_type', 'empty')
         self.declare_parameter('heartbeat_timeout_s', 0.5)
+        self.declare_parameter('enable_trigger_services', True)
+        self.declare_parameter('require_arm_to_clear', True)
 
         self._use_heartbeat = bool(self.get_parameter('use_heartbeat').value)
         self._heartbeat_msg_type = str(self.get_parameter('heartbeat_msg_type').value).strip().lower()
         self._heartbeat_timeout_s = float(self.get_parameter('heartbeat_timeout_s').value)
+        self._enable_trigger_services = bool(self.get_parameter('enable_trigger_services').value)
+        self._require_arm_to_clear = bool(self.get_parameter('require_arm_to_clear').value)
 
         if self._heartbeat_timeout_s <= 0.0:
             self.get_logger().warn(
@@ -54,20 +63,23 @@ class EmergencyStopNode(Node):
 
         self._heartbeat_timeout = Duration(seconds=self._heartbeat_timeout_s)
 
-        # [AI-CHANGE | 2026-04-19 21:11 UTC | v0.127]
-        # CO ZMIENIONO: Wprowadzono stan startowy fail-safe:
-        #   - `_estop_asserted = True` (na starcie traktujemy układ jako zatrzymany),
-        #   - `_last_heartbeat_time = None` (brak heartbeat do czasu pierwszej wiadomości).
-        # DLACZEGO: Zgodnie z zasadą bezpieczeństwa lepiej odrzucić sterowanie niż przepuścić niepewne dane.
-        # JAK TO DZIAŁA: Odblokowanie ruchu wymaga co najmniej `estop_signal=False`; a jeśli heartbeat jest włączony,
-        #   to dodatkowo wymagany jest świeży heartbeat w dopuszczalnym oknie czasu.
-        # TODO: Rozważyć parametr `require_estop_release` z potwierdzeniem dwukanałowym dla systemów SIL.
+        # [AI-CHANGE | 2026-04-19 22:02 UTC | v0.129]
+        # CO ZMIENIONO: Wprowadzono jawną maszynę stanów `STOPPED`/`RUN_ALLOWED` wraz z rejestrem powodów przejść.
+        #   Dodano pola `_estop_asserted`, `_armed`, `_state` i metody `_evaluate_and_apply_state` oraz `_set_state`.
+        # DLACZEGO: Uproszczona i deterministyczna logika stanu zwiększa czytelność bezpieczeństwa oraz ułatwia audyt.
+        # JAK TO DZIAŁA: Każde zdarzenie wejściowe (signal/heartbeat/arm/serwis) wywołuje ocenę reguł.
+        #   Stan przełącza się wyłącznie przez `_set_state`, która loguje konkretny powód (`manual_trigger`,
+        #   `heartbeat_timeout`, `signal_false`, `service_clear`, itp.) i publikuje zero przy przejściu do STOPPED.
+        # TODO: Dodać licznik i metryki częstości przejść stanów dla monitoringu runtime.
         self._estop_asserted = True
+        self._armed = False
         self._last_cmd = Twist()
         self._last_heartbeat_time: Time | None = None
+        self._state = RunState.STOPPED
 
         self._cmd_in_sub = self.create_subscription(Twist, 'cmd_vel_in', self._on_cmd_vel_in, 10)
         self._estop_signal_sub = self.create_subscription(Bool, 'estop_signal', self._on_estop_signal, 10)
+        self._estop_arm_sub = self.create_subscription(Bool, 'estop_arm', self._on_estop_arm, 10)
         self._cmd_out_pub = self.create_publisher(Twist, 'cmd_vel_out', 10)
 
         self._heartbeat_sub = None
@@ -87,52 +99,113 @@ class EmergencyStopNode(Node):
                     10,
                 )
 
-        # Natychmiastowa publikacja zera po starcie dla deterministycznego wejścia w tryb bezpieczny.
+        self._trigger_srv = None
+        self._clear_srv = None
+        if self._enable_trigger_services:
+            self._trigger_srv = self.create_service(
+                Trigger,
+                '/emergency_stop/trigger',
+                self._on_trigger_service,
+            )
+            self._clear_srv = self.create_service(
+                Trigger,
+                '/emergency_stop/clear',
+                self._on_clear_service,
+            )
+
         self._publish_zero_cmd()
-        self.get_logger().info('EmergencyStopNode uruchomiony w trybie fail-safe (zatrzymany).')
+        self.get_logger().info('EmergencyStopNode uruchomiony w trybie fail-safe (stan=STOPPED).')
 
     def _on_cmd_vel_in(self, msg: Twist) -> None:
-        """Przepuszcza komendę tylko przy spełnionych warunkach bezpieczeństwa."""
+        """Przepuszcza komendę tylko w stanie RUN_ALLOWED."""
         self._last_cmd = copy.deepcopy(msg)
-        if self._is_safe_to_forward():
+        self._evaluate_and_apply_state(reason_hint='cmd_input_check')
+        if self._state == RunState.RUN_ALLOWED:
             self._cmd_out_pub.publish(msg)
             return
-
         self._publish_zero_cmd()
 
     def _on_estop_signal(self, msg: Bool) -> None:
-        """Aktualizuje stan E-STOP: True wymusza zatrzymanie, False pozwala na potencjalne odblokowanie."""
+        """Główny interfejs produkcyjny: `True` zatrzymuje, `False` zezwala na próbę odblokowania."""
         self._estop_asserted = bool(msg.data)
-        if self._estop_asserted:
-            self.get_logger().warn('Odebrano estop_signal=True. Wymuszam zatrzymanie.')
-            self._publish_zero_cmd()
-        else:
-            self.get_logger().info('Odebrano estop_signal=False. Oczekuję na spełnienie pozostałych warunków bezpieczeństwa.')
+        reason = 'manual_trigger' if self._estop_asserted else 'signal_false'
+        self._evaluate_and_apply_state(reason_hint=reason)
+
+    def _on_estop_arm(self, msg: Bool) -> None:
+        """Aktualizuje status uzbrojenia systemu wymagany do bezpiecznego clear."""
+        self._armed = bool(msg.data)
+        reason = 'arm_true' if self._armed else 'arm_false'
+        self._evaluate_and_apply_state(reason_hint=reason)
 
     def _on_heartbeat_empty(self, _msg: Empty) -> None:
-        """Rejestruje heartbeat typu Empty."""
+        """Rejestruje heartbeat typu Empty i ponownie ocenia warunki odblokowania."""
         self._last_heartbeat_time = self.get_clock().now()
+        self._evaluate_and_apply_state(reason_hint='heartbeat_received')
 
     def _on_heartbeat_bool(self, msg: Bool) -> None:
-        """Rejestruje heartbeat typu Bool tylko gdy wartość jest jawnie True."""
+        """Rejestruje heartbeat Bool tylko gdy wartość jest jawnie True."""
         if not msg.data:
-            # Przy heartbeat typu Bool wartość False traktujemy jako brak ważnego heartbeat.
             return
         self._last_heartbeat_time = self.get_clock().now()
+        self._evaluate_and_apply_state(reason_hint='heartbeat_received')
 
-    def _is_safe_to_forward(self) -> bool:
-        """Ocena bezpieczeństwa: True = wolno przepuścić cmd_vel, False = należy publikować zero."""
+    def _on_trigger_service(self, _request: Trigger.Request, response: Trigger.Response) -> Trigger.Response:
+        """Ręczne wymuszenie STOP przez opcjonalny serwis administracyjny."""
+        self._estop_asserted = True
+        self._evaluate_and_apply_state(reason_hint='manual_trigger')
+        response.success = True
+        response.message = 'E-STOP aktywowany.'
+        return response
+
+    def _on_clear_service(self, _request: Trigger.Request, response: Trigger.Response) -> Trigger.Response:
+        """Próba wyjścia ze STOP tylko gdy spełnione są warunki bezpieczeństwa."""
+        self._estop_asserted = False
+        self._evaluate_and_apply_state(reason_hint='service_clear')
+        if self._state == RunState.RUN_ALLOWED:
+            response.success = True
+            response.message = 'E-STOP wyczyszczony, RUN_ALLOWED.'
+            return response
+
+        self._estop_asserted = True
+        self._evaluate_and_apply_state(reason_hint='clear_rejected')
+        response.success = False
+        response.message = 'Odrzucono clear: niespełnione warunki heartbeat/arm.'
+        return response
+
+    def _evaluate_and_apply_state(self, reason_hint: str) -> None:
+        """Ocena reguł bezpieczeństwa i zastosowanie właściwego stanu maszyny."""
         if self._estop_asserted:
-            return False
+            self._set_state(RunState.STOPPED, reason_hint)
+            return
 
-        if not self._use_heartbeat:
-            return True
+        if self._use_heartbeat:
+            if self._last_heartbeat_time is None:
+                self._set_state(RunState.STOPPED, 'heartbeat_missing')
+                return
+            elapsed = self.get_clock().now() - self._last_heartbeat_time
+            if elapsed > self._heartbeat_timeout:
+                self._set_state(RunState.STOPPED, 'heartbeat_timeout')
+                return
 
-        if self._last_heartbeat_time is None:
-            return False
+        if self._require_arm_to_clear and not self._armed:
+            self._set_state(RunState.STOPPED, 'arm_required')
+            return
 
-        elapsed = self.get_clock().now() - self._last_heartbeat_time
-        return elapsed <= self._heartbeat_timeout
+        self._set_state(RunState.RUN_ALLOWED, reason_hint)
+
+    def _set_state(self, new_state: RunState, reason: str) -> None:
+        """Ustawia nowy stan i loguje powód przejścia."""
+        if self._state == new_state:
+            return
+
+        previous_state = self._state
+        self._state = new_state
+        self.get_logger().info(
+            'Przejście stanu: %s -> %s (powód=%s)'
+            % (previous_state.value, new_state.value, reason)
+        )
+        if new_state == RunState.STOPPED:
+            self._publish_zero_cmd()
 
     def _publish_zero_cmd(self) -> None:
         """Publikuje zerową prędkość na wyjście bezpieczeństwa."""
