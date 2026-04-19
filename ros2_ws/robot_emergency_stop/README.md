@@ -42,6 +42,17 @@ Każde przejście między stanami jest logowane z konkretnym powodem (np. `manua
 - `enable_trigger_services` (bool, domyślnie: `true`)
 - `require_arm_to_clear` (bool, domyślnie: `true`)
 
+<!-- [AI-CHANGE | 2026-04-19 22:13 UTC | v0.133]
+CO ZMIENIONO: Dodano opis polityki bezpieczeństwa heartbeat = brak heartbeat oznacza STOP.
+DLACZEGO: W projekcie obowiązuje zasada „brak ruchu lepszy niż błędny ruch”, więc brak sygnału musi wymuszać blokadę ruchu.
+JAK TO DZIAŁA: Jeśli heartbeat nie nadejdzie w `heartbeat_timeout_s`, node przechodzi do `STOPPED` i publikuje zerowe `cmd_vel_out`.
+TODO: Dodać tabelę stanów z czasami granicznymi heartbeat oraz przykładowymi logami diagnostycznymi. -->
+## Polityka bezpieczeństwa heartbeat
+- **Brak sygnału heartbeat = STOP**.
+- W konfiguracji konserwatywnej ruch startuje zablokowany (`start_in_stop: true`) i może zostać dopuszczony dopiero po spełnieniu warunku heartbeat.
+- Utrata heartbeat (timeout) jest traktowana jako niepewność systemu, dlatego ruch jest natychmiast blokowany.
+- Ta polityka realizuje zasadę: **lepiej zatrzymać robota niż dopuścić potencjalnie błędny ruch**.
+
 ## Przykład uruchomienia
 ```bash
 # Terminal 1
