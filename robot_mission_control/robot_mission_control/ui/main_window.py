@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
@@ -24,6 +26,8 @@ from robot_mission_control.core import (
     STATE_KEY_SELECTED_BAG,
     StateStore,
     StateValue,
+    Supervisor,
+    utc_now,
 )
 from robot_mission_control.ui.tabs.controls_tab import ControlsTab
 from robot_mission_control.ui.tabs.debug_tab import DebugTab
@@ -34,23 +38,25 @@ from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
 from robot_mission_control.ui.tabs.telemetry_tab import TelemetryTab
 from robot_mission_control.ui.tabs.video_depth_tab import VideoDepthTab
 
-# [AI-CHANGE | 2026-04-20 18:27 UTC | v0.143]
-# CO ZMIENIONO: MainWindow przyjmuje wyłącznie StateStore i renderuje statusy tylko z danych zapisanych w store.
-# DLACZEGO: Eliminuje to ryzyko bezpośredniego wstrzykiwania surowych wartości z ROS do komponentów UI.
-# JAK TO DZIAŁA: Metody _render_* pobierają klucze globalne ze store; gdy jakość != VALID, UI pokazuje
-#                bezpieczne BRAK DANYCH/NIEDOSTĘPNE zamiast domyślnych liczb.
-# TODO: Dodać cykliczny refresh przez QTimer/sygnały, aby UI reagował na aktualizacje store w czasie rzeczywistym.
+# [AI-CHANGE | 2026-04-20 19:12 UTC | v0.145]
+# CO ZMIENIONO: Dodano izolację awarii paneli UI (per zakładka) oraz heartbeat kanałów/paneli przez Supervisor.
+# DLACZEGO: Wymagane jest, aby awaria jednego panelu przełączała tylko ten panel na UNAVAILABLE,
+#           a reszta aplikacji działała bez przerwy.
+# JAK TO DZIAŁA: _build_safe_tab łapie wyjątek tylko dla konkretnego panelu i renderuje fallback,
+#                Supervisor zapisuje incydent + stan panelu; status bar pokazuje liczbę incydentów.
+# TODO: Dodać okresowy QTimer do automatycznej próby odtworzenia paneli po ustaniu błędów.
 
 
 class MainWindow(QMainWindow):
     """Main mission control desktop window."""
 
-    def __init__(self, state_store: StateStore) -> None:
+    def __init__(self, state_store: StateStore, supervisor: Supervisor) -> None:
         super().__init__()
         self.setWindowTitle("Robot Mission Control")
         self.resize(1400, 900)
 
         self._state_store = state_store
+        self._supervisor = supervisor
 
         central = QWidget(self)
         root_layout = QVBoxLayout(central)
@@ -137,16 +143,60 @@ class MainWindow(QMainWindow):
         tabs = QTabWidget(self)
         tabs.setDocumentMode(True)
 
-        tabs.addTab(OverviewTab(self), "Overview")
-        tabs.addTab(TelemetryTab(self), "Telemetry")
-        tabs.addTab(VideoDepthTab(self), "Video & Depth")
-        tabs.addTab(ControlsTab(self), "Controls")
-        tabs.addTab(DiagnosticsTab(self), "Diagnostics")
-        tabs.addTab(DebugTab(self), "Debug")
-        tabs.addTab(RosbagTab(self), "Rosbag")
-        tabs.addTab(ExtensionsTab(self), "Extensions")
+        tab_defs = [
+            ("Overview", "panel_overview", OverviewTab),
+            ("Telemetry", "panel_telemetry", TelemetryTab),
+            ("Video & Depth", "panel_video_depth", VideoDepthTab),
+            ("Controls", "panel_controls", ControlsTab),
+            ("Diagnostics", "panel_diagnostics", DiagnosticsTab),
+            ("Debug", "panel_debug", DebugTab),
+            ("Rosbag", "panel_rosbag", RosbagTab),
+            ("Extensions", "panel_extensions", ExtensionsTab),
+        ]
+        for label, panel_name, panel_cls in tab_defs:
+            tabs.addTab(self._build_safe_tab(panel_name, panel_cls), label)
 
         return tabs
+
+    def _build_safe_tab(self, panel_name: str, panel_cls: type[QWidget]) -> QWidget:
+        """Build single tab with local failure boundary (only this panel becomes unavailable)."""
+        now = utc_now()
+        self._supervisor.register_channel(panel_name)
+        self._supervisor.heartbeat_channel(panel_name, now)
+
+        try:
+            panel = panel_cls(self)
+            self._supervisor.record_channel_success(panel_name, now)
+            return panel
+        except Exception as exc:  # noqa: BLE001
+            self._supervisor.mark_panel_unavailable(panel_name, exc, now)
+            is_open, _ = self._supervisor.record_channel_failure(panel_name, now)
+            return self._build_unavailable_panel(panel_name, incident_time=now, breaker_open=is_open)
+
+    def _build_unavailable_panel(self, panel_name: str, *, incident_time: datetime, breaker_open: bool) -> QWidget:
+        """Create fallback panel used when given tab fails."""
+        panel = QFrame(self)
+        layout = QVBoxLayout(panel)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        title = QLabel(f"{panel_name}", panel)
+        title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        state = QLabel("UNAVAILABLE", panel)
+        state.setStyleSheet("font-weight: 700; color: #a94442;")
+        state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        detail = QLabel(
+            f"Awaria od: {incident_time.isoformat()} | Circuit breaker: {'OPEN' if breaker_open else 'CLOSED'}",
+            panel,
+        )
+        detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(title)
+        layout.addWidget(state)
+        layout.addWidget(detail)
+        return panel
 
     def _build_alarm_panel(self) -> QWidget:
         alarms = QFrame(self)
@@ -178,5 +228,8 @@ class MainWindow(QMainWindow):
         status_bar = QStatusBar(self)
         playback = self._render_quality(self._state_store.get(STATE_KEY_PLAYBACK_STATUS))
         recording = self._render_quality(self._state_store.get(STATE_KEY_RECORDING_STATUS))
-        status_bar.showMessage(f"Status store: PLAYBACK={playback} | RECORDING={recording}")
+        incidents_count = len(self._supervisor.incidents())
+        status_bar.showMessage(
+            f"Status store: PLAYBACK={playback} | RECORDING={recording} | INCIDENTS={incidents_count}"
+        )
         return status_bar

@@ -1,11 +1,17 @@
 """Core domain primitives for robot mission control."""
 
-# [AI-CHANGE | 2026-04-20 18:27 UTC | v0.143]
-# CO ZMIENIONO: Dodano eksporty publiczne modułu core ze store stanu i modelami jakości danych.
-# DLACZEGO: Upraszcza to importy w warstwie app/UI i promuje jeden punkt wejścia dla logiki stanu.
-# JAK TO DZIAŁA: __all__ wskazuje klasy/funkcje używane przez most ROS i okno główne.
-# TODO: Rozszerzyć API o wersjonowanie schematu stanu po stabilizacji kontraktów między modułami.
+# [AI-CHANGE | 2026-04-20 19:12 UTC | v0.145]
+# CO ZMIENIONO: Rozszerzono publiczne API `core` o Supervisor, HealthMonitor i modele incydentów/lifecycle.
+# DLACZEGO: Ujednolicone importy upraszczają integrację warstwy app/UI z mechanizmami izolacji awarii.
+# JAK TO DZIAŁA: `__all__` eksportuje nowe klasy monitoringu i nadzoru, dzięki czemu moduły klienckie
+#                mogą używać jednej przestrzeni nazw `robot_mission_control.core`.
+# TODO: Rozważyć podział eksportów na podmoduły `core.runtime` i `core.state`, aby ograniczyć sprzężenie API.
 
+from robot_mission_control.core.health_monitor import (
+    HealthMonitor,
+    IncidentRecord,
+    WorkerLifecycleState,
+)
 from robot_mission_control.core.state_store import (
     DataQuality,
     GLOBAL_STATE_KEYS,
@@ -22,6 +28,7 @@ from robot_mission_control.core.state_store import (
     quality_for_stale,
     utc_now,
 )
+from robot_mission_control.core.supervisor import ErrorBoundary, ErrorCode, Supervisor, WorkerModule
 
 __all__ = [
     "DataQuality",
@@ -38,4 +45,11 @@ __all__ = [
     "quality_for_missing",
     "quality_for_stale",
     "utc_now",
+    "HealthMonitor",
+    "IncidentRecord",
+    "WorkerLifecycleState",
+    "ErrorBoundary",
+    "ErrorCode",
+    "Supervisor",
+    "WorkerModule",
 ]
