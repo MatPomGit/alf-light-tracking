@@ -1,0 +1,11 @@
+/**:
+  ros__parameters:
+    # [AI-CHANGE | 2026-04-19 22:13 UTC | v0.133]
+    # CO ZMIENIONO: Dodano minimalny, konserwatywny zestaw parametrów bezpieczeństwa dla emergency stop.
+    # DLACZEGO: Konfiguracja ma domyślnie blokować ruch przy niepewności i wymagać jawnych sygnałów żywotności.
+    # JAK TO DZIAŁA: Node startuje w STOP, wymaga heartbeat do odblokowania ruchu i szybko wraca do STOP po utracie heartbeat.
+    # TODO: Dodać profil "lab" z łagodniejszym timeoutem oraz test walidujący wartości graniczne timeout/rate.
+    start_in_stop: true
+    heartbeat_timeout_s: 0.25
+    zero_publish_rate_hz: 30.0
+    require_heartbeat_to_run: true
