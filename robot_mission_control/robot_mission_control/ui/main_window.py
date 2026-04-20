@@ -41,12 +41,13 @@ from robot_mission_control.ui.tabs.telemetry_tab import TelemetryTab
 from robot_mission_control.ui.tabs.video_depth_tab import VideoDepthTab
 from robot_mission_control.versioning import VersionMetadata
 
-# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
-# CO ZMIENIONO: Dodano prezentację wersji (`v0.<commit_count>`) i statusów dependency audit w status barze.
-# DLACZEGO: Operator musi widzieć źródło/czas raportu oraz jawny fallback „WERSJA NIEDOSTĘPNA”.
-# JAK TO DZIAŁA: MainWindow pobiera `VersionMetadata` i raport ze StateStore, agreguje statusy
-#                OK/MISSING/WRONG_VERSION/UNKNOWN oraz wyświetla je razem z timestamp/source.
-# TODO: Przenieść render status bar do osobnego widgetu z automatycznym odświeżaniem timerem.
+# [AI-CHANGE | 2026-04-20 22:05 UTC | v0.158]
+# CO ZMIENIONO: Ujednolicono odczyt statusów w UI tak, aby status bar renderował `recording_status`
+#               i `playback_status` jako wartości ze StateStore (z fallbackiem jakości), bez logiki ROS w UI.
+# DLACZEGO: Kryterium DoD wymaga, by warstwa UI czytała stan wyłącznie ze store i nie polegała na bezpośrednich update'ach widgetów.
+# JAK TO DZIAŁA: `_build_status_bar` pobiera klucze globalne przez `_render_value`; przy danych niepewnych
+#                wyświetla komunikat bezpieczny (`BRAK DANYCH`), co ogranicza ryzyko mylącego statusu operatora.
+# TODO: Dodać timer odświeżania status bar, aby zmiany store były widoczne runtime bez rekonstrukcji okna.
 
 
 class MainWindow(QMainWindow):
@@ -229,8 +230,8 @@ class MainWindow(QMainWindow):
 
     def _build_status_bar(self) -> QStatusBar:
         status_bar = QStatusBar(self)
-        playback = self._render_quality(self._state_store.get(STATE_KEY_PLAYBACK_STATUS))
-        recording = self._render_quality(self._state_store.get(STATE_KEY_RECORDING_STATUS))
+        playback = self._render_value(self._state_store.get(STATE_KEY_PLAYBACK_STATUS))
+        recording = self._render_value(self._state_store.get(STATE_KEY_RECORDING_STATUS))
         incidents_count = len(self._supervisor.incidents())
         dependency_message = self._render_dependency_status()
         version_message = self._render_version_status()

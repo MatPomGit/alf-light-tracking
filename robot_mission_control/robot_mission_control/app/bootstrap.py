@@ -12,8 +12,12 @@ from typing import Optional
 from PySide6.QtWidgets import QApplication
 
 from robot_mission_control.core import (
+    STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
     STATE_KEY_DEPENDENCY_STATUS,
+    STATE_KEY_PLAYBACK_STATUS,
+    STATE_KEY_RECORDING_STATUS,
+    STATE_KEY_SELECTED_BAG,
     HealthMonitor,
     StateStore,
     Supervisor,
@@ -22,14 +26,19 @@ from robot_mission_control.core import (
 )
 from robot_mission_control.ros.dependency_audit_client import DependencyStatusClient
 from robot_mission_control.ui.main_window import MainWindow
+from robot_mission_control.rosbag.integrity_checker import IntegrityChecker
+from robot_mission_control.rosbag.playback_controller import PlaybackController
+from robot_mission_control.rosbag.record_controller import RecordController
 from robot_mission_control.versioning import resolve_version_metadata
 
-# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
-# CO ZMIENIONO: Dodano integrację dependency_status oraz przekazywanie metadanych wersji do UI.
-# DLACZEGO: Operator ma widzieć wersję i stan zależności w status barze, także przy braku `.git`/ROS.
-# JAK TO DZIAŁA: RosBridgeService pobiera raport zależności przez klient kontraktu i zapisuje go do StateStore,
-#                a `resolve_version_metadata()` dostarcza wersję z git lub artefaktu build.
-# TODO: Podmienić `_request_dependency_status` na rzeczywiste wywołanie klienta ROS2 service.
+# [AI-CHANGE | 2026-04-20 22:05 UTC | v0.158]
+# CO ZMIENIONO: Rozszerzono RosBridgeService o publikowanie wszystkich globalnych pól rosbag/source
+#               (`data_source_mode`, `recording_status`, `playback_status`, `selected_bag`, `bag_integrity_status`)
+#               wyłącznie do StateStore oraz utrzymano publikację `dependency_status`.
+# DLACZEGO: UI ma czytać stan tylko ze store; warstwa ROS nie może wykonywać bezpośrednich aktualizacji widgetów.
+# JAK TO DZIAŁA: RosBridgeService utrzymuje kontrolery playback/recording, wylicza bezpieczny snapshot
+#                i zapisuje go przez `set_with_inference`; gdy integralność lub dane są niepewne, publikuje `None`.
+# TODO: Dodać cykliczny polling runtime ROS, aby odświeżać statusy rosbag także po zdarzeniach asynchronicznych.
 
 
 class RosBridgeService:
@@ -46,6 +55,9 @@ class RosBridgeService:
             request_fn=self._request_dependency_status,
             dependencies_config_path=config_path,
         )
+        self._integrity_checker = IntegrityChecker()
+        self._playback_controller = PlaybackController(integrity_checker=self._integrity_checker)
+        self._record_controller = RecordController()
 
     def init(self) -> None:
         """Prepare ROS bindings without crashing GUI boot."""
@@ -74,16 +86,11 @@ class RosBridgeService:
                 timestamp=utc_now(),
                 reason_code="ros_unavailable",
             )
+            self._publish_rosbag_snapshot(reason_code="ros_unavailable")
             self._publish_dependency_report()
             return
 
-        self._state_store.set_with_inference(
-            key=STATE_KEY_DATA_SOURCE_MODE,
-            value="ROS_DISCONNECTED",
-            source="ros_bridge",
-            timestamp=utc_now(),
-            reason_code="waiting_for_topics",
-        )
+        self._publish_rosbag_snapshot(reason_code="waiting_for_topics")
         self._supervisor.heartbeat_channel(self._channel_name, utc_now())
         self._publish_dependency_report()
 
@@ -101,6 +108,7 @@ class RosBridgeService:
             timestamp=utc_now(),
             reason_code="app_shutdown",
         )
+        self._publish_rosbag_snapshot(reason_code="app_shutdown")
 
     def _request_dependency_status(self, payload: dict[str, object]) -> dict[str, object] | None:
         """Placeholder contract call returning conservative UNKNOWN when transport is unavailable."""
@@ -124,6 +132,56 @@ class RosBridgeService:
                 if isinstance(item, dict)
             ],
         }
+
+    def _publish_rosbag_snapshot(self, *, reason_code: str | None = None) -> None:
+        now = utc_now()
+        playback_state = self._playback_controller.state
+        selected_bag = playback_state.bag_path if playback_state.bag_path else None
+
+        playback_status = "PLAYING" if playback_state.is_playing else "STOPPED"
+        if playback_state.is_paused:
+            playback_status = "PAUSED"
+
+        bag_integrity = None
+        if selected_bag:
+            bag_integrity = self._integrity_checker.check(selected_bag).status
+
+        self._state_store.set_with_inference(
+            key=STATE_KEY_DATA_SOURCE_MODE,
+            value=self._playback_controller.source_mode.value if self._initialized else None,
+            source="ros_bridge",
+            timestamp=now,
+            reason_code=reason_code,
+        )
+        self._state_store.set_with_inference(
+            key=STATE_KEY_RECORDING_STATUS,
+            value=self._record_controller.status.value if self._initialized else None,
+            source="ros_bridge",
+            timestamp=now,
+            reason_code=reason_code,
+        )
+        self._state_store.set_with_inference(
+            key=STATE_KEY_PLAYBACK_STATUS,
+            value=playback_status if self._initialized else None,
+            source="ros_bridge",
+            timestamp=now,
+            reason_code=reason_code,
+        )
+        self._state_store.set_with_inference(
+            key=STATE_KEY_SELECTED_BAG,
+            value=selected_bag if self._initialized else None,
+            source="ros_bridge",
+            timestamp=now,
+            reason_code=reason_code,
+        )
+        # Zasada bezpieczeństwa: przy niepewnej integralności publikujemy None zamiast ryzyka fałszywego "OK".
+        self._state_store.set_with_inference(
+            key=STATE_KEY_BAG_INTEGRITY_STATUS,
+            value=bag_integrity if self._initialized else None,
+            source="ros_bridge",
+            timestamp=now,
+            reason_code=reason_code if bag_integrity is None else None,
+        )
 
     def _publish_dependency_report(self) -> None:
         report = self._dependency_client.fetch_report()
