@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
@@ -17,6 +15,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from robot_mission_control.core import (
+    DataQuality,
+    STATE_KEY_BAG_INTEGRITY_STATUS,
+    STATE_KEY_DATA_SOURCE_MODE,
+    STATE_KEY_PLAYBACK_STATUS,
+    STATE_KEY_RECORDING_STATUS,
+    STATE_KEY_SELECTED_BAG,
+    StateStore,
+    StateValue,
+)
 from robot_mission_control.ui.tabs.controls_tab import ControlsTab
 from robot_mission_control.ui.tabs.debug_tab import DebugTab
 from robot_mission_control.ui.tabs.diagnostics_tab import DiagnosticsTab
@@ -26,31 +34,23 @@ from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
 from robot_mission_control.ui.tabs.telemetry_tab import TelemetryTab
 from robot_mission_control.ui.tabs.video_depth_tab import VideoDepthTab
 
-# [AI-CHANGE | 2026-04-20 14:12 UTC | v0.141]
-# CO ZMIENIONO: Dodano główne okno z pełnym szkieletem layoutu: top bar, sidebar, tabs, panel alarmów i status bar.
-# DLACZEGO: To minimalna struktura wymagana do dalszego rozwijania Mission Control w kolejnych iteracjach.
-# JAK TO DZIAŁA: Okno buduje sekcje UI warstwowo; komponenty niegotowe są jawnie zablokowane i opisane
-#                etykietą "NIEDOSTĘPNE W TEJ WERSJI", a status startuje bezpiecznie jako BRAK DOSTĘPU/BRAK DANYCH.
-# TODO: Dodać warstwę ViewModel i sygnały Qt do odświeżania statusów oraz alarmów w czasie rzeczywistym.
-
-
-@dataclass(slots=True)
-class RuntimeStateView:
-    """Data passed from app runtime to main window."""
-
-    connection_status: str
-    data_status: str
+# [AI-CHANGE | 2026-04-20 18:27 UTC | v0.143]
+# CO ZMIENIONO: MainWindow przyjmuje wyłącznie StateStore i renderuje statusy tylko z danych zapisanych w store.
+# DLACZEGO: Eliminuje to ryzyko bezpośredniego wstrzykiwania surowych wartości z ROS do komponentów UI.
+# JAK TO DZIAŁA: Metody _render_* pobierają klucze globalne ze store; gdy jakość != VALID, UI pokazuje
+#                bezpieczne BRAK DANYCH/NIEDOSTĘPNE zamiast domyślnych liczb.
+# TODO: Dodać cykliczny refresh przez QTimer/sygnały, aby UI reagował na aktualizacje store w czasie rzeczywistym.
 
 
 class MainWindow(QMainWindow):
     """Main mission control desktop window."""
 
-    def __init__(self, runtime_state: RuntimeStateView) -> None:
+    def __init__(self, state_store: StateStore) -> None:
         super().__init__()
         self.setWindowTitle("Robot Mission Control")
         self.resize(1400, 900)
 
-        self._runtime_state = runtime_state
+        self._state_store = state_store
 
         central = QWidget(self)
         root_layout = QVBoxLayout(central)
@@ -63,6 +63,24 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self.setStatusBar(self._build_status_bar())
 
+    def _render_value(self, item: StateValue | None, *, fallback: str = "BRAK DANYCH") -> str:
+        """Render store value with quality-aware safety fallback."""
+        if item is None:
+            return fallback
+        if item.quality is not DataQuality.VALID:
+            if item.quality is DataQuality.ERROR:
+                return "BŁĄD DANYCH"
+            if item.quality is DataQuality.STALE:
+                return "DANE PRZETERMINOWANE"
+            return fallback
+        return str(item.value)
+
+    def _render_quality(self, item: StateValue | None) -> str:
+        """Render compact quality tag for operator visibility."""
+        if item is None:
+            return DataQuality.UNAVAILABLE.value
+        return item.quality.value
+
     def _build_top_bar(self) -> QWidget:
         top_bar = QFrame(self)
         top_bar.setFrameShape(QFrame.Shape.StyledPanel)
@@ -71,8 +89,9 @@ class MainWindow(QMainWindow):
         title = QLabel("Robot Mission Control", top_bar)
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
 
-        connection = QLabel(f"Połączenie: {self._runtime_state.connection_status}", top_bar)
-        data = QLabel(f"Dane: {self._runtime_state.data_status}", top_bar)
+        source_item = self._state_store.get(STATE_KEY_DATA_SOURCE_MODE)
+        connection = QLabel(f"Źródło danych: {self._render_value(source_item, fallback='NIEDOSTĘPNE')}", top_bar)
+        data = QLabel(f"Jakość: {self._render_quality(source_item)}", top_bar)
 
         unavailable_btn = QPushButton("NIEDOSTĘPNE W TEJ WERSJI", top_bar)
         unavailable_btn.setEnabled(False)
@@ -137,10 +156,15 @@ class MainWindow(QMainWindow):
         title = QLabel("Panel alarmów", alarms)
         title.setStyleSheet("font-size: 14px; font-weight: 600;")
 
-        state_line = QLabel("BRAK DANYCH", alarms)
+        bag_integrity_item = self._state_store.get(STATE_KEY_BAG_INTEGRITY_STATUS)
+        state_line = QLabel(self._render_value(bag_integrity_item), alarms)
         state_line.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        unavailable = QLabel("NIEDOSTĘPNE W TEJ WERSJI", alarms)
+        selected_bag_item = self._state_store.get(STATE_KEY_SELECTED_BAG)
+        unavailable = QLabel(
+            f"Rosbag: {self._render_value(selected_bag_item, fallback='NIE WYBRANO')}",
+            alarms,
+        )
         unavailable.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout.addWidget(title)
@@ -152,7 +176,7 @@ class MainWindow(QMainWindow):
 
     def _build_status_bar(self) -> QStatusBar:
         status_bar = QStatusBar(self)
-        status_bar.showMessage(
-            f"Status: {self._runtime_state.connection_status} | {self._runtime_state.data_status}"
-        )
+        playback = self._render_quality(self._state_store.get(STATE_KEY_PLAYBACK_STATUS))
+        recording = self._render_quality(self._state_store.get(STATE_KEY_RECORDING_STATUS))
+        status_bar.showMessage(f"Status store: PLAYBACK={playback} | RECORDING={recording}")
         return status_bar
