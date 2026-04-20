@@ -19,7 +19,12 @@ dependencies = [
 ]
 
 [project.scripts]
-robot-mission-control = "robot_mission_control.app:main"
+# [AI-CHANGE | 2026-04-20 21:55 UTC | v0.157]
+# CO ZMIENIONO: Przełączono punkt startowy CLI na nowy moduł `robot_mission_control.app.entrypoint`.
+# DLACZEGO: Utrzymujemy wymaganą strukturę z katalogiem `app/` przy zachowaniu kompatybilności uruchamiania.
+# JAK TO DZIAŁA: Konsolowy skrypt `robot-mission-control` wywołuje `entrypoint.main`, który deleguje do legacy bootstrapu.
+# TODO: Dodać alternatywny skrypt `robot-mission-control-dev` z opcjami debug/logging.
+robot-mission-control = "robot_mission_control.app.entrypoint:main"
 
 [tool.setuptools]
 include-package-data = true
