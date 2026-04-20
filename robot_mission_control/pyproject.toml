@@ -1,0 +1,28 @@
+# [AI-CHANGE | 2026-04-20 14:12 UTC | v0.141]
+# CO ZMIENIONO: Dodano konfigurację pakietu Python dla modułu robot_mission_control.
+# DLACZEGO: Potrzebny jest standaryzowany punkt instalacji i uruchomienia aplikacji desktopowej.
+# JAK TO DZIAŁA: setuptools buduje pakiet, a skrypt `robot-mission-control` uruchamia funkcję main() z app.py.
+# TODO: Dodać profile zależności (dev/test) oraz pinowanie wersji pod docelowe obrazy runtime.
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robot-mission-control"
+version = "0.1.0"
+description = "Desktop mission control app (PySide6 + ROS2 bridge)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "PySide6>=6.7",
+]
+
+[project.scripts]
+robot-mission-control = "robot_mission_control.app:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["robot_mission_control*"]
