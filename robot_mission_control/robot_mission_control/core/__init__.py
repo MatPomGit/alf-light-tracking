@@ -1,11 +1,11 @@
 """Core domain primitives for robot mission control."""
 
-# [AI-CHANGE | 2026-04-20 19:12 UTC | v0.145]
-# CO ZMIENIONO: Rozszerzono publiczne API `core` o Supervisor, HealthMonitor i modele incydentów/lifecycle.
-# DLACZEGO: Ujednolicone importy upraszczają integrację warstwy app/UI z mechanizmami izolacji awarii.
-# JAK TO DZIAŁA: `__all__` eksportuje nowe klasy monitoringu i nadzoru, dzięki czemu moduły klienckie
-#                mogą używać jednej przestrzeni nazw `robot_mission_control.core`.
-# TODO: Rozważyć podział eksportów na podmoduły `core.runtime` i `core.state`, aby ograniczyć sprzężenie API.
+# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
+# CO ZMIENIONO: Rozszerzono publiczne API `core` o stałą `STATE_KEY_DEPENDENCY_STATUS`.
+# DLACZEGO: Warstwy app/UI muszą używać wspólnego klucza do publikacji i renderowania raportu zależności.
+# JAK TO DZIAŁA: `__all__` i importy eksportują nowy klucz, dzięki czemu dostęp odbywa się przez
+#                pojedynczą przestrzeń nazw `robot_mission_control.core`.
+# TODO: Zastąpić ręczne `__all__` generowaniem statycznym z testem spójności eksportów.
 
 from robot_mission_control.core.health_monitor import (
     HealthMonitor,
@@ -17,6 +17,7 @@ from robot_mission_control.core.state_store import (
     GLOBAL_STATE_KEYS,
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
+    STATE_KEY_DEPENDENCY_STATUS,
     STATE_KEY_PLAYBACK_STATUS,
     STATE_KEY_RECORDING_STATUS,
     STATE_KEY_SELECTED_BAG,
@@ -35,6 +36,7 @@ __all__ = [
     "GLOBAL_STATE_KEYS",
     "STATE_KEY_BAG_INTEGRITY_STATUS",
     "STATE_KEY_DATA_SOURCE_MODE",
+    "STATE_KEY_DEPENDENCY_STATUS",
     "STATE_KEY_PLAYBACK_STATUS",
     "STATE_KEY_RECORDING_STATUS",
     "STATE_KEY_SELECTED_BAG",

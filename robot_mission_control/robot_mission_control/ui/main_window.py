@@ -21,6 +21,7 @@ from robot_mission_control.core import (
     DataQuality,
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
+    STATE_KEY_DEPENDENCY_STATUS,
     STATE_KEY_PLAYBACK_STATUS,
     STATE_KEY_RECORDING_STATUS,
     STATE_KEY_SELECTED_BAG,
@@ -29,6 +30,7 @@ from robot_mission_control.core import (
     Supervisor,
     utc_now,
 )
+from robot_mission_control.ros.dependency_audit_client import DependencyStatusCode, DependencyStatusReport
 from robot_mission_control.ui.tabs.controls_tab import ControlsTab
 from robot_mission_control.ui.tabs.debug_tab import DebugTab
 from robot_mission_control.ui.tabs.diagnostics_tab import DiagnosticsTab
@@ -37,26 +39,27 @@ from robot_mission_control.ui.tabs.overview_tab import OverviewTab
 from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
 from robot_mission_control.ui.tabs.telemetry_tab import TelemetryTab
 from robot_mission_control.ui.tabs.video_depth_tab import VideoDepthTab
+from robot_mission_control.versioning import VersionMetadata
 
-# [AI-CHANGE | 2026-04-20 19:12 UTC | v0.145]
-# CO ZMIENIONO: Dodano izolację awarii paneli UI (per zakładka) oraz heartbeat kanałów/paneli przez Supervisor.
-# DLACZEGO: Wymagane jest, aby awaria jednego panelu przełączała tylko ten panel na UNAVAILABLE,
-#           a reszta aplikacji działała bez przerwy.
-# JAK TO DZIAŁA: _build_safe_tab łapie wyjątek tylko dla konkretnego panelu i renderuje fallback,
-#                Supervisor zapisuje incydent + stan panelu; status bar pokazuje liczbę incydentów.
-# TODO: Dodać okresowy QTimer do automatycznej próby odtworzenia paneli po ustaniu błędów.
+# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
+# CO ZMIENIONO: Dodano prezentację wersji (`v0.<commit_count>`) i statusów dependency audit w status barze.
+# DLACZEGO: Operator musi widzieć źródło/czas raportu oraz jawny fallback „WERSJA NIEDOSTĘPNA”.
+# JAK TO DZIAŁA: MainWindow pobiera `VersionMetadata` i raport ze StateStore, agreguje statusy
+#                OK/MISSING/WRONG_VERSION/UNKNOWN oraz wyświetla je razem z timestamp/source.
+# TODO: Przenieść render status bar do osobnego widgetu z automatycznym odświeżaniem timerem.
 
 
 class MainWindow(QMainWindow):
     """Main mission control desktop window."""
 
-    def __init__(self, state_store: StateStore, supervisor: Supervisor) -> None:
+    def __init__(self, state_store: StateStore, supervisor: Supervisor, version_metadata: VersionMetadata) -> None:
         super().__init__()
         self.setWindowTitle("Robot Mission Control")
         self.resize(1400, 900)
 
         self._state_store = state_store
         self._supervisor = supervisor
+        self._version_metadata = version_metadata
 
         central = QWidget(self)
         root_layout = QVBoxLayout(central)
@@ -229,7 +232,48 @@ class MainWindow(QMainWindow):
         playback = self._render_quality(self._state_store.get(STATE_KEY_PLAYBACK_STATUS))
         recording = self._render_quality(self._state_store.get(STATE_KEY_RECORDING_STATUS))
         incidents_count = len(self._supervisor.incidents())
+        dependency_message = self._render_dependency_status()
+        version_message = self._render_version_status()
+
         status_bar.showMessage(
-            f"Status store: PLAYBACK={playback} | RECORDING={recording} | INCIDENTS={incidents_count}"
+            f"{version_message} | STATUS: PLAYBACK={playback} RECORDING={recording} INCIDENTS={incidents_count} | {dependency_message}"
         )
         return status_bar
+
+    def _render_version_status(self) -> str:
+        short_sha = self._version_metadata.short_sha or "---"
+        build_time = self._version_metadata.build_time_utc or "---"
+        return (
+            f"WERSJA={self._version_metadata.version_tag} "
+            f"SHA={short_sha} BUILD={build_time} SRC={self._version_metadata.source}"
+        )
+
+    def _render_dependency_status(self) -> str:
+        state_item = self._state_store.get(STATE_KEY_DEPENDENCY_STATUS)
+        if state_item is None or state_item.quality is not DataQuality.VALID:
+            return "DEPENDENCIES: WERSJA NIEDOSTĘPNA"
+
+        report = state_item.value
+        if not isinstance(report, DependencyStatusReport):
+            return "DEPENDENCIES: WERSJA NIEDOSTĘPNA"
+
+        counters: dict[DependencyStatusCode, int] = {
+            DependencyStatusCode.OK: 0,
+            DependencyStatusCode.MISSING: 0,
+            DependencyStatusCode.WRONG_VERSION: 0,
+            DependencyStatusCode.UNKNOWN: 0,
+        }
+        latest_timestamp = report.generated_at_utc
+        for item in report.items:
+            counters[item.status] = counters.get(item.status, 0) + 1
+            if item.timestamp_utc > latest_timestamp:
+                latest_timestamp = item.timestamp_utc
+
+        return (
+            "DEPENDENCIES: "
+            f"OK={counters[DependencyStatusCode.OK]} "
+            f"MISSING={counters[DependencyStatusCode.MISSING]} "
+            f"WRONG_VERSION={counters[DependencyStatusCode.WRONG_VERSION]} "
+            f"UNKNOWN={counters[DependencyStatusCode.UNKNOWN]} "
+            f"TS={latest_timestamp.isoformat()} SRC={report.source}"
+        )

@@ -6,26 +6,30 @@ import importlib
 import importlib.util
 import sys
 from datetime import timedelta
+from pathlib import Path
 from typing import Optional
 
 from PySide6.QtWidgets import QApplication
 
 from robot_mission_control.core import (
     STATE_KEY_DATA_SOURCE_MODE,
+    STATE_KEY_DEPENDENCY_STATUS,
     HealthMonitor,
     StateStore,
     Supervisor,
     WorkerModule,
     utc_now,
 )
+from robot_mission_control.ros.dependency_audit_client import DependencyStatusClient
 from robot_mission_control.ui.main_window import MainWindow
+from robot_mission_control.versioning import resolve_version_metadata
 
-# [AI-CHANGE | 2026-04-20 19:12 UTC | v0.145]
-# CO ZMIENIONO: Dodano integrację Supervisor+HealthMonitor z globalnym error boundary i lifecycle workera ROS.
-# DLACZEGO: Aplikacja musi izolować awarie modułów, prowadzić heartbeat/incydenty oraz mapować wyjątki UI.
-# JAK TO DZIAŁA: RosBridgeService ma jawne kroki init/start/stop; Supervisor wywołuje je przez WorkerModule,
-#                a globalny excepthook rejestruje incydent zamiast zatrzymywać całą aplikację.
-# TODO: Rozszerzyć obsługę `sys.excepthook` o raportowanie stacktrace do pliku diagnostycznego per sesja.
+# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
+# CO ZMIENIONO: Dodano integrację dependency_status oraz przekazywanie metadanych wersji do UI.
+# DLACZEGO: Operator ma widzieć wersję i stan zależności w status barze, także przy braku `.git`/ROS.
+# JAK TO DZIAŁA: RosBridgeService pobiera raport zależności przez klient kontraktu i zapisuje go do StateStore,
+#                a `resolve_version_metadata()` dostarcza wersję z git lub artefaktu build.
+# TODO: Podmienić `_request_dependency_status` na rzeczywiste wywołanie klienta ROS2 service.
 
 
 class RosBridgeService:
@@ -37,6 +41,11 @@ class RosBridgeService:
         self._initialized = False
         self._state_store = StateStore()
         self._channel_name = "ros_bridge_channel"
+        config_path = Path(__file__).resolve().parent / "config" / "dependency_catalog.yaml"
+        self._dependency_client = DependencyStatusClient(
+            request_fn=self._request_dependency_status,
+            dependencies_config_path=config_path,
+        )
 
     def init(self) -> None:
         """Prepare ROS bindings without crashing GUI boot."""
@@ -65,6 +74,7 @@ class RosBridgeService:
                 timestamp=utc_now(),
                 reason_code="ros_unavailable",
             )
+            self._publish_dependency_report()
             return
 
         self._state_store.set_with_inference(
@@ -75,6 +85,7 @@ class RosBridgeService:
             reason_code="waiting_for_topics",
         )
         self._supervisor.heartbeat_channel(self._channel_name, utc_now())
+        self._publish_dependency_report()
 
     def stop(self) -> None:
         """Safely shutdown ROS2 if it was initialized."""
@@ -89,6 +100,40 @@ class RosBridgeService:
             source="ros_bridge",
             timestamp=utc_now(),
             reason_code="app_shutdown",
+        )
+
+    def _request_dependency_status(self, payload: dict[str, object]) -> dict[str, object] | None:
+        """Placeholder contract call returning conservative UNKNOWN when transport is unavailable."""
+        dependencies = payload.get("dependencies")
+        if not isinstance(dependencies, list):
+            return None
+
+        now_iso = utc_now().isoformat()
+        return {
+            "source": "system/dependency_status",
+            "generated_at_utc": now_iso,
+            "dependencies": [
+                {
+                    "name": str(item.get("name")),
+                    "status": "UNKNOWN",
+                    "detected_version": None,
+                    "timestamp_utc": now_iso,
+                    "source": "system/dependency_status",
+                }
+                for item in dependencies
+                if isinstance(item, dict)
+            ],
+        }
+
+    def _publish_dependency_report(self) -> None:
+        report = self._dependency_client.fetch_report()
+        # Zasada bezpieczeństwa: bez pełnego raportu wolimy brak danych niż potencjalnie fałszywe OK.
+        self._state_store.set_with_inference(
+            key=STATE_KEY_DEPENDENCY_STATUS,
+            value=report if report.items else None,
+            source=report.source,
+            timestamp=report.generated_at_utc,
+            reason_code="dependency_report_empty" if not report.items else None,
         )
 
     @property
@@ -135,7 +180,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     supervisor.start_worker("ros_bridge", now)
 
     qt_app = QApplication(argv or sys.argv)
-    window = MainWindow(state_store=bridge.state_store, supervisor=supervisor)
+    window = MainWindow(
+        state_store=bridge.state_store,
+        supervisor=supervisor,
+        version_metadata=resolve_version_metadata(),
+    )
     window.show()
 
     exit_code = qt_app.exec()
