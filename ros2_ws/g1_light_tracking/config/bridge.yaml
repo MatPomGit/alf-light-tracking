@@ -26,3 +26,15 @@ unitree_cmd_vel_bridge_node:
     log_cmd_vel_tx: true
     log_subscribers: true
     log_interval_s: 1.0
+
+    # [AI-CHANGE | 2026-04-20 06:28 UTC | v0.135]
+    # CO ZMIENIONO: Dodano parametry integracji z modułem E-STOP:
+    #   - `estop_active_topic`,
+    #   - `stop_command_min_interval_s`.
+    # DLACZEGO: Przy potencjalnym kolejkowaniu zadań po stronie robota sam `cmd_vel=0` może być niewystarczający.
+    #   Bridge powinien otrzymać jawny sygnał STOP i wysyłać hard-stop do API robota.
+    # JAK TO DZIAŁA: `estop_active_topic` wskazuje topic Bool z modułu E-STOP (`true`=STOP), a
+    #   `stop_command_min_interval_s` ogranicza częstotliwość wysyłania komendy stop.
+    # TODO: Dobrać profil `stop_command_min_interval_s` per platforma (G1/symulator), by zbalansować szybkość i obciążenie API.
+    estop_active_topic: /emergency_stop/active
+    stop_command_min_interval_s: 0.2
