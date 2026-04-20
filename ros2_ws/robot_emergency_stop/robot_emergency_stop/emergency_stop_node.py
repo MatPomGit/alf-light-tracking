@@ -41,12 +41,21 @@ class EmergencyStopNode(Node):
         self.declare_parameter('heartbeat_timeout_s', 0.5)
         self.declare_parameter('enable_trigger_services', True)
         self.declare_parameter('require_arm_to_clear', True)
+        # [AI-CHANGE | 2026-04-20 06:28 UTC | v0.135]
+        # CO ZMIENIONO: Dodano parametr `safety_tick_hz`, który uruchamia cykliczny watchdog bezpieczeństwa.
+        # DLACZEGO: Bez cyklicznego sprawdzania heartbeat i stanu STOP istnieje ryzyko opóźnionej reakcji,
+        #   gdy do node'a nie napływają nowe wiadomości wejściowe.
+        # JAK TO DZIAŁA: Timer watchdog działa z częstotliwością `safety_tick_hz` i wymusza regularną ewaluację
+        #   reguł, a w stanie STOP cyklicznie publikuje zero, by nadpisywać potencjalnie zakolejkowane komendy.
+        # TODO: Dodać dynamiczną rekonfigurację `safety_tick_hz` i metrykę jittera timera dla diagnostyki RT.
+        self.declare_parameter('safety_tick_hz', 20.0)
 
         self._use_heartbeat = bool(self.get_parameter('use_heartbeat').value)
         self._heartbeat_msg_type = str(self.get_parameter('heartbeat_msg_type').value).strip().lower()
         self._heartbeat_timeout_s = float(self.get_parameter('heartbeat_timeout_s').value)
         self._enable_trigger_services = bool(self.get_parameter('enable_trigger_services').value)
         self._require_arm_to_clear = bool(self.get_parameter('require_arm_to_clear').value)
+        self._safety_tick_hz = float(self.get_parameter('safety_tick_hz').value)
 
         if self._heartbeat_timeout_s <= 0.0:
             self.get_logger().warn(
@@ -62,6 +71,11 @@ class EmergencyStopNode(Node):
             self._heartbeat_msg_type = 'empty'
 
         self._heartbeat_timeout = Duration(seconds=self._heartbeat_timeout_s)
+        if self._safety_tick_hz <= 0.0:
+            self.get_logger().warn(
+                'Parametr safety_tick_hz <= 0.0, ustawiam wartość bezpieczną 20.0 Hz.'
+            )
+            self._safety_tick_hz = 20.0
 
         # [AI-CHANGE | 2026-04-19 22:02 UTC | v0.129]
         # CO ZMIENIONO: Wprowadzono jawną maszynę stanów `STOPPED`/`RUN_ALLOWED` wraz z rejestrem powodów przejść.
@@ -81,6 +95,7 @@ class EmergencyStopNode(Node):
         self._estop_signal_sub = self.create_subscription(Bool, 'estop_signal', self._on_estop_signal, 10)
         self._estop_arm_sub = self.create_subscription(Bool, 'estop_arm', self._on_estop_arm, 10)
         self._cmd_out_pub = self.create_publisher(Twist, 'cmd_vel_out', 10)
+        self._estop_active_pub = self.create_publisher(Bool, '/emergency_stop/active', 10)
 
         self._heartbeat_sub = None
         if self._use_heartbeat:
@@ -113,7 +128,16 @@ class EmergencyStopNode(Node):
                 self._on_clear_service,
             )
 
-        self._publish_zero_cmd()
+        # [AI-CHANGE | 2026-04-20 06:28 UTC | v0.135]
+        # CO ZMIENIONO: Dodano timer watchdog bezpieczeństwa i publikację stanu E-STOP na topicu
+        #   `/emergency_stop/active` (Bool).
+        # DLACZEGO: Integratory i bridge robota potrzebują jawnego sygnału STOP, a sam watchdog ma
+        #   wymuszać reakcję nawet bez nowych wiadomości wejściowych.
+        # JAK TO DZIAŁA: Timer cyklicznie wywołuje `_on_safety_tick`, która odświeża stan i publikuje
+        #   wyjścia bezpieczeństwa; topic `/emergency_stop/active` jest `True` w stanie STOPPED.
+        # TODO: Dodać osobny topic diagnostyczny ze stringiem powodu ostatniego przejścia stanu.
+        self._safety_timer = self.create_timer(1.0 / max(self._safety_tick_hz, 1.0), self._on_safety_tick)
+        self._publish_safety_outputs()
         self.get_logger().info('EmergencyStopNode uruchomiony w trybie fail-safe (stan=STOPPED).')
 
     def _on_cmd_vel_in(self, msg: Twist) -> None:
@@ -206,10 +230,29 @@ class EmergencyStopNode(Node):
         )
         if new_state == RunState.STOPPED:
             self._publish_zero_cmd()
+        self._publish_estop_active()
+
+    def _on_safety_tick(self) -> None:
+        """Cykliczny watchdog bezpieczeństwa aktualizujący stan i wymuszający sygnał STOP."""
+        self._evaluate_and_apply_state(reason_hint='safety_tick')
+        if self._state == RunState.STOPPED:
+            self._publish_zero_cmd()
+        self._publish_estop_active()
 
     def _publish_zero_cmd(self) -> None:
         """Publikuje zerową prędkość na wyjście bezpieczeństwa."""
         self._cmd_out_pub.publish(Twist())
+
+    def _publish_estop_active(self) -> None:
+        """Publikuje jawny status aktywnego E-STOP dla innych modułów wykonawczych."""
+        msg = Bool()
+        msg.data = self._state == RunState.STOPPED
+        self._estop_active_pub.publish(msg)
+
+    def _publish_safety_outputs(self) -> None:
+        """Publikuje komplet wyjść bezpieczeństwa przy starcie i zmianach krytycznych."""
+        self._publish_zero_cmd()
+        self._publish_estop_active()
 
 
 def main(args: list[str] | None = None) -> None:

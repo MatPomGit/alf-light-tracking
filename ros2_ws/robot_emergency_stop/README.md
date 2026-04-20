@@ -1,15 +1,14 @@
 # robot_emergency_stop
 
 <!--
-[AI-CHANGE | 2026-04-20 06:19 UTC | v0.134]
-CO ZMIENIONO: Przepisano README na wersję „handover-friendly” dla nowych osób w zespole: dodano sekcję TL;DR,
-  słownik pojęć, szybkie scenariusze (minimalny i produkcyjny), checklistę „5 minut przed demo”, oraz prostsze,
-  bardziej jednoznaczne kroki integracji z innym programem ROS2.
-DLACZEGO: Użytkownik wskazał potrzebę łatwego przekazania modułu innym osobom; poprzednia wersja była poprawna,
-  ale zbyt rozbudowana i mniej przystępna dla szybkiego onboardingu.
-JAK TO DZIAŁA: Dokument prowadzi czytelnika od „co to jest” -> „jak uruchomić” -> „jak zintegrować” ->
-  „jak sprawdzić, że działa bezpiecznie”. Każdy etap ma krótki cel, gotowe komendy i oczekiwany efekt.
-TODO: Dodać mini-FAQ z realnymi logami z testów poligonowych (przykłady dobrych i błędnych integracji).
+[AI-CHANGE | 2026-04-20 06:28 UTC | v0.135]
+CO ZMIENIONO: Uzupełniono README o zachowanie modułu względem kolejkowania zadań i dodano jawny kontrakt
+  topicu `/emergency_stop/active` oraz parametru `safety_tick_hz`.
+DLACZEGO: Samo filtrowanie `cmd_vel` bywa niewystarczające, gdy wykonawca ma własną kolejkę komend; integrator
+  musi mieć czytelną instrukcję, jak propagować STOP do niższej warstwy (bridge/driver).
+JAK TO DZIAŁA: W stanie STOP moduł cyklicznie publikuje zero i emituje `/emergency_stop/active=true`.
+  Warstwa wykonawcza powinna subskrybować ten sygnał i wysyłać hard-stop do API robota.
+TODO: Dodać sekcję z matrycą zgodności dla różnych driverów (które wspierają hard-stop vs tylko zero velocity).
 -->
 
 Niezależny pakiet ROS2 (Python) do **awaryjnego zatrzymania ruchu robota**.
@@ -23,6 +22,7 @@ Niezależny pakiet ROS2 (Python) do **awaryjnego zatrzymania ruchu robota**.
 - Ten pakiet jest **bramką bezpieczeństwa** pomiędzy kontrolerem a driverem robota.
 - Wejście ruchu: `/cmd_vel_in`.
 - Wyjście ruchu: `/cmd_vel_out`.
+- Wyjście statusu STOP: `/emergency_stop/active` (`true` = aktywny STOP).
 - Gdy E-STOP aktywny lub warunki bezpieczeństwa niespełnione -> na wyjściu idzie **zerowy `Twist`**.
 - Integracja z innym systemem ROS2 polega głównie na remappingu:
   - `cmd_vel_in` <- `/cmd_vel_raw`
@@ -68,6 +68,7 @@ Bo tylko wtedy masz gwarancję, że każda komenda ruchu przechodzi przez filtr 
 ## Topic wyjściowe
 
 - `/cmd_vel_out` (`geometry_msgs/msg/Twist`) — bezpieczna komenda ruchu po filtrze.
+- `/emergency_stop/active` (`std_msgs/msg/Bool`) — jawny status STOP do integracji z bridge/driver.
 
 ## Opcjonalne serwisy
 
@@ -97,6 +98,7 @@ W każdej innej sytuacji: `STOPPED` + publikacja zerowego `Twist`.
 | `heartbeat_timeout_s` | float | `0.5` | Maksymalny dopuszczalny brak heartbeat |
 | `enable_trigger_services` | bool | `true` | Czy wystawiać serwisy trigger/clear |
 | `require_arm_to_clear` | bool | `true` | Czy `estop_arm=true` jest wymagane do clear |
+| `safety_tick_hz` | float | `20.0` | Częstotliwość watchdoga bezpieczeństwa i cyklicznej publikacji STOP |
 
 ---
 
@@ -190,11 +192,13 @@ ros2 topic pub --once /estop_arm std_msgs/msg/Bool "{data: true}"
 1. Bez clear: niezerowy `cmd_vel_in` -> na `cmd_vel_out` powinno być zero.
 2. Po spełnieniu warunków: `cmd_vel_in` powinno przejść na `cmd_vel_out`.
 3. Po wyłączeniu heartbeat (gdy wymagany): system wraca do `STOPPED`.
+4. W `STOPPED` topic `/emergency_stop/active` powinien mieć wartość `true`.
 
 Komendy pomocnicze:
 
 ```bash
 ros2 topic echo /cmd_vel_out
+ros2 topic echo /emergency_stop/active
 ros2 service call /emergency_stop/trigger std_srvs/srv/Trigger "{}"
 ros2 service call /emergency_stop/clear std_srvs/srv/Trigger "{}"
 ```
@@ -241,8 +245,12 @@ Najczęściej przyczyna:
 
 ### „Robot rusza mimo oczekiwanego STOP”
 
-To zwykle oznacza, że driver dostaje komendy z innego topicu niż `/cmd_vel_out`.
-Sprawdź, czy E-STOP jest naprawdę ostatnią bramką w torze.
+Najczęściej oznacza to jeden z dwóch problemów:
+- driver dostaje komendy z innego topicu niż `/cmd_vel_out`,
+- driver/firmware ma własną kolejkę ruchu i nie reaguje na samo zero velocity.
+
+W takim przypadku `cmd_vel` gate to za mało — wykorzystaj `/emergency_stop/active` do wywołania hard-stop
+w warstwie bridge/API robota.
 
 ---
 
