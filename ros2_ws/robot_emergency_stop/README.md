@@ -1,14 +1,14 @@
 # robot_emergency_stop
 
 <!--
-[AI-CHANGE | 2026-04-20 06:28 UTC | v0.135]
-CO ZMIENIONO: Uzupełniono README o zachowanie modułu względem kolejkowania zadań i dodano jawny kontrakt
-  topicu `/emergency_stop/active` oraz parametru `safety_tick_hz`.
-DLACZEGO: Samo filtrowanie `cmd_vel` bywa niewystarczające, gdy wykonawca ma własną kolejkę komend; integrator
-  musi mieć czytelną instrukcję, jak propagować STOP do niższej warstwy (bridge/driver).
-JAK TO DZIAŁA: W stanie STOP moduł cyklicznie publikuje zero i emituje `/emergency_stop/active=true`.
-  Warstwa wykonawcza powinna subskrybować ten sygnał i wysyłać hard-stop do API robota.
-TODO: Dodać sekcję z matrycą zgodności dla różnych driverów (które wspierają hard-stop vs tylko zero velocity).
+[AI-CHANGE | 2026-04-20 07:08 UTC | v0.134]
+CO ZMIENIONO: Rozszerzono README o dokładny opis przepływu informacji w module oraz o szczegółowe wyjaśnienie
+  zabezpieczeń anty-ruchowych (warstwa topic, warstwa stanu, warstwa watchdog i warstwa bridge/API).
+DLACZEGO: Użytkownik potrzebuje dokumentacji przekazywalnej dla innych osób, która jasno tłumaczy nie tylko „co”,
+  ale też „jak” i „dlaczego” moduł blokuje ruch robota w sytuacjach ryzyka.
+JAK TO DZIAŁA: Dodane sekcje prowadzą przez pełną ścieżkę danych: od `cmd_vel_in` i sygnałów bezpieczeństwa,
+  przez decyzję FSM, po wyjścia `cmd_vel_out` oraz `/emergency_stop/active` i reakcję bridge hard-stop.
+TODO: Dodać diagram sekwencyjny z osiami czasu (`cmd_vel`, `estop_signal`, `heartbeat`) dla trzech scenariuszy awaryjnych.
 -->
 
 Niezależny pakiet ROS2 (Python) do **awaryjnego zatrzymania ruchu robota**.
@@ -86,6 +86,78 @@ Node przechodzi do `RUN_ALLOWED` tylko, gdy:
 3. jeśli arm jest wymagany: `estop_arm == true`.
 
 W każdej innej sytuacji: `STOPPED` + publikacja zerowego `Twist`.
+
+---
+
+## 4.1) Dokładny przepływ informacji (krok po kroku)
+
+Poniżej opis „co dokładnie dzieje się z wiadomością” w module:
+
+1. **Wejście ruchu (`/cmd_vel_in`)**  
+   `EmergencyStopNode` odbiera żądanie ruchu od kontrolera/plannera.
+
+2. **Wejścia bezpieczeństwa**  
+   Równolegle node obserwuje:
+   - `/estop_signal` (twardy sygnał STOP),
+   - `/estop_heartbeat` (czy nadzorca „żyje”),
+   - `/estop_arm` (czy wolno wyjść ze STOP).
+
+3. **Ewaluacja reguł FSM (`STOPPED` / `RUN_ALLOWED`)**  
+   Przy każdej zmianie wejścia oraz cyklicznie przez watchdog (`safety_tick_hz`) node ocenia warunki bezpieczeństwa.
+
+4. **Decyzja wyjściowa**  
+   - jeśli `RUN_ALLOWED`: wejściowy `cmd_vel_in` może przejść na `cmd_vel_out`,
+   - jeśli `STOPPED`: node publikuje zerowy `Twist` na `cmd_vel_out`.
+
+5. **Publikacja statusu globalnego STOP**  
+   Node publikuje `/emergency_stop/active`:
+   - `true` gdy `STOPPED`,
+   - `false` gdy `RUN_ALLOWED`.
+
+6. **Reakcja warstwy wykonawczej (bridge/driver)**  
+   Bridge robota subskrybuje `/emergency_stop/active` i przy `true` wysyła hard-stop do API robota
+   (nie polega wyłącznie na `cmd_vel=0`).
+
+### Schemat przepływu
+
+```text
+controller ---> /cmd_vel_in ----> [EmergencyStopNode] ----> /cmd_vel_out ----> robot bridge/driver
+                     ^                     |   ^
+                     |                     |   +--> /emergency_stop/active (Bool)
+                     |                     |
+/estop_signal -------+                     +--> FSM + watchdog (safety_tick_hz)
+/estop_heartbeat ----+
+/estop_arm ----------+
+```
+
+---
+
+## 4.2) Jakie zabezpieczenia przed ruchem stosuje moduł
+
+Moduł stosuje **wielowarstwowe** zabezpieczenia:
+
+1. **Fail-safe na starcie**  
+   Po uruchomieniu stan domyślny to `STOPPED`, więc ruch jest zablokowany do czasu spełnienia warunków.
+
+2. **Twarda blokada sygnałem E-STOP**  
+   `estop_signal=true` natychmiast wymusza `STOPPED` i odcina przepływ ruchu.
+
+3. **Watchdog heartbeat**  
+   Gdy `use_heartbeat=true`, brak świeżego heartbeat powoduje automatyczny powrót do `STOPPED`.
+
+4. **Kontrolowane wyjście ze STOP (`arm`)**  
+   Gdy `require_arm_to_clear=true`, brak `estop_arm=true` blokuje przejście do `RUN_ALLOWED`.
+
+5. **Cykliczne nadpisywanie ruchu zerem**  
+   W stanie `STOPPED` watchdog cyklicznie publikuje zero na `cmd_vel_out`, żeby zminimalizować ryzyko
+   „przecieku” starych komend.
+
+6. **Jawna propagacja STOP do niższej warstwy**  
+   Topic `/emergency_stop/active` informuje bridge/driver o stanie STOP i pozwala uruchomić hard-stop API
+   nawet wtedy, gdy firmware posiada własne kolejki komend.
+
+7. **Opcjonalne serwisy operatorskie**  
+   `/emergency_stop/trigger` i `/emergency_stop/clear` umożliwiają kontrolę manualną z zachowaniem reguł bezpieczeństwa.
 
 ---
 
