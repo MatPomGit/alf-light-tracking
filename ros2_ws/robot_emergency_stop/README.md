@@ -1,84 +1,94 @@
 # robot_emergency_stop
 
 <!--
-[AI-CHANGE | 2026-04-19 22:17 UTC | v0.133]
-CO ZMIENIONO: Przebudowano README do rozszerzonej wersji operacyjnej: dodano pełny opis kontraktu pakietu E-STOP,
-  diagram przepływu, warianty konfiguracji, checklistę bezpieczeństwa, scenariusze testowe oraz instrukcję integracji krok po kroku
-  z dowolnym programem ROS2 (bez zależności od `g1_light_tracking`).
-DLACZEGO: Potrzebna jest dokumentacja, którą można bezpośrednio wykorzystać jako playbook wdrożeniowy w innych projektach.
-  Dotychczasowy opis był poprawny, ale zbyt skrócony do szybkiej i powtarzalnej integracji między zespołami.
-JAK TO DZIAŁA: README prowadzi od instalacji i uruchomienia standalone, przez mapowanie topiców, aż po walidację runtime i procedury
-  awaryjne. Interfejs jest celowo mały (Twist/Bool/Empty/Trigger), co wspiera przenośność pakietu.
-TODO: Dodać sekcję „Hardening dla produkcji” z gotowymi profilami QoS i przykładowymi politykami watchdog dla różnych klas robotów.
+[AI-CHANGE | 2026-04-20 06:19 UTC | v0.134]
+CO ZMIENIONO: Przepisano README na wersję „handover-friendly” dla nowych osób w zespole: dodano sekcję TL;DR,
+  słownik pojęć, szybkie scenariusze (minimalny i produkcyjny), checklistę „5 minut przed demo”, oraz prostsze,
+  bardziej jednoznaczne kroki integracji z innym programem ROS2.
+DLACZEGO: Użytkownik wskazał potrzebę łatwego przekazania modułu innym osobom; poprzednia wersja była poprawna,
+  ale zbyt rozbudowana i mniej przystępna dla szybkiego onboardingu.
+JAK TO DZIAŁA: Dokument prowadzi czytelnika od „co to jest” -> „jak uruchomić” -> „jak zintegrować” ->
+  „jak sprawdzić, że działa bezpiecznie”. Każdy etap ma krótki cel, gotowe komendy i oczekiwany efekt.
+TODO: Dodać mini-FAQ z realnymi logami z testów poligonowych (przykłady dobrych i błędnych integracji).
 -->
 
 Niezależny pakiet ROS2 (Python) do **awaryjnego zatrzymania ruchu robota**.
 
-Priorytet bezpieczeństwa: **lepiej zatrzymać ruch niepotrzebnie, niż przepuścić błędną komendę**.
+> Zasada bezpieczeństwa: **lepiej zatrzymać ruch niepotrzebnie, niż przepuścić błędną komendę**.
 
 ---
 
-## 1. Co robi ten pakiet
+## TL;DR (dla osoby przejmującej moduł)
 
-`robot_emergency_stop` działa jako **bramka bezpieczeństwa** na torze `cmd_vel`:
+- Ten pakiet jest **bramką bezpieczeństwa** pomiędzy kontrolerem a driverem robota.
+- Wejście ruchu: `/cmd_vel_in`.
+- Wyjście ruchu: `/cmd_vel_out`.
+- Gdy E-STOP aktywny lub warunki bezpieczeństwa niespełnione -> na wyjściu idzie **zerowy `Twist`**.
+- Integracja z innym systemem ROS2 polega głównie na remappingu:
+  - `cmd_vel_in` <- `/cmd_vel_raw`
+  - `cmd_vel_out` -> `/cmd_vel`
 
-- odbiera komendy wejściowe na `cmd_vel_in`,
-- na podstawie sygnałów E-STOP decyduje, czy ruch jest dozwolony,
-- publikuje bezpieczny wynik na `cmd_vel_out`.
+---
 
-Jeżeli warunki bezpieczeństwa nie są spełnione, węzeł publikuje zerowy `Twist`.
+## 1) Co robi moduł i gdzie go wpiąć
 
-### Prosty model działania
+Pakiet należy umieścić jako **ostatni element toru sterowania ruchem**:
 
 ```text
-Controller/Planner ---> /cmd_vel_in --> [EmergencyStopNode] --> /cmd_vel_out ---> Robot bridge/driver
-                              ^
-                              |--- /estop_signal (Bool)
-                              |--- /estop_heartbeat (Empty/Bool, opcjonalnie)
-                              |--- /estop_arm (Bool, opcjonalnie)
+controller/planner -> /cmd_vel_raw -> [robot_emergency_stop] -> /cmd_vel -> robot_driver
 ```
 
----
+### Dlaczego „ostatni element”?
 
-## 2. Maszyna stanów
-
-Pakiet używa dwóch stanów:
-
-- `STOPPED` — ruch zablokowany (na wyjściu zero),
-- `RUN_ALLOWED` — ruch może przechodzić na wyjście.
-
-### Reguły bezpieczeństwa
-
-1. `estop_signal == true` -> natychmiast `STOPPED`.
-2. Jeśli `use_heartbeat=true` i heartbeat nie dotrze na czas -> `STOPPED`.
-3. Jeśli `require_arm_to_clear=true` i `estop_arm=false` -> `STOPPED`.
-4. Przejście do `RUN_ALLOWED` tylko wtedy, gdy wszystkie aktywne warunki są spełnione.
+Bo tylko wtedy masz gwarancję, że każda komenda ruchu przechodzi przez filtr bezpieczeństwa.
 
 ---
 
-## 3. Interfejs publiczny (kontrakt pakietu)
+## 2) Krótki słownik pojęć
+
+- **E-STOP** — wymuszenie zatrzymania ruchu.
+- **Heartbeat** — sygnał „żyję”, który potwierdza, że nadzorca działa.
+- **Arm** — sygnał potwierdzający gotowość/autoryzację do odblokowania ruchu.
+- **STOPPED** — stan blokady ruchu.
+- **RUN_ALLOWED** — stan, w którym ruch może przejść na wyjście.
+
+---
+
+## 3) Interfejs pakietu (publiczny kontrakt)
 
 ## Topic wejściowe
 
 - `/cmd_vel_in` (`geometry_msgs/msg/Twist`) — komenda ruchu do filtrowania.
-- `/estop_signal` (`std_msgs/msg/Bool`) — główny sygnał E-STOP:
-  - `true` = stop,
-  - `false` = próba odblokowania.
+- `/estop_signal` (`std_msgs/msg/Bool`) — główny sygnał bezpieczeństwa:
+  - `true` -> natychmiast STOP,
+  - `false` -> próba odblokowania.
 - `/estop_heartbeat` (`std_msgs/msg/Empty` lub `std_msgs/msg/Bool`) — opcjonalny heartbeat.
 - `/estop_arm` (`std_msgs/msg/Bool`) — opcjonalny sygnał arm.
 
 ## Topic wyjściowe
 
-- `/cmd_vel_out` (`geometry_msgs/msg/Twist`) — komenda po filtrze bezpieczeństwa.
+- `/cmd_vel_out` (`geometry_msgs/msg/Twist`) — bezpieczna komenda ruchu po filtrze.
 
 ## Opcjonalne serwisy
 
 - `/emergency_stop/trigger` (`std_srvs/srv/Trigger`) — ręczna aktywacja STOP.
-- `/emergency_stop/clear` (`std_srvs/srv/Trigger`) — ręczna próba wyjścia ze STOP.
+- `/emergency_stop/clear` (`std_srvs/srv/Trigger`) — próba wyjścia ze STOP.
 
 ---
 
-## 4. Parametry
+## 4) Logika bezpieczeństwa w jednym miejscu
+
+Node przechodzi do `RUN_ALLOWED` tylko, gdy:
+
+1. `estop_signal == false`,
+2. jeśli heartbeat jest włączony: heartbeat jest świeży,
+3. jeśli arm jest wymagany: `estop_arm == true`.
+
+W każdej innej sytuacji: `STOPPED` + publikacja zerowego `Twist`.
+
+---
+
+## 5) Parametry
 
 | Parametr | Typ | Domyślnie | Znaczenie |
 |---|---:|---:|---|
@@ -90,9 +100,7 @@ Pakiet używa dwóch stanów:
 
 ---
 
-## 5. Szybki start
-
-### 5.1 Build pakietu
+## 6) Szybki start (3 komendy)
 
 ```bash
 cd ros2_ws
@@ -100,13 +108,13 @@ colcon build --packages-select robot_emergency_stop
 source install/setup.bash
 ```
 
-### 5.2 Uruchomienie node (standalone)
+Uruchomienie node:
 
 ```bash
 ros2 run robot_emergency_stop emergency_stop_node
 ```
 
-### 5.3 Uruchomienie przez launch
+Uruchomienie przez launch:
 
 ```bash
 ros2 launch robot_emergency_stop emergency_stop_standalone.launch.py
@@ -114,37 +122,20 @@ ros2 launch robot_emergency_stop emergency_stop_standalone.launch.py
 
 ---
 
-## 6. Integracja krok po kroku z innym programem ROS2
+## 7) Integracja krok po kroku z innym programem ROS2
 
-Poniższa procedura zakłada, że masz już istniejący system publikujący `/cmd_vel`.
+To jest rekomendowana procedura do przekazania innym zespołom.
 
-### Krok 1 — Zidentyfikuj źródło komend ruchu
+### Krok 1 — Przenieś obecny `/cmd_vel` na `/cmd_vel_raw`
 
-Sprawdź, który node publikuje aktualnie `/cmd_vel`:
+W systemie nadrzędnym (controller/planner):
 
-```bash
-ros2 topic info /cmd_vel
-```
+- było: publikacja na `/cmd_vel`,
+- ma być: publikacja na `/cmd_vel_raw`.
 
-Jeśli jest wielu publisherów, ustal jeden „główny” tor sterowania lub wprowadź multiplexer **przed** E-STOP.
+### Krok 2 — Uruchom E-STOP z remappingiem
 
-### Krok 2 — Wydziel tor „raw”
-
-Źródło komend ruchu przełącz na topic pośredni, np. `/cmd_vel_raw`.
-
-- wcześniej: `controller -> /cmd_vel`
-- po zmianie: `controller -> /cmd_vel_raw`
-
-To jest kluczowe, bo E-STOP ma być **ostatnią bramką** przed sterownikiem robota.
-
-### Krok 3 — Dodaj `robot_emergency_stop` do launcha projektu
-
-W swoim launchu uruchom node E-STOP i zrób remapping:
-
-- `cmd_vel_in` -> `/cmd_vel_raw`
-- `cmd_vel_out` -> `/cmd_vel`
-
-Przykład fragmentu launch (`Python launch API`):
+W launchu programu docelowego dodaj:
 
 ```python
 Node(
@@ -156,26 +147,12 @@ Node(
         ('cmd_vel_in', '/cmd_vel_raw'),
         ('cmd_vel_out', '/cmd_vel'),
     ],
-    parameters=[{
-        'use_heartbeat': True,
-        'heartbeat_msg_type': 'empty',
-        'heartbeat_timeout_s': 0.5,
-        'enable_trigger_services': True,
-        'require_arm_to_clear': True,
-    }],
 )
 ```
 
-### Krok 4 — Podłącz sygnał E-STOP
+### Krok 3 — Podłącz źródło `estop_signal`
 
-Wybierz źródło `estop_signal`:
-
-- fizyczny przycisk bezpieczeństwa,
-- safety PLC,
-- supervisor node,
-- panel operatorski.
-
-Wariant minimalny (manualny):
+Minimalnie możesz użyć ręcznej publikacji:
 
 ```bash
 # STOP
@@ -185,37 +162,34 @@ ros2 topic pub --once /estop_signal std_msgs/msg/Bool "{data: true}"
 ros2 topic pub --once /estop_signal std_msgs/msg/Bool "{data: false}"
 ```
 
-### Krok 5 — (Opcjonalnie) Włącz watchdog heartbeat
+Docelowo podłącz fizyczny przycisk, PLC albo supervisor node.
 
-Jeżeli system nadrzędny ma watchdog, włącz heartbeat:
+### Krok 4 — (Opcjonalnie) włącz heartbeat
+
+Jeśli chcesz watchdog:
 
 - ustaw `use_heartbeat=true`,
-- publikuj `/estop_heartbeat` cyklicznie częściej niż `heartbeat_timeout_s`.
+- publikuj heartbeat cyklicznie częściej niż timeout.
 
-Przykład heartbeat 10 Hz:
+Przykład:
 
 ```bash
 ros2 topic pub -r 10 /estop_heartbeat std_msgs/msg/Empty "{}"
 ```
 
-### Krok 6 — (Opcjonalnie) Wymuś arm przed clear
+### Krok 5 — (Opcjonalnie) wymagaj `arm` przed clear
 
-Jeżeli chcesz uniknąć przypadkowego wznowienia ruchu:
-
-- zostaw `require_arm_to_clear=true`,
-- publikuj `estop_arm=true` dopiero po świadomej autoryzacji operatora.
-
-Przykład:
+Zostaw `require_arm_to_clear=true` i podawaj `estop_arm=true` tylko po świadomej autoryzacji.
 
 ```bash
 ros2 topic pub --once /estop_arm std_msgs/msg/Bool "{data: true}"
 ```
 
-### Krok 7 — Zweryfikuj zachowanie runtime
+### Krok 6 — Weryfikacja po integracji
 
-1. Podaj niezerowy `cmd_vel_in` i sprawdź, czy bez clear wyjście jest zerowane.
-2. Aktywuj `RUN_ALLOWED` i sprawdź, czy `cmd_vel_in` przechodzi na `cmd_vel_out`.
-3. Zasymuluj timeout heartbeat (wyłącz publisher heartbeat) i potwierdź powrót do `STOPPED`.
+1. Bez clear: niezerowy `cmd_vel_in` -> na `cmd_vel_out` powinno być zero.
+2. Po spełnieniu warunków: `cmd_vel_in` powinno przejść na `cmd_vel_out`.
+3. Po wyłączeniu heartbeat (gdy wymagany): system wraca do `STOPPED`.
 
 Komendy pomocnicze:
 
@@ -227,51 +201,51 @@ ros2 service call /emergency_stop/clear std_srvs/srv/Trigger "{}"
 
 ---
 
-## 7. Przykładowy scenariusz integracji „controller + driver”
+## 8) Dwa gotowe profile wdrożenia
 
-```text
-[controller_node] --/cmd_vel_raw--> [robot_emergency_stop] --/cmd_vel--> [robot_driver_bridge]
-                                   ^
-                                   +-- /estop_signal  (z safety panelu)
-                                   +-- /estop_heartbeat (z supervisora)
-                                   +-- /estop_arm (z HMI)
-```
+## A) Profil minimalny (szybkie uruchomienie)
 
-### Zalecenie architektoniczne
+- `use_heartbeat=false`
+- `require_arm_to_clear=false`
 
-Nie podłączaj drivera robota bezpośrednio pod `/cmd_vel_raw`.
-Jedyny topic podawany do drivera to `cmd_vel_out` z E-STOP.
+Dobre do lokalnych testów integracyjnych.
 
----
+## B) Profil produkcyjny (zalecany)
 
-## 8. Diagnostyka i najczęstsze problemy
+- `use_heartbeat=true`
+- `require_arm_to_clear=true`
+- `heartbeat_timeout_s` dobrany do cyklu systemu nadrzędnego
 
-### Problem: robot nie rusza mimo `estop_signal=false`
-
-Sprawdź kolejno:
-
-1. Czy node działa i publikuje logi przejść stanu.
-2. Czy nie ma timeout heartbeat (`use_heartbeat=true`).
-3. Czy przy `require_arm_to_clear=true` masz `estop_arm=true`.
-4. Czy inne nody nie nadpisują `/cmd_vel` poza E-STOP.
-
-### Problem: clear przez serwis zawsze odrzucany
-
-Najczęściej przyczyna to aktywny warunek bezpieczeństwa (brak arm/heartbeat).
-Sprawdź parametry i aktualne topici wejściowe.
+Dobre do pracy z realnym robotem i nadzorem operatora.
 
 ---
 
-## 9. Minimalna checklista produkcyjna
+## 9) Checklista „5 minut przed demo”
 
-- [ ] E-STOP jest ostatnią bramką na torze ruchu.
-- [ ] Driver robota czyta wyłącznie `cmd_vel_out`.
-- [ ] Timeout heartbeat przetestowany (wymuszony brak heartbeat).
-- [ ] Operator ma jednoznaczny mechanizm `trigger` i kontrolowany `clear`.
-- [ ] Logi przejść stanów są zbierane i archiwizowane.
+- [ ] Driver robota czyta wyłącznie `/cmd_vel` z wyjścia E-STOP.
+- [ ] Źródło sterowania publikuje na `/cmd_vel_raw`.
+- [ ] `estop_signal=true` zatrzymuje robota natychmiast.
+- [ ] `clear` bez arm/heartbeat (jeśli wymagane) jest odrzucane.
+- [ ] Logi przejść stanu są widoczne i zrozumiałe dla operatora.
 
 ---
 
-## 10. Licencja
+## 10) Najczęstsze problemy
+
+### „Robot nie rusza mimo estop_signal=false”
+
+Najczęściej przyczyna:
+- brak heartbeat (gdy `use_heartbeat=true`),
+- brak `estop_arm=true` (gdy `require_arm_to_clear=true`),
+- błędny remapping (`cmd_vel_in/cmd_vel_out`).
+
+### „Robot rusza mimo oczekiwanego STOP”
+
+To zwykle oznacza, że driver dostaje komendy z innego topicu niż `/cmd_vel_out`.
+Sprawdź, czy E-STOP jest naprawdę ostatnią bramką w torze.
+
+---
+
+## 11) Licencja
 
 Apache-2.0
