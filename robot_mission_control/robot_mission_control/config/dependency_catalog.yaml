@@ -1,0 +1,12 @@
+# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
+# CO ZMIENIONO: Dodano konfigurowalną listę bibliotek audytowanych przez usługę system/dependency_status.
+# DLACZEGO: Lista zależności ma być utrzymywana po stronie robota, bez hardcodowania w UI desktopowym.
+# JAK TO DZIAŁA: Klient wczytuje `dependencies` z tego YAML i wysyła je jako kontrakt zapytania do usługi.
+# TODO: Dodać pola `criticality` oraz `allow_prerelease` dla bardziej precyzyjnych polityk walidacji.
+dependencies:
+  - name: rclpy
+    required_version: ">=3.4.0"
+  - name: sensor_msgs
+    required_version: ">=5.0.0"
+  - name: cv_bridge
+    required_version: ">=3.3.1"

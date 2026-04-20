@@ -1,8 +1,8 @@
-# [AI-CHANGE | 2026-04-20 14:12 UTC | v0.141]
-# CO ZMIENIONO: Dodano konfigurację pakietu Python dla modułu robot_mission_control.
-# DLACZEGO: Potrzebny jest standaryzowany punkt instalacji i uruchomienia aplikacji desktopowej.
-# JAK TO DZIAŁA: setuptools buduje pakiet, a skrypt `robot-mission-control` uruchamia funkcję main() z app.py.
-# TODO: Dodać profile zależności (dev/test) oraz pinowanie wersji pod docelowe obrazy runtime.
+# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
+# CO ZMIENIONO: Dodano zależność PyYAML i pakowanie plików YAML konfiguracyjnych aplikacji.
+# DLACZEGO: Klient dependency_status czyta listę bibliotek z pliku konfiguracyjnego po stronie robota.
+# JAK TO DZIAŁA: `PyYAML` obsługuje parser, a `package-data` dołącza katalog `config/*.yaml` do artefaktów.
+# TODO: Dodać osobny extras `dev` z narzędziami lint/test i pinowaniem wersji reproducible-build.
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
@@ -15,6 +15,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "PySide6>=6.7",
+  "PyYAML>=6.0",
 ]
 
 [project.scripts]
@@ -26,3 +27,6 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["robot_mission_control*"]
+
+[tool.setuptools.package-data]
+robot_mission_control = ["config/*.yaml"]
