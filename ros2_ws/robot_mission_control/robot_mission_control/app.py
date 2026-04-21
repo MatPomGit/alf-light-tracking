@@ -34,6 +34,10 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from robot_mission_control.core import (
+    STATE_KEY_ACTION_GOAL_ID,
+    STATE_KEY_ACTION_PROGRESS,
+    STATE_KEY_ACTION_RESULT,
+    STATE_KEY_ACTION_STATUS,
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
     STATE_KEY_DEPENDENCY_STATUS,
@@ -47,6 +51,8 @@ from robot_mission_control.core import (
     WorkerModule,
     utc_now,
 )
+from robot_mission_control.ros.action_backend import ActionBackendConfig, Ros2MissionActionBackend
+from robot_mission_control.ros.action_clients import ActionClientBindings, MissionActionClient
 from robot_mission_control.ros.dependency_audit_client import DependencyStatusClient
 from robot_mission_control.ros.node_manager import ReconnectPolicy, RosNodeManager
 from robot_mission_control.ui.main_window import MainWindow
@@ -102,6 +108,17 @@ class RosBridgeService:
         self._record_controller = RecordController()
         self._session_id = f"ros-bridge-{utc_now().strftime('%Y%m%d%H%M%S')}"
         self._node_manager: RosNodeManager | None = None
+        self._action_backend: Ros2MissionActionBackend | None = None
+        self._action_client = MissionActionClient(
+            session_id=self._session_id,
+            bindings=ActionClientBindings(
+                send_goal=self._send_action_goal,
+                cancel_goal=self._cancel_action_goal_transport,
+                fetch_result=self._fetch_action_result,
+                fetch_progress=self._fetch_action_progress,
+            ),
+        )
+        self._active_goal_id: str | None = None
 
     def _resolve_dependency_catalog_path(self) -> Path:
         """Rozwiązuje położenie katalogu config dla obu ścieżek uruchamiania (moduł/pakiet)."""
@@ -109,6 +126,58 @@ class RosBridgeService:
         if local_path.exists():
             return local_path
         return Path(__file__).resolve().parent.parent / "config" / "dependency_catalog.yaml"
+
+    # [AI-CHANGE | 2026-04-21 15:52 UTC | v0.176]
+    # CO ZMIENIONO: Dodano ładowanie konfiguracji backendu ROS2 Action z pliku `config/action_backend.yaml`.
+    # DLACZEGO: Zakres komunikacji z robotem ma być konfigurowalny i rozszerzalny bez zmian kodu UI.
+    # JAK TO DZIAŁA: Przy poprawnym pliku tworzony jest `ActionBackendConfig`; przy błędzie zwracamy `None`
+    #                i cały moduł przechodzi w bezpieczny fallback `BRAK DANYCH` bez ryzyka fałszywych sukcesów.
+    # TODO: Dodać walidację schematu YAML (typy/liczby dodatnie) oraz testy kontraktu konfiguracji.
+    def _resolve_action_backend_config_path(self) -> Path:
+        """Rozwiązuje położenie pliku konfiguracyjnego backendu Action."""
+        local_path = Path(__file__).resolve().parent / "config" / "action_backend.yaml"
+        if local_path.exists():
+            return local_path
+        return Path(__file__).resolve().parent.parent / "config" / "action_backend.yaml"
+
+    def _load_action_backend_config(self) -> ActionBackendConfig | None:
+        """Wczytuje konfigurację backendu Action lub zwraca None przy niepewności."""
+        config_path = self._resolve_action_backend_config_path()
+        if not config_path.exists():
+            return None
+
+        try:
+            import yaml
+
+            raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return None
+
+        if not isinstance(raw, dict):
+            return None
+
+        required_keys = [
+            "action_name",
+            "action_type_module",
+            "action_type_name",
+            "node_name",
+            "server_wait_timeout_sec",
+            "future_wait_timeout_sec",
+        ]
+        if any(key not in raw for key in required_keys):
+            return None
+
+        try:
+            return ActionBackendConfig(
+                action_name=str(raw["action_name"]),
+                action_type_module=str(raw["action_type_module"]),
+                action_type_name=str(raw["action_type_name"]),
+                node_name=str(raw["node_name"]),
+                server_wait_timeout_sec=float(raw["server_wait_timeout_sec"]),
+                future_wait_timeout_sec=float(raw["future_wait_timeout_sec"]),
+            )
+        except Exception:  # noqa: BLE001
+            return None
 
     def init(self) -> None:
         """Prepare ROS bindings without crashing GUI boot."""
@@ -139,6 +208,17 @@ class RosBridgeService:
             state_store=self._state_store,
         )
         self._initialized = self._node_manager.init_node(correlation_id="bridge_init")
+        if not self._initialized:
+            return
+
+        action_config = self._load_action_backend_config()
+        if action_config is None:
+            self._action_backend = None
+            return
+
+        self._action_backend = Ros2MissionActionBackend(rclpy_module=rclpy_module, config=action_config)
+        if not self._action_backend.start():
+            self._action_backend = None
 
     def start(self) -> None:
         """Start ROS worker and publish safe source status."""
@@ -160,6 +240,10 @@ class RosBridgeService:
 
     def stop(self) -> None:
         """Safely shutdown ROS2 if it was initialized."""
+        if self._action_backend is not None:
+            self._action_backend.shutdown()
+            self._action_backend = None
+
         if self._node_manager is not None:
             self._node_manager.shutdown_node(correlation_id="bridge_stop")
 
@@ -208,6 +292,164 @@ class RosBridgeService:
             return
 
         self._supervisor.heartbeat_channel(self._channel_name, heartbeat)
+
+    # [AI-CHANGE | 2026-04-21 15:52 UTC | v0.176]
+    # CO ZMIENIONO: Dodano pełną obsługę sterowania akcją misji (goal/cancel/progress/result)
+    #               oraz predefiniowane szybkie komendy operatorskie.
+    # DLACZEGO: Moduł kontroli misji wymaga szerszej komunikacji ROS2 i szybkiego wyzwalania najczęstszych funkcji.
+    # JAK TO DZIAŁA: Bridge wysyła payload z mapy `quick_command_map`, zapisuje status do StateStore i stale
+    #                odpyta progress/result; przy niepewności backendu zapisuje brak danych zamiast błędnej detekcji.
+    # TODO: Rozszerzyć mapę komend o parametryzację z poziomu konfiguracji operatora (np. dynamiczne waypointy).
+    def _send_action_goal(self, goal_payload: dict[str, object]) -> str | None:
+        """Deleguje wysyłkę goal do backendu Action; brak backendu = None."""
+        if self._action_backend is None:
+            return None
+        return self._action_backend.send_goal(goal_payload)
+
+    def _cancel_action_goal_transport(self, goal_id: str) -> bool:
+        """Deleguje cancel goal do backendu Action; brak backendu = False."""
+        if self._action_backend is None:
+            return False
+        return self._action_backend.cancel_goal(goal_id)
+
+    def _fetch_action_result(self, goal_id: str) -> dict[str, object] | None:
+        """Deleguje pobranie rezultatu goal do backendu Action."""
+        if self._action_backend is None:
+            return None
+        return self._action_backend.fetch_result(goal_id)
+
+    def _fetch_action_progress(self, goal_id: str) -> float | None:
+        """Deleguje pobranie feedback progress do backendu Action."""
+        if self._action_backend is None:
+            return None
+        return self._action_backend.fetch_progress(goal_id)
+
+    def submit_action_goal(self) -> None:
+        """Wysyła domyślny goal operatora."""
+        self.submit_quick_action("start_patrol")
+
+    def submit_quick_action(self, command_key: str) -> None:
+        """Wysyła predefiniowaną akcję operatorską do robota."""
+        now = utc_now()
+        if self._active_goal_id is not None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_STATUS,
+                value=None,
+                source="action_client",
+                timestamp=now,
+                reason_code="goal_already_running",
+            )
+            return
+
+        quick_command_map: dict[str, dict[str, object]] = {
+            "start_patrol": {"goal": "start_patrol"},
+            "return_to_base": {"goal": "return_to_base"},
+            "pause_mission": {"goal": "pause_mission"},
+            "resume_mission": {"goal": "resume_mission"},
+        }
+        goal_payload = quick_command_map.get(command_key)
+        if goal_payload is None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_STATUS,
+                value=None,
+                source="action_client",
+                timestamp=now,
+                reason_code="unknown_quick_command",
+            )
+            return
+
+        goal_id = self._action_client.send_goal(
+            goal_payload=goal_payload,
+            correlation_id=f"action_send_{command_key}_{now.strftime('%H%M%S')}",
+        )
+        if goal_id is None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_STATUS,
+                value=None,
+                source="action_client",
+                timestamp=now,
+                reason_code="action_backend_unavailable",
+            )
+            return
+
+        self._active_goal_id = goal_id
+        self._state_store.set_with_inference(key=STATE_KEY_ACTION_GOAL_ID, value=goal_id, source="action_client", timestamp=now)
+        self._state_store.set_with_inference(key=STATE_KEY_ACTION_STATUS, value="RUNNING", source="action_client", timestamp=now)
+        self._state_store.set_with_inference(key=STATE_KEY_ACTION_PROGRESS, value="0%", source="action_client", timestamp=now)
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_RESULT,
+            value=f"WYSŁANO KOMENDĘ: {command_key}",
+            source="action_client",
+            timestamp=now,
+        )
+
+    def cancel_action_goal(self) -> None:
+        """Anuluje aktualnie wykonywany goal."""
+        now = utc_now()
+        if self._active_goal_id is None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_STATUS,
+                value=None,
+                source="action_client",
+                timestamp=now,
+                reason_code="no_active_goal",
+            )
+            return
+
+        is_cancelled = self._action_client.cancel_goal(
+            goal_id=self._active_goal_id,
+            correlation_id=f"action_cancel_{now.strftime('%H%M%S')}",
+        )
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_STATUS,
+            value="CANCEL_REQUESTED" if is_cancelled else None,
+            source="action_client",
+            timestamp=now,
+            reason_code=None if is_cancelled else "cancel_failed",
+        )
+
+    def poll_action_status(self) -> None:
+        """Aktualizuje progress i wynik aktywnego goal."""
+        now = utc_now()
+        if self._active_goal_id is None:
+            return
+
+        goal_id = self._active_goal_id
+        progress = self._action_client.get_progress(
+            goal_id=goal_id,
+            correlation_id=f"action_progress_{now.strftime('%H%M%S')}",
+        )
+        if progress is not None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_PROGRESS,
+                value=f"{int(progress * 100)}%",
+                source="action_client",
+                timestamp=now,
+            )
+
+        result = self._action_client.get_result(
+            goal_id=goal_id,
+            correlation_id=f"action_result_{now.strftime('%H%M%S')}",
+        )
+        if result is None:
+            return
+
+        result_status = str(result.get("status", "UNKNOWN"))
+        self._state_store.set_with_inference(key=STATE_KEY_ACTION_STATUS, value=result_status, source="action_client", timestamp=now)
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_RESULT,
+            value=str(result),
+            source="action_client",
+            timestamp=now,
+        )
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_GOAL_ID,
+            value=None,
+            source="action_client",
+            timestamp=now,
+            reason_code="goal_finished",
+        )
+        self._active_goal_id = None
 
     def _request_dependency_status(self, payload: dict[str, object]) -> dict[str, object] | None:
         """Placeholder contract call returning conservative UNKNOWN when transport is unavailable."""
@@ -337,10 +579,18 @@ def main(argv: Optional[list[str]] = None) -> int:
     supervisor.start_worker("ros_bridge", now)
 
     qt_app = QApplication(argv or sys.argv)
+    # [AI-CHANGE | 2026-04-21 15:52 UTC | v0.176]
+    # CO ZMIENIONO: Rozszerzono przekazywane callbacki MainWindow o szybkie akcje operatora.
+    # DLACZEGO: UI ControlsTab musi wywoływać predefiniowane komendy bez bezpośredniej zależności od bridge.
+    # JAK TO DZIAŁA: MainWindow dostaje `submit_quick_action`, który deleguje komendę do RosBridgeService.
+    # TODO: Dodać telemetrykę czasu reakcji UI->ROS dla każdego command_key.
     window = MainWindow(
         state_store=bridge.state_store,
         supervisor=supervisor,
         version_metadata=resolve_version_metadata(),
+        submit_action_goal=bridge.submit_action_goal,
+        cancel_action_goal=bridge.cancel_action_goal,
+        submit_quick_action=bridge.submit_quick_action,
     )
     window.show()
     # [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
@@ -356,6 +606,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         bridge._poll_connection()
         reason = None if bridge._initialized else "ros_unavailable"
         bridge._publish_rosbag_snapshot(reason_code=reason)
+        # [AI-CHANGE | 2026-04-21 15:52 UTC | v0.176]
+        # CO ZMIENIONO: W pętli timera dodano cykliczny polling statusu aktywnej akcji.
+        # DLACZEGO: Operator musi otrzymywać progres i wynik akcji w czasie rzeczywistym.
+        # JAK TO DZIAŁA: Każdy tick aktualizuje `action_progress` i `action_result`, a po finale czyści `goal_id`.
+        # TODO: Rozdzielić częstotliwość pollingu połączenia i akcji dla lepszej responsywności dużych misji.
+        bridge.poll_action_status()
 
     poll_timer.timeout.connect(_tick)
     poll_timer.start()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
+    QGroupBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -58,6 +59,31 @@ class ControlsTab(QWidget):
         buttons.addWidget(self._send_button)
         buttons.addWidget(self._cancel_button)
 
+        # [AI-CHANGE | 2026-04-21 15:52 UTC | v0.176]
+        # CO ZMIENIONO: Dodano panel szybkich akcji operatorskich z predefiniowanymi funkcjami misji
+        #               (patrol, powrót do bazy, pauza i wznowienie).
+        # DLACZEGO: Operatorzy najczęściej wykonują powtarzalne polecenia i potrzebują skrótów zamiast
+        #           ręcznego konfigurowania payloadu dla każdej akcji.
+        # JAK TO DZIAŁA: Każdy przycisk wywołuje callback `submit_quick_operator_action` na MainWindow;
+        #                jeśli callback nie istnieje, UI pozostaje w bezpiecznym stanie bez side effects.
+        # TODO: Dodać mapowanie skrótów klawiaturowych i potwierdzenie dla poleceń krytycznych (np. Return Home).
+        quick_actions_box = QGroupBox("Szybkie akcje misji", card)
+        quick_actions_layout = QGridLayout(quick_actions_box)
+        self._quick_buttons: dict[str, QPushButton] = {}
+        quick_defs = [
+            ("Rozpocznij patrol", "start_patrol"),
+            ("Powrót do bazy", "return_to_base"),
+            ("Wstrzymaj misję", "pause_mission"),
+            ("Wznów misję", "resume_mission"),
+        ]
+        for index, (label, command_key) in enumerate(quick_defs):
+            row = index // 2
+            col = index % 2
+            button = QPushButton(label, quick_actions_box)
+            button.clicked.connect(lambda _checked=False, key=command_key: self._on_quick_action(key))
+            quick_actions_layout.addWidget(button, row, col)
+            self._quick_buttons[command_key] = button
+
         self._status_value = QLabel("BRAK DANYCH", card)
         self._goal_id_value = QLabel("BRAK DANYCH", card)
         self._progress_value = QLabel("BRAK DANYCH", card)
@@ -75,6 +101,7 @@ class ControlsTab(QWidget):
 
         layout.addWidget(title)
         layout.addLayout(buttons)
+        layout.addWidget(quick_actions_box)
         layout.addLayout(grid)
         layout.addStretch(1)
 
@@ -102,6 +129,13 @@ class ControlsTab(QWidget):
             cancel_fn()
         self._refresh_view()
 
+    def _on_quick_action(self, command_key: str) -> None:
+        window = self.window()
+        quick_fn = getattr(window, "submit_quick_operator_action", None)
+        if callable(quick_fn):
+            quick_fn(command_key)
+        self._refresh_view()
+
     def _render_store_value(self, key: str, *, fallback: str = "BRAK DANYCH") -> str:
         if self._state_store is None:
             return fallback
@@ -121,4 +155,7 @@ class ControlsTab(QWidget):
         self._goal_id_value.setText(goal_id)
         self._progress_value.setText(progress_text)
         self._result_value.setText(result)
-        self._cancel_button.setEnabled(goal_id != "BRAK DANYCH" and status in {"RUNNING", "CANCEL_REQUESTED"})
+        goal_active = goal_id != "BRAK DANYCH" and status in {"RUNNING", "CANCEL_REQUESTED"}
+        self._cancel_button.setEnabled(goal_active)
+        for button in self._quick_buttons.values():
+            button.setEnabled(not goal_active)
