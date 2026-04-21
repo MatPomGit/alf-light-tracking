@@ -12,6 +12,20 @@ from typing import Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+# [AI-CHANGE | 2026-04-21 14:31 UTC | v0.174]
+# CO ZMIENIONO: Dodano bootstrap ścieżki importu dla uruchamiania pliku `app.py` bezpośrednio przez interpreter
+#               (np. `py app.py`) z katalogu pakietu `robot_mission_control/robot_mission_control`.
+# DLACZEGO: Przy uruchomieniu skryptowym `sys.path` nie zawiera katalogu nadrzędnego pakietu, więc import
+#           `from robot_mission_control...` kończył się `ModuleNotFoundError`.
+# JAK TO DZIAŁA: Gdy moduł nie ma kontekstu pakietu (`__package__` puste), kod dopina do `sys.path` folder
+#                nadrzędny pakietu; dzięki temu importy absolutne działają jak przy `python -m`.
+# TODO: Usunąć ten fallback po pełnej migracji uruchamiania na pojedynczy entrypoint `python -m robot_mission_control`.
+if __package__ in (None, ""):
+    package_parent = Path(__file__).resolve().parent.parent
+    package_parent_str = str(package_parent)
+    if package_parent_str not in sys.path:
+        sys.path.insert(0, package_parent_str)
+
 from robot_mission_control.core import (
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
