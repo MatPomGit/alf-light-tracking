@@ -1,4 +1,12 @@
 <!--
+[AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
+CO ZMIENIONO: Zmieniono opisy granic modułów na nową lokalizację pakietu `robot_mission_control` w `ros2_ws`.
+DLACZEGO: Architektura musi być spójna z rzeczywistą strukturą katalogów repozytorium.
+JAK TO DZIAŁA: Sekcje dokumentu odnoszą się do ścieżek pod `ros2_ws/robot_mission_control/...`.
+TODO: Dodać sekcję zależności runtime pomiędzy modułami core a mostem ROS.
+-->
+
+<!--
 [AI-CHANGE | 2026-04-20 20:39 UTC | v0.153]
 CO ZMIENIONO: Utworzono nowy dokument specyfikacyjny/architektoniczny/użytkowy dla etapu Stage 0.
 DLACZEGO: Uporządkowanie wymagań i procedur operacyjnych projektu oraz formalizacja kryteriów jakości.
@@ -30,13 +38,13 @@ Każda granica modułu wymaga jawnego kontraktu: schemat + walidacje + kody odrz
 
 <!--
 [AI-CHANGE | 2026-04-21 09:30 UTC | v0.166]
-CO ZMIENIONO: Uzupełniono granice modułów o odpowiedzialności komponentów `robot_mission_control/core`.
+CO ZMIENIONO: Uzupełniono granice modułów o odpowiedzialności komponentów `ros2_ws/robot_mission_control/robot_mission_control/core`.
 DLACZEGO: Potrzebujemy jawnego kontraktu odpowiedzialności dla config/event/log/error, aby uniknąć rozmycia granic.
 JAK TO DZIAŁA: Dodana sekcja opisuje odpowiedzialność i minimalne wymagania jakościowe każdego nowego modułu.
 TODO: Dodać diagram sekwencji dla przepływu wyjątku przez `error_boundary` i propagację do UI.
 -->
 
-## Granice modułów `robot_mission_control/core`
+## Granice modułów `ros2_ws/robot_mission_control/robot_mission_control/core`
 
 - `config_loader`:
   - Jedyna warstwa dopuszczająca odczyt konfiguracji z pliku.

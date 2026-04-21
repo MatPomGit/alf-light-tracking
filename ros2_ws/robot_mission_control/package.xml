@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!-- [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167] -->
+<!-- CO ZMIENIONO: Uzupełniono manifest o zależności runtime potrzebne po relokacji i uruchamianiu przez launch. -->
+<!-- DLACZEGO: Pakiet ma działać jako pełnoprawny komponent ROS2 budowany i odpalany z `ros2_ws`. -->
+<!-- JAK TO DZIAŁA: `ament_python` buduje pakiet, a `ament_index_python`, `launch(_ros)`, `rclpy` i `python3-yaml` -->
+<!--               zapewniają wymagane zależności wykonaniowe dla node'a i launcha. -->
+<!-- TODO: Dodać zależności message/action gdy backend ROS Action przejdzie z placeholdera na produkcyjny transport oraz zmapować zależności GUI na konkretne pakiety distro. -->
+<package format="3">
+  <name>robot_mission_control</name>
+  <version>0.1.0</version>
+  <description>Desktop mission control app for robot operations.</description>
+  <maintainer email="team@example.com">Mission Control Team</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-pyside6</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

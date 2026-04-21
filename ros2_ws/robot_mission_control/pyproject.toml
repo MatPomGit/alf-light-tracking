@@ -19,12 +19,18 @@ dependencies = [
 ]
 
 [project.scripts]
+# [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
+# CO ZMIENIONO: Dodano alias entrypointu `robot_mission_control` obok `robot-mission-control`.
+# DLACZEGO: `ros2 launch`/`ament_python` korzystają zwykle z nazwy podkreślnikowej, a alias redukuje ryzyko niespójności.
+# JAK TO DZIAŁA: Obie nazwy skryptów uruchamiają ten sam moduł `app.entrypoint:main`.
+# TODO: Uzgodnić docelowo pojedynczą nazwę binarki i usunąć alias po migracji skryptów operatorskich.
 # [AI-CHANGE | 2026-04-20 21:55 UTC | v0.157]
 # CO ZMIENIONO: Przełączono punkt startowy CLI na nowy moduł `robot_mission_control.app.entrypoint`.
 # DLACZEGO: Utrzymujemy wymaganą strukturę z katalogiem `app/` przy zachowaniu kompatybilności uruchamiania.
 # JAK TO DZIAŁA: Konsolowy skrypt `robot-mission-control` wywołuje `entrypoint.main`, który deleguje do legacy bootstrapu.
 # TODO: Dodać alternatywny skrypt `robot-mission-control-dev` z opcjami debug/logging.
 robot-mission-control = "robot_mission_control.app.entrypoint:main"
+robot_mission_control = "robot_mission_control.app.entrypoint:main"
 
 [tool.setuptools]
 include-package-data = true
