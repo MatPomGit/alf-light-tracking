@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import importlib
+import json
 import importlib.util
 import sys
 from datetime import timedelta
+from uuid import uuid4
 from pathlib import Path
 from typing import Optional
 
@@ -13,6 +15,10 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from robot_mission_control.core import (
+    STATE_KEY_ACTION_GOAL_ID,
+    STATE_KEY_ACTION_PROGRESS,
+    STATE_KEY_ACTION_RESULT,
+    STATE_KEY_ACTION_STATUS,
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
     STATE_KEY_DEPENDENCY_STATUS,
@@ -26,6 +32,7 @@ from robot_mission_control.core import (
     WorkerModule,
     utc_now,
 )
+from robot_mission_control.ros.action_clients import ActionClientBindings, MissionActionClient
 from robot_mission_control.ros.dependency_audit_client import DependencyStatusClient
 from robot_mission_control.ros.node_manager import ReconnectPolicy, RosNodeManager
 from robot_mission_control.ui.main_window import MainWindow
@@ -62,6 +69,66 @@ class _RclpyRuntime:
         shutdown_fn()
 
 
+# [AI-CHANGE | 2026-04-21 05:21 UTC | v0.163]
+# CO ZMIENIONO: Dodano lokalny transport akcji `_InMemoryMissionActionTransport` oraz integrację
+#               `MissionActionClient` z RosBridgeService.
+# DLACZEGO: Potrzebujemy pełnej ścieżki goal/progress/cancel/result dostępnej dla UI już na poziomie bridge.
+# JAK TO DZIAŁA: Transport emuluje deterministyczny przebieg akcji i zwraca wynik końcowy po osiągnięciu 100%;
+#                RosBridgeService publikuje statusy akcji do StateStore, preferując `None` przy niepewności.
+# TODO: Podmienić transport in-memory na natywny klient ROS2 Action po ustaleniu docelowego interfejsu msg/action.
+
+
+class _InMemoryMissionActionTransport:
+    """Deterministyczny transport akcji do środowisk bez aktywnego backendu ROS Action."""
+
+    def __init__(self) -> None:
+        self._goal_id: str | None = None
+        self._progress: float = 0.0
+        self._cancel_requested = False
+
+    def send_goal(self, goal_payload: dict[str, object]) -> str | None:
+        _ = goal_payload
+        if self._goal_id is not None:
+            return None
+        self._goal_id = f"goal-{uuid4().hex[:8]}"
+        self._progress = 0.0
+        self._cancel_requested = False
+        return self._goal_id
+
+    def fetch_progress(self, goal_id: str) -> float | None:
+        if self._goal_id != goal_id:
+            return None
+        if self._cancel_requested:
+            return self._progress
+        if self._progress >= 1.0:
+            return 1.0
+        self._progress = min(1.0, self._progress + 0.2)
+        return self._progress
+
+    def cancel_goal(self, goal_id: str) -> bool:
+        if self._goal_id != goal_id:
+            return False
+        self._cancel_requested = True
+        return True
+
+    def fetch_result(self, goal_id: str) -> dict[str, object] | None:
+        if self._goal_id != goal_id:
+            return None
+        if self._cancel_requested:
+            result = {"status": "CANCELED", "message": "Goal anulowany przez operatora"}
+            self._goal_id = None
+            self._progress = 0.0
+            self._cancel_requested = False
+            return result
+        if self._progress < 1.0:
+            return None
+        result = {"status": "SUCCEEDED", "message": "Akcja zakończona poprawnie"}
+        self._goal_id = None
+        self._progress = 0.0
+        self._cancel_requested = False
+        return result
+
+
 class RosBridgeService:
     """Minimal ROS2 bridge abstraction used by the desktop app."""
 
@@ -81,6 +148,17 @@ class RosBridgeService:
         self._record_controller = RecordController()
         self._session_id = f"ros-bridge-{utc_now().strftime('%Y%m%d%H%M%S')}"
         self._node_manager: RosNodeManager | None = None
+        self._action_transport = _InMemoryMissionActionTransport()
+        self._action_client = MissionActionClient(
+            session_id=self._session_id,
+            bindings=ActionClientBindings(
+                send_goal=self._action_transport.send_goal,
+                cancel_goal=self._action_transport.cancel_goal,
+                fetch_result=self._action_transport.fetch_result,
+                fetch_progress=self._action_transport.fetch_progress,
+            ),
+        )
+        self._active_goal_id: str | None = None
 
     def _resolve_dependency_catalog_path(self) -> Path:
         """Rozwiązuje położenie katalogu config dla obu ścieżek uruchamiania (moduł/pakiet)."""
@@ -187,6 +265,106 @@ class RosBridgeService:
             return
 
         self._supervisor.heartbeat_channel(self._channel_name, heartbeat)
+
+    def submit_action_goal(self) -> None:
+        """Wysyła goal akcji i publikuje stan początkowy do store."""
+        now = utc_now()
+        if self._active_goal_id is not None:
+            return
+
+        goal_id = self._action_client.send_goal(
+            goal_payload={"goal": "operator_mission_step"},
+            correlation_id=f"action_send_{now.strftime('%H%M%S')}"
+        )
+        if goal_id is None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_STATUS,
+                value=None,
+                source="action_client",
+                timestamp=now,
+                reason_code="send_goal_failed",
+            )
+            return
+
+        self._active_goal_id = goal_id
+        self._state_store.set_with_inference(key=STATE_KEY_ACTION_GOAL_ID, value=goal_id, source="action_client", timestamp=now)
+        self._state_store.set_with_inference(key=STATE_KEY_ACTION_STATUS, value="RUNNING", source="action_client", timestamp=now)
+        self._state_store.set_with_inference(key=STATE_KEY_ACTION_PROGRESS, value="0%", source="action_client", timestamp=now)
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_RESULT,
+            value="OCZEKIWANIE NA WYNIK",
+            source="action_client",
+            timestamp=now,
+        )
+
+    def cancel_action_goal(self) -> None:
+        """Anuluje aktywny goal i publikuje status anulowania."""
+        now = utc_now()
+        if self._active_goal_id is None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_STATUS,
+                value=None,
+                source="action_client",
+                timestamp=now,
+                reason_code="no_active_goal",
+            )
+            return
+
+        is_cancelled = self._action_client.cancel_goal(
+            goal_id=self._active_goal_id,
+            correlation_id=f"action_cancel_{now.strftime('%H%M%S')}",
+        )
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_STATUS,
+            value="CANCEL_REQUESTED" if is_cancelled else None,
+            source="action_client",
+            timestamp=now,
+            reason_code=None if is_cancelled else "cancel_failed",
+        )
+
+    def poll_action_status(self) -> None:
+        """Polluje progress i wynik aktywnego goala, stosując bezpieczne fallbacki."""
+        now = utc_now()
+        if self._active_goal_id is None:
+            return
+
+        goal_id = self._active_goal_id
+        progress = self._action_client.get_progress(
+            goal_id=goal_id,
+            correlation_id=f"action_progress_{now.strftime('%H%M%S')}",
+        )
+        if progress is not None:
+            progress_label = f"{int(progress * 100)}%"
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_PROGRESS,
+                value=progress_label,
+                source="action_client",
+                timestamp=now,
+            )
+
+        result = self._action_client.get_result(
+            goal_id=goal_id,
+            correlation_id=f"action_result_{now.strftime('%H%M%S')}",
+        )
+        if result is None:
+            return
+
+        status = str(result.get("status", "UNKNOWN"))
+        self._state_store.set_with_inference(key=STATE_KEY_ACTION_STATUS, value=status, source="action_client", timestamp=now)
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_RESULT,
+            value=json.dumps(result, ensure_ascii=False),
+            source="action_client",
+            timestamp=now,
+        )
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_GOAL_ID,
+            value=None,
+            source="action_client",
+            timestamp=now,
+            reason_code="goal_finished",
+        )
+        self._active_goal_id = None
 
     def _request_dependency_status(self, payload: dict[str, object]) -> dict[str, object] | None:
         """Placeholder contract call returning conservative UNKNOWN when transport is unavailable."""
@@ -320,6 +498,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         state_store=bridge.state_store,
         supervisor=supervisor,
         version_metadata=resolve_version_metadata(),
+        submit_action_goal=bridge.submit_action_goal,
+        cancel_action_goal=bridge.cancel_action_goal,
     )
     window.show()
     # [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
@@ -335,6 +515,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         bridge._poll_connection()
         reason = None if bridge._initialized else "ros_unavailable"
         bridge._publish_rosbag_snapshot(reason_code=reason)
+        bridge.poll_action_status()
 
     poll_timer.timeout.connect(_tick)
     poll_timer.start()
