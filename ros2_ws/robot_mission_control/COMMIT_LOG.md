@@ -6,6 +6,12 @@
 
 # Commit log — robot_mission_control
 
+## 2026-04-21 | v0.177 | (bieżący commit)
+
+- Naprawiono konflikt ścieżki runtime: `app/bootstrap.py` został rozszerzony o `submit_quick_action`.
+- Podłączono callback szybkich akcji do `MainWindow`, aby przyciski ControlsTab realnie wysyłały komendy ROS2.
+- Ujednolicono payloady szybkich komend oraz fallbacki `unknown_quick_command` / `goal_already_running`.
+
 ## 2026-04-21 | v0.176 | (bieżący commit)
 
 - Rozbudowano moduł `Controls` o szybkie akcje misji (patrol, powrót do bazy, pauza, wznowienie).

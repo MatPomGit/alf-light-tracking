@@ -308,15 +308,51 @@ class RosBridgeService:
             return None
         return self._action_backend.fetch_progress(goal_id)
 
+    # [AI-CHANGE | 2026-04-21 16:02 UTC | v0.177]
+    # CO ZMIENIONO: Ujednolicono ścieżkę wykonania akcji w bootstrapie z nowym UI Controls:
+    #               dodano `submit_quick_action` i mapowanie szybkich komend operatorskich.
+    # DLACZEGO: Runtime aplikacji działa przez `app/bootstrap.py`, więc brak tej zmiany powodował,
+    #           że nowe przyciski szybkich akcji były wyświetlane, ale nie wykonywały komend ROS2.
+    # JAK TO DZIAŁA: `submit_action_goal` deleguje do domyślnej szybkiej komendy, a `submit_quick_action`
+    #                mapuje `command_key` na payload goal; przy nieznanej komendzie publikujemy `None`.
+    # TODO: Przenieść mapę komend do pliku konfiguracyjnego, aby operator mógł ją rozszerzać bez zmian kodu.
     def submit_action_goal(self) -> None:
-        """Wysyła goal akcji i publikuje stan początkowy do store."""
+        """Wysyła domyślny goal operatora."""
+        self.submit_quick_action("start_patrol")
+
+    def submit_quick_action(self, command_key: str) -> None:
+        """Wysyła predefiniowaną akcję operatorską i publikuje stan początkowy."""
         now = utc_now()
         if self._active_goal_id is not None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_STATUS,
+                value=None,
+                source="action_client",
+                timestamp=now,
+                reason_code="goal_already_running",
+            )
+            return
+
+        quick_command_map: dict[str, dict[str, object]] = {
+            "start_patrol": {"goal": "start_patrol"},
+            "return_to_base": {"goal": "return_to_base"},
+            "pause_mission": {"goal": "pause_mission"},
+            "resume_mission": {"goal": "resume_mission"},
+        }
+        goal_payload = quick_command_map.get(command_key)
+        if goal_payload is None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ACTION_STATUS,
+                value=None,
+                source="action_client",
+                timestamp=now,
+                reason_code="unknown_quick_command",
+            )
             return
 
         goal_id = self._action_client.send_goal(
-            goal_payload={"goal": "operator_mission_step"},
-            correlation_id=f"action_send_{now.strftime('%H%M%S')}"
+            goal_payload=goal_payload,
+            correlation_id=f"action_send_{command_key}_{now.strftime('%H%M%S')}",
         )
         if goal_id is None:
             self._state_store.set_with_inference(
@@ -334,7 +370,7 @@ class RosBridgeService:
         self._state_store.set_with_inference(key=STATE_KEY_ACTION_PROGRESS, value="0%", source="action_client", timestamp=now)
         self._state_store.set_with_inference(
             key=STATE_KEY_ACTION_RESULT,
-            value="OCZEKIWANIE NA WYNIK",
+            value=f"WYSŁANO KOMENDĘ: {command_key}",
             source="action_client",
             timestamp=now,
         )
@@ -536,12 +572,18 @@ def main(argv: Optional[list[str]] = None) -> int:
     supervisor.start_worker("ros_bridge", now)
 
     qt_app = QApplication(argv or sys.argv)
+    # [AI-CHANGE | 2026-04-21 16:02 UTC | v0.177]
+    # CO ZMIENIONO: Dodano przekazanie callbacku `submit_quick_action` do MainWindow.
+    # DLACZEGO: Bez tego nowe przyciski z ControlsTab trafiały w no-op i nie wysyłały komend do robota.
+    # JAK TO DZIAŁA: MainWindow deleguje command_key do bridge, który publikuje stan i wykonuje wywołanie ROS2.
+    # TODO: Dodać test integracyjny UI->bridge dla każdego wspieranego `command_key`.
     window = MainWindow(
         state_store=bridge.state_store,
         supervisor=supervisor,
         version_metadata=resolve_version_metadata(),
         submit_action_goal=bridge.submit_action_goal,
         cancel_action_goal=bridge.cancel_action_goal,
+        submit_quick_action=bridge.submit_quick_action,
     )
     window.show()
     # [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
