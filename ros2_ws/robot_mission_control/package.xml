@@ -1,10 +1,11 @@
 <?xml version="1.0"?>
-<!-- [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167] -->
-<!-- CO ZMIENIONO: Uzupełniono manifest o zależności runtime potrzebne po relokacji i uruchamianiu przez launch. -->
-<!-- DLACZEGO: Pakiet ma działać jako pełnoprawny komponent ROS2 budowany i odpalany z `ros2_ws`. -->
-<!-- JAK TO DZIAŁA: `ament_python` buduje pakiet, a `ament_index_python`, `launch(_ros)`, `rclpy` i `python3-yaml` -->
-<!--               zapewniają wymagane zależności wykonaniowe dla node'a i launcha. -->
-<!-- TODO: Dodać zależności message/action gdy backend ROS Action przejdzie z placeholdera na produkcyjny transport oraz zmapować zależności GUI na konkretne pakiety distro. -->
+<!-- [AI-CHANGE | 2026-04-21 18:06 UTC | v0.179] -->
+<!-- CO ZMIENIONO: Dodano zależności runtime dla finalnego kontraktu ROS2 Action (`robot_mission_control_interfaces`) -->
+<!--               oraz pakietu statusów akcji (`action_msgs`). -->
+<!-- DLACZEGO: Backend Action importuje typ `MissionStep` z pakietu interfejsów i mapuje statusy transportowe -->
+<!--           zgodnie z kontraktem ROS action; brak tych zależności grozi błędem importu w runtime. -->
+<!-- JAK TO DZIAŁA: `exec_depend` wymusza obecność pakietów interfejsów i wiadomości akcji w środowisku docelowym. -->
+<!-- TODO: Rozszerzyć manifest o test_depend uruchamiający kontrolę importu `MissionStep` podczas CI. -->
 <package format="3">
   <name>robot_mission_control</name>
   <version>0.1.0</version>
@@ -18,6 +19,8 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>robot_mission_control_interfaces</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>python3-pyside6</exec_depend>
 

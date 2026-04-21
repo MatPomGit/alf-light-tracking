@@ -110,6 +110,12 @@ class RosBridgeService:
         self._session_id = f"ros-bridge-{utc_now().strftime('%Y%m%d%H%M%S')}"
         self._node_manager: RosNodeManager | None = None
         self._action_backend: Ros2MissionActionBackend | None = None
+        # [AI-CHANGE | 2026-04-21 18:06 UTC | v0.179]
+        # CO ZMIENIONO: Dodano pamiętanie ostatniego `reason_code` niedostępności backendu Action.
+        # DLACZEGO: Status UI ma pokazywać precyzyjny powód awarii startu zamiast ogólnego fallbacku.
+        # JAK TO DZIAŁA: Pole jest aktualizowane podczas walidacji configu i startu backendu.
+        # TODO: Zmapować reason_code na opis operatorski w panelu sterowania.
+        self._action_backend_unavailable_reason_code: str = "action_backend_unavailable"
         self._action_client = MissionActionClient(
             session_id=self._session_id,
             bindings=ActionClientBindings(
@@ -141,10 +147,18 @@ class RosBridgeService:
             return local_path
         return Path(__file__).resolve().parent.parent / "config" / "action_backend.yaml"
 
+    # [AI-CHANGE | 2026-04-21 18:06 UTC | v0.179]
+    # CO ZMIENIONO: Dodano walidację startową konfiguracji backendu Action z precyzyjnym `reason_code`.
+    # DLACZEGO: Przy błędnym kontrakcie mamy raportować konkretną przyczynę (`action_contract_missing`),
+    #           zamiast ogólnego stanu niedostępności backendu.
+    # JAK TO DZIAŁA: Funkcja zapisuje `self._action_backend_unavailable_reason_code` dla każdego błędu walidacji
+    #                (brak pliku, błąd YAML, brak kluczy, timeout <= 0), a poprawny config resetuje kod do wartości domyślnej.
+    # TODO: Podmienić ręczną walidację na schemat (np. Pydantic), by zwracać szczegóły per pole.
     def _load_action_backend_config(self) -> ActionBackendConfig | None:
         """Wczytuje konfigurację backendu Action lub zwraca None przy niepewności."""
         config_path = self._resolve_action_backend_config_path()
         if not config_path.exists():
+            self._action_backend_unavailable_reason_code = "action_contract_missing"
             return None
 
         try:
@@ -152,9 +166,11 @@ class RosBridgeService:
 
             raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
+            self._action_backend_unavailable_reason_code = "action_contract_missing"
             return None
 
         if not isinstance(raw, dict):
+            self._action_backend_unavailable_reason_code = "action_contract_missing"
             return None
 
         required_keys = [
@@ -166,10 +182,11 @@ class RosBridgeService:
             "future_wait_timeout_sec",
         ]
         if any(key not in raw for key in required_keys):
+            self._action_backend_unavailable_reason_code = "action_contract_missing"
             return None
 
         try:
-            return ActionBackendConfig(
+            config = ActionBackendConfig(
                 action_name=str(raw["action_name"]),
                 action_type_module=str(raw["action_type_module"]),
                 action_type_name=str(raw["action_type_name"]),
@@ -177,7 +194,20 @@ class RosBridgeService:
                 server_wait_timeout_sec=float(raw["server_wait_timeout_sec"]),
                 future_wait_timeout_sec=float(raw["future_wait_timeout_sec"]),
             )
+            if (
+                not config.action_name.strip()
+                or not config.action_type_module.strip()
+                or not config.action_type_name.strip()
+                or not config.node_name.strip()
+                or config.server_wait_timeout_sec <= 0.0
+                or config.future_wait_timeout_sec <= 0.0
+            ):
+                self._action_backend_unavailable_reason_code = "action_contract_missing"
+                return None
+            self._action_backend_unavailable_reason_code = "action_backend_unavailable"
+            return config
         except Exception:  # noqa: BLE001
+            self._action_backend_unavailable_reason_code = "action_contract_missing"
             return None
 
     def init(self) -> None:
@@ -218,7 +248,15 @@ class RosBridgeService:
             return
 
         self._action_backend = Ros2MissionActionBackend(rclpy_module=rclpy_module, config=action_config)
+        # [AI-CHANGE | 2026-04-21 18:06 UTC | v0.179]
+        # CO ZMIENIONO: Po nieudanym starcie backendu propagujemy dedykowany `reason_code` z warstwy Action.
+        # DLACZEGO: Chcemy odróżnić błąd kontraktu od błędu importu typu akcji i innych awarii runtime.
+        # JAK TO DZIAŁA: `last_start_reason_code` backendu nadpisuje domyślny kod niedostępności.
+        # TODO: Dodać test integracyjny RosBridgeService sprawdzający propagację kodu do StateStore.
         if not self._action_backend.start():
+            self._action_backend_unavailable_reason_code = (
+                self._action_backend.last_start_reason_code or "action_backend_unavailable"
+            )
             self._action_backend = None
 
     def start(self) -> None:
@@ -364,12 +402,17 @@ class RosBridgeService:
             correlation_id=f"action_send_{command_key}_{now.strftime('%H%M%S')}",
         )
         if goal_id is None:
+            # [AI-CHANGE | 2026-04-21 18:06 UTC | v0.179]
+            # CO ZMIENIONO: Zastąpiono stały kod `action_backend_unavailable` dynamicznym kodem przyczyny.
+            # DLACZEGO: Operator potrzebuje konkretnej diagnozy awarii backendu już na etapie wysyłki goal.
+            # JAK TO DZIAŁA: Przy braku `goal_id` publikowany jest ostatni znany kod niedostępności backendu.
+            # TODO: Uzupełnić mapowanie reason_code -> podpowiedź działań naprawczych w UI.
             self._state_store.set_with_inference(
                 key=STATE_KEY_ACTION_STATUS,
                 value=None,
                 source="action_client",
                 timestamp=now,
-                reason_code="action_backend_unavailable",
+                reason_code=self._action_backend_unavailable_reason_code,
             )
             return
 
