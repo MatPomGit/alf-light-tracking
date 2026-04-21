@@ -28,7 +28,7 @@ Priorytet jakościowy: **lepiej odrzucić niepewną detekcję niż zwrócić bł
 │       ├── performance/
 │       └── tracing/
 └── ros2_ws/
-    └── g1_light_tracking/
+    ├── g1_light_tracking/
         ├── config/
         ├── g1_light_tracking/
         ├── launch/
@@ -36,14 +36,28 @@ Priorytet jakościowy: **lepiej odrzucić niepewną detekcję niż zwrócić bł
         ├── package.xml
         ├── requirements.txt
         └── setup.py
+    └── robot_mission_control/
+        ├── config/
+        ├── launch/
+        ├── package.xml
+        ├── robot_mission_control/
+        └── setup.py
 ```
 
 ### Co gdzie jest
 
+<!--
+[AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
+CO ZMIENIONO: Rozszerzono README główne o pakiet operatorski `robot_mission_control` przeniesiony do `ros2_ws/`.
+DLACZEGO: Po relokacji pakiet musi być widoczny jako część workspace budowanego przez `colcon`.
+JAK TO DZIAŁA: Dokument wskazuje nową lokalizację i komendy uruchomienia `ros2 launch robot_mission_control mission_control.launch.py`.
+TODO: Dodać osobny diagram przepływu danych między `g1_light_tracking`, `robot_emergency_stop` i `robot_mission_control`.
+-->
 - `ros2_ws/g1_light_tracking/g1_light_tracking/` – node'y ROS2 (detekcja, follower, bridge, replay CSV, arm skills).
 - `ros2_ws/g1_light_tracking/launch/` – gotowe scenariusze uruchomień (`*.launch.py`).
 - `ros2_ws/g1_light_tracking/config/` – konfiguracja percepcji, sterowania i bridge.
 - `docs/reference-links/` – uporządkowane linki pomocnicze (RT, tf2, tracing, bag recording).
+- `ros2_ws/robot_mission_control/` – desktopowy pakiet operatorski ROS2 do monitorowania stanu robota.
 
 ---
 
@@ -355,3 +369,13 @@ To jest pipeline preferowany dla walidacji: najpierw potwierdź poprawność det
 - `docs/reference-links/performance/` – materiały dot. testów wydajności.
 - `docs/reference-links/tracing/` – materiały dot. tracingu node'ów.
 - `docs/reference-links/bag/` – nagrywanie bagów.
+
+
+## 7) Monitorowanie operatora: robot_mission_control
+
+```bash
+cd ros2_ws
+colcon build --packages-select robot_mission_control
+source install/setup.bash
+ros2 launch robot_mission_control mission_control.launch.py
+```

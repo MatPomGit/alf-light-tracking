@@ -69,64 +69,32 @@ class _RclpyRuntime:
         shutdown_fn()
 
 
-# [AI-CHANGE | 2026-04-21 05:21 UTC | v0.163]
-# CO ZMIENIONO: Dodano lokalny transport akcji `_InMemoryMissionActionTransport` oraz integrację
-#               `MissionActionClient` z RosBridgeService.
-# DLACZEGO: Potrzebujemy pełnej ścieżki goal/progress/cancel/result dostępnej dla UI już na poziomie bridge.
-# JAK TO DZIAŁA: Transport emuluje deterministyczny przebieg akcji i zwraca wynik końcowy po osiągnięciu 100%;
-#                RosBridgeService publikuje statusy akcji do StateStore, preferując `None` przy niepewności.
-# TODO: Podmienić transport in-memory na natywny klient ROS2 Action po ustaleniu docelowego interfejsu msg/action.
+# [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
+# CO ZMIENIONO: Zastąpiono transport in-memory akcji transportem `unavailable`, który nie symuluje sukcesu.
+# DLACZEGO: W monitoringu operatorskim nie wolno prezentować danych fikcyjnych jako rzeczywistych.
+# JAK TO DZIAŁA: Każda operacja Action zwraca brak wyniku (`None`/`False`), a warstwa bridge publikuje
+#                `UNAVAILABLE` z `reason_code`, dzięki czemu UI pokazuje brak danych zamiast sztucznego sukcesu.
+# TODO: Podłączyć produkcyjny klient ROS2 Action i mapować statusy backendu 1:1 bez inferencji heurystycznej.
 
 
-class _InMemoryMissionActionTransport:
-    """Deterministyczny transport akcji do środowisk bez aktywnego backendu ROS Action."""
-
-    def __init__(self) -> None:
-        self._goal_id: str | None = None
-        self._progress: float = 0.0
-        self._cancel_requested = False
+class _UnavailableMissionActionTransport:
+    """Transport akcji dla trybu bez backendu; zawsze zwraca brak danych."""
 
     def send_goal(self, goal_payload: dict[str, object]) -> str | None:
         _ = goal_payload
-        if self._goal_id is not None:
-            return None
-        self._goal_id = f"goal-{uuid4().hex[:8]}"
-        self._progress = 0.0
-        self._cancel_requested = False
-        return self._goal_id
+        return None
 
     def fetch_progress(self, goal_id: str) -> float | None:
-        if self._goal_id != goal_id:
-            return None
-        if self._cancel_requested:
-            return self._progress
-        if self._progress >= 1.0:
-            return 1.0
-        self._progress = min(1.0, self._progress + 0.2)
-        return self._progress
+        _ = goal_id
+        return None
 
     def cancel_goal(self, goal_id: str) -> bool:
-        if self._goal_id != goal_id:
-            return False
-        self._cancel_requested = True
-        return True
+        _ = goal_id
+        return False
 
     def fetch_result(self, goal_id: str) -> dict[str, object] | None:
-        if self._goal_id != goal_id:
-            return None
-        if self._cancel_requested:
-            result = {"status": "CANCELED", "message": "Goal anulowany przez operatora"}
-            self._goal_id = None
-            self._progress = 0.0
-            self._cancel_requested = False
-            return result
-        if self._progress < 1.0:
-            return None
-        result = {"status": "SUCCEEDED", "message": "Akcja zakończona poprawnie"}
-        self._goal_id = None
-        self._progress = 0.0
-        self._cancel_requested = False
-        return result
+        _ = goal_id
+        return None
 
 
 class RosBridgeService:
@@ -148,7 +116,7 @@ class RosBridgeService:
         self._record_controller = RecordController()
         self._session_id = f"ros-bridge-{utc_now().strftime('%Y%m%d%H%M%S')}"
         self._node_manager: RosNodeManager | None = None
-        self._action_transport = _InMemoryMissionActionTransport()
+        self._action_transport = _UnavailableMissionActionTransport()
         self._action_client = MissionActionClient(
             session_id=self._session_id,
             bindings=ActionClientBindings(
@@ -282,7 +250,7 @@ class RosBridgeService:
                 value=None,
                 source="action_client",
                 timestamp=now,
-                reason_code="send_goal_failed",
+                reason_code="action_backend_unavailable",
             )
             return
 
