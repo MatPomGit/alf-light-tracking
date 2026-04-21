@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -24,6 +24,7 @@ from robot_mission_control.core import (
     STATE_KEY_DEPENDENCY_STATUS,
     STATE_KEY_PLAYBACK_STATUS,
     STATE_KEY_RECORDING_STATUS,
+    STATE_KEY_ROS_CONNECTION_STATUS,
     STATE_KEY_SELECTED_BAG,
     StateStore,
     StateValue,
@@ -41,13 +42,13 @@ from robot_mission_control.ui.tabs.telemetry_tab import TelemetryTab
 from robot_mission_control.ui.tabs.video_depth_tab import VideoDepthTab
 from robot_mission_control.versioning import VersionMetadata
 
-# [AI-CHANGE | 2026-04-20 22:05 UTC | v0.158]
-# CO ZMIENIONO: Ujednolicono odczyt statusów w UI tak, aby status bar renderował `recording_status`
-#               i `playback_status` jako wartości ze StateStore (z fallbackiem jakości), bez logiki ROS w UI.
-# DLACZEGO: Kryterium DoD wymaga, by warstwa UI czytała stan wyłącznie ze store i nie polegała na bezpośrednich update'ach widgetów.
-# JAK TO DZIAŁA: `_build_status_bar` pobiera klucze globalne przez `_render_value`; przy danych niepewnych
-#                wyświetla komunikat bezpieczny (`BRAK DANYCH`), co ogranicza ryzyko mylącego statusu operatora.
-# TODO: Dodać timer odświeżania status bar, aby zmiany store były widoczne runtime bez rekonstrukcji okna.
+# [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
+# CO ZMIENIONO: Dodano renderowanie i automatyczne odświeżanie statusu połączenia ROS (`ros_connection_status`)
+#               w top bar i status bar wraz z timerem UI.
+# DLACZEGO: Utrata i odzyskanie połączenia musi być natychmiast widoczne w UI na podstawie StateStore.
+# JAK TO DZIAŁA: MainWindow utrzymuje referencje do etykiet i co 1 s odświeża tekst ze store;
+#                przy niepewnym stanie wyświetla bezpieczny fallback `ROZŁĄCZONY`.
+# TODO: Dodać kod kolorów (zielony/żółty/czerwony) zależny od jakości i reason_code dla szybszej diagnostyki.
 
 
 class MainWindow(QMainWindow):
@@ -61,6 +62,9 @@ class MainWindow(QMainWindow):
         self._state_store = state_store
         self._supervisor = supervisor
         self._version_metadata = version_metadata
+        self._connection_label: QLabel | None = None
+        self._source_quality_label: QLabel | None = None
+        self._status_bar: QStatusBar | None = None
 
         central = QWidget(self)
         root_layout = QVBoxLayout(central)
@@ -72,6 +76,10 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central)
         self.setStatusBar(self._build_status_bar())
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(1000)
+        self._refresh_timer.timeout.connect(self._refresh_runtime_status)
+        self._refresh_timer.start()
 
     def _render_value(self, item: StateValue | None, *, fallback: str = "BRAK DANYCH") -> str:
         """Render store value with quality-aware safety fallback."""
@@ -100,16 +108,20 @@ class MainWindow(QMainWindow):
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
 
         source_item = self._state_store.get(STATE_KEY_DATA_SOURCE_MODE)
-        connection = QLabel(f"Źródło danych: {self._render_value(source_item, fallback='NIEDOSTĘPNE')}", top_bar)
-        data = QLabel(f"Jakość: {self._render_quality(source_item)}", top_bar)
+        connection_item = self._state_store.get(STATE_KEY_ROS_CONNECTION_STATUS)
+        self._connection_label = QLabel(
+            f"Połączenie ROS: {self._render_value(connection_item, fallback='ROZŁĄCZONY')}",
+            top_bar,
+        )
+        self._source_quality_label = QLabel(f"Jakość źródła: {self._render_quality(source_item)}", top_bar)
 
         unavailable_btn = QPushButton("NIEDOSTĘPNE W TEJ WERSJI", top_bar)
         unavailable_btn.setEnabled(False)
 
         layout.addWidget(title)
         layout.addStretch(1)
-        layout.addWidget(connection)
-        layout.addWidget(data)
+        layout.addWidget(self._connection_label)
+        layout.addWidget(self._source_quality_label)
         layout.addWidget(unavailable_btn)
         return top_bar
 
@@ -230,16 +242,31 @@ class MainWindow(QMainWindow):
 
     def _build_status_bar(self) -> QStatusBar:
         status_bar = QStatusBar(self)
+        self._status_bar = status_bar
+        self._refresh_runtime_status()
+        return status_bar
+
+    def _refresh_runtime_status(self) -> None:
+        """Odświeża widoczne statusy na podstawie aktualnego snapshotu StateStore."""
         playback = self._render_value(self._state_store.get(STATE_KEY_PLAYBACK_STATUS))
         recording = self._render_value(self._state_store.get(STATE_KEY_RECORDING_STATUS))
+        connection = self._render_value(
+            self._state_store.get(STATE_KEY_ROS_CONNECTION_STATUS),
+            fallback="ROZŁĄCZONY",
+        )
+        source_item = self._state_store.get(STATE_KEY_DATA_SOURCE_MODE)
         incidents_count = len(self._supervisor.incidents())
         dependency_message = self._render_dependency_status()
         version_message = self._render_version_status()
 
-        status_bar.showMessage(
-            f"{version_message} | STATUS: PLAYBACK={playback} RECORDING={recording} INCIDENTS={incidents_count} | {dependency_message}"
-        )
-        return status_bar
+        if self._connection_label is not None:
+            self._connection_label.setText(f"Połączenie ROS: {connection}")
+        if self._source_quality_label is not None:
+            self._source_quality_label.setText(f"Jakość źródła: {self._render_quality(source_item)}")
+        if self._status_bar is not None:
+            self._status_bar.showMessage(
+                f"{version_message} | STATUS: ROS={connection} PLAYBACK={playback} RECORDING={recording} INCIDENTS={incidents_count} | {dependency_message}"
+            )
 
     def _render_version_status(self) -> str:
         short_sha = self._version_metadata.short_sha or "---"
