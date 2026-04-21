@@ -6,6 +6,7 @@
 # DLACZEGO: Warstwy aplikacji i integracje zewnętrzne potrzebują jednego miejsca importu stabilnych kontraktów.
 # JAK TO DZIAŁA: `__all__` publikuje zarówno istniejące prymitywy monitoringu, jak i nowe klasy/funkcje core.
 # TODO: Dodać test jednostkowy, który waliduje kompletność eksportów względem dokumentacji architektury.
+from robot_mission_control.core.action_status import ACTION_STATUS_FROM_GOAL_STATUS_CODE, ActionStatusLabel
 from robot_mission_control.core.config_loader import ConfigValidationError, load_config
 from robot_mission_control.core.error_boundary import (
     ErrorBoundary as UiErrorBoundary,
@@ -50,6 +51,8 @@ from robot_mission_control.core.state_store import (
 from robot_mission_control.core.supervisor import ErrorBoundary, ErrorCode, Supervisor, WorkerModule
 
 __all__ = [
+    "ActionStatusLabel",
+    "ACTION_STATUS_FROM_GOAL_STATUS_CODE",
     "DataQuality",
     "GLOBAL_STATE_KEYS",
     "STATE_KEY_ACTION_GOAL_ID",

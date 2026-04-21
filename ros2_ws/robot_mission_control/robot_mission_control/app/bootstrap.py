@@ -16,6 +16,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from robot_mission_control.core import (
+    ActionStatusLabel,
     STATE_KEY_ACTION_GOAL_ID,
     STATE_KEY_ACTION_PROGRESS,
     STATE_KEY_ACTION_RESULT,
@@ -366,7 +367,17 @@ class RosBridgeService:
 
         self._active_goal_id = goal_id
         self._state_store.set_with_inference(key=STATE_KEY_ACTION_GOAL_ID, value=goal_id, source="action_client", timestamp=now)
-        self._state_store.set_with_inference(key=STATE_KEY_ACTION_STATUS, value="RUNNING", source="action_client", timestamp=now)
+        # [AI-CHANGE | 2026-04-21 17:42 UTC | v0.178]
+        # CO ZMIENIONO: Publikację statusu akcji przy starcie goala przełączono na wspólny enum domenowy.
+        # DLACZEGO: Ta sama semantyka statusów musi obowiązywać równolegle w UI i StateStore.
+        # JAK TO DZIAŁA: Status aktywnego goala jest zapisywany jako `ActionStatusLabel.RUNNING.value`.
+        # TODO: Rozszerzyć backend o etap ACCEPTED i publikować go przed właściwym wykonaniem.
+        self._state_store.set_with_inference(
+            key=STATE_KEY_ACTION_STATUS,
+            value=ActionStatusLabel.RUNNING.value,
+            source="action_client",
+            timestamp=now,
+        )
         self._state_store.set_with_inference(key=STATE_KEY_ACTION_PROGRESS, value="0%", source="action_client", timestamp=now)
         self._state_store.set_with_inference(
             key=STATE_KEY_ACTION_RESULT,
@@ -394,7 +405,7 @@ class RosBridgeService:
         )
         self._state_store.set_with_inference(
             key=STATE_KEY_ACTION_STATUS,
-            value="CANCEL_REQUESTED" if is_cancelled else None,
+            value=ActionStatusLabel.CANCEL_REQUESTED.value if is_cancelled else None,
             source="action_client",
             timestamp=now,
             reason_code=None if is_cancelled else "cancel_failed",
