@@ -63,3 +63,42 @@ ros2 launch robot_mission_control mission_control.launch.py
 
 - `launch/mission_control.launch.py` uruchamia node Mission Control z parametrami z `config/default.yaml`.
 - `package.xml` deklaruje pakiet ROS2 kompatybilny z `ament_python`.
+
+<!-- [AI-CHANGE | 2026-04-21 15:52 UTC | v0.176] -->
+<!-- CO ZMIENIONO: Dodano opis rozbudowanego modułu kontroli misji: komunikacja ROS2 Action oraz szybkie akcje operatora. -->
+<!-- DLACZEGO: README ma odzwierciedlać realnie zaimplementowane funkcje i zakres sterowania robotem. -->
+<!-- JAK TO DZIAŁA: Sekcja poniżej opisuje nowe callbacki, statusy w StateStore oraz przyciski skrótów w ControlsTab. -->
+<!-- TODO: Dodać tabelę mapowania komend szybkich na konkretne kontrakty Action po finalizacji interfejsu robota. -->
+
+## Rozszerzony moduł kontroli misji (Controls)
+
+Zaadresowane zostały dwa obszary: **szersza komunikacja z robotem po ROS2** oraz **szybkie akcje operatorskie**.
+
+### Zakres komunikacji ROS2 (Action)
+
+- Moduł `RosBridgeService` integruje backend `Ros2MissionActionBackend` oraz klienta `MissionActionClient`.
+- Obsługiwane są operacje:
+  - wysłanie goal (`send_goal`),
+  - anulowanie (`cancel_goal`),
+  - odczyt postępu (`fetch_progress`),
+  - odczyt wyniku (`fetch_result`).
+- Dane publikowane do `StateStore`:
+  - `action_goal_id`,
+  - `action_status`,
+  - `action_progress`,
+  - `action_result`.
+- Przy braku backendu lub niepewnym wyniku obowiązuje bezpieczny fallback:
+  - brak goal/result => `None`,
+  - UI pokazuje `BRAK DANYCH` zamiast ryzyka fałszywego sukcesu.
+
+### Szybkie akcje operatorskie (przyciski)
+
+W zakładce **Controls** dodano panel **„Szybkie akcje misji”** z przyciskami:
+
+- `Rozpocznij patrol`,
+- `Powrót do bazy`,
+- `Wstrzymaj misję`,
+- `Wznów misję`.
+
+Każdy przycisk wysyła predefiniowany `command_key` do bridge i dalej do ROS2 Action.
+Podczas aktywnego goal szybkie przyciski są blokowane, aby uniknąć kolizji komend.
