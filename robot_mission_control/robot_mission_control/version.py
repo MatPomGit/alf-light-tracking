@@ -1,10 +1,13 @@
 """Generated build version artifact for robot mission control."""
 
-# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
-# CO ZMIENIONO: Plik generowany automatycznie podczas buildu zawierający metadane wersji.
-# DLACZEGO: Runtime bez repozytorium git musi nadal wyświetlić zweryfikowaną wersję artefaktu.
-# JAK TO DZIAŁA: Stałe poniżej są odczytywane przez `resolve_version_metadata()` jako źródło build_artifact.
-# TODO: Dodać podpis artefaktu (checksum/sig), aby wykrywać ręczne modyfikacje pliku.
-COMMIT_COUNT = 151
-SHORT_SHA = "7dfca1e"
-BUILD_TIME_UTC = "2026-04-20T20:05:09+00:00"
+# [AI-CHANGE | 2026-04-21 05:27 UTC | v0.164]
+# CO ZMIENIONO: Plik artefaktu wersji zawiera teraz metadane commit_count/SHA/czas oraz pole źródła.
+# DLACZEGO: Runtime ma akceptować fallback tylko wtedy, gdy artefakt jednoznacznie deklaruje,
+#           że numer pochodzi z `git rev-list --count HEAD`.
+# JAK TO DZIAŁA: Resolver odrzuca artefakt bez `ARTIFACT_SOURCE`, dzięki czemu brak `.git` nie
+#                skutkuje pokazaniem przypadkowego numeru wersji.
+# TODO: Dodać sumę kontrolną sekcji metadanych i jej automatyczną weryfikację przy starcie.
+COMMIT_COUNT = 164
+SHORT_SHA = "59a1a3a"
+BUILD_TIME_UTC = "2026-04-21T05:28:20+00:00"
+ARTIFACT_SOURCE = "git_rev_list_count"

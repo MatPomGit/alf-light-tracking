@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,12 +11,16 @@ from pathlib import Path
 from robot_mission_control import version as build_version
 
 
-# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
-# CO ZMIENIONO: Dodano resolver wersji z priorytetem `.git` i fallbackiem do artefaktu build.
-# DLACZEGO: W środowiskach runtime bez repozytorium git UI nadal musi pokazać wersję albo jawny brak.
-# JAK TO DZIAŁA: `resolve_version_metadata` próbuje odczyt z git, potem z `version.py`, a na końcu zwraca
-#                stan unavailable z etykietą „WERSJA NIEDOSTĘPNA”.
-# TODO: Rozszerzyć resolver o odczyt metadanych z wheel/dist-info dla dystrybucji produkcyjnych.
+# [AI-CHANGE | 2026-04-21 05:27 UTC | v0.164]
+# CO ZMIENIONO: Uszczelniono walidację fallbacku build-time przez wymaganie znacznika pochodzenia
+#               `ARTIFACT_SOURCE="git_rev_list_count"` oraz walidację formatu SHA.
+# DLACZEGO: DoD wymaga braku fałszywych numerów wersji; bez znacznika pochodzenia i poprawnego SHA
+#           nie ufamy metadanym i wolimy zwrócić `WERSJA NIEDOSTĘPNA`.
+# JAK TO DZIAŁA: Resolver czyta najpierw `.git`, a gdy go brak, akceptuje tylko artefakt spełniający
+#                wszystkie reguły integralności (commit_count>0, SHA hex 7-40, build_time i źródło).
+# TODO: Dodać kryptograficzny podpis artefaktu i weryfikację kluczem publicznym podczas startu aplikacji.
+_ARTIFACT_SOURCE_EXPECTED = "git_rev_list_count"
+_SHA_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,10 +87,13 @@ def _read_build_artifact_metadata() -> VersionMetadata | None:
     commit_count = getattr(build_version, "COMMIT_COUNT", None)
     short_sha = getattr(build_version, "SHORT_SHA", None)
     build_time_utc = getattr(build_version, "BUILD_TIME_UTC", None)
+    artifact_source = getattr(build_version, "ARTIFACT_SOURCE", None)
 
+    if artifact_source != _ARTIFACT_SOURCE_EXPECTED:
+        return None
     if not isinstance(commit_count, int) or commit_count <= 0:
         return None
-    if not isinstance(short_sha, str) or not short_sha.strip():
+    if not isinstance(short_sha, str) or _SHA_PATTERN.fullmatch(short_sha.strip()) is None:
         return None
     if not isinstance(build_time_utc, str) or not build_time_utc.strip():
         return None
