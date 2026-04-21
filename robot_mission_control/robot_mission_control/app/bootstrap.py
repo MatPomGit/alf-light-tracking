@@ -202,10 +202,18 @@ class RosBridgeService:
 
 def _install_global_excepthook(supervisor: Supervisor) -> None:
     """Install global boundary for unhandled UI/runtime exceptions."""
+    # [AI-CHANGE | 2026-04-20 23:02 UTC | v0.159]
+    # CO ZMIENIONO: Globalny excepthook deleguje obsługę do `handle_global_exception`
+    #               oraz oznacza panel globalny jako niedostępny.
+    # DLACZEGO: Zapewniamy spójne mapowanie wyjątków na kody błędu i izolację skutków awarii.
+    # JAK TO DZIAŁA: Wyjątek trafia do jednej granicy błędów; incydent jest logowany, a aplikacja może działać dalej.
+    # TODO: Dodać raportowanie traceback do diagnostyki serwisowej (np. plik rotowany).
 
     def _hook(exc_type, exc, tb):  # noqa: ANN001
         _ = exc_type, tb
-        supervisor.mark_panel_unavailable(panel_name="global_ui", exc=exc, now=utc_now())
+        now = utc_now()
+        supervisor.handle_global_exception(exc=exc, now=now)
+        supervisor.mark_panel_unavailable(panel_name="global_ui", exc=exc, now=now)
 
     sys.excepthook = _hook
 

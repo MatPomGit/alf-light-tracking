@@ -15,6 +15,11 @@ from enum import Enum
 # JAK TO DZIAŁA: HealthMonitor przechowuje heartbeat per worker/kanał, zlicza błędy,
 #                wylicza opóźnienie restartu, otwiera/zamyka circuit breaker i zapisuje incydenty.
 # TODO: Dodać trwały eksport incydentów do dedykowanego backendu telemetrycznego (np. plik JSONL/OTLP).
+# [AI-CHANGE | 2026-04-20 23:02 UTC | v0.159]
+# CO ZMIENIONO: Dodano metody `worker_states_snapshot` i `channel_breaker_snapshot`.
+# DLACZEGO: Supervisor oraz UI diagnostyczne potrzebują bezpiecznego odczytu bieżącego stanu bez modyfikacji wewnętrznych struktur.
+# JAK TO DZIAŁA: Metody zwracają kopie słowników, dzięki czemu warstwa wyżej nie może przypadkowo naruszyć stanu monitora.
+# TODO: Udostępnić snapshoty przez dedykowany interfejs readonly do wykorzystania w panelu Diagnostics.
 
 
 class WorkerLifecycleState(Enum):
@@ -182,3 +187,17 @@ class HealthMonitor:
     def incidents(self) -> tuple[IncidentRecord, ...]:
         """Read-only incident log snapshot."""
         return tuple(self._incidents)
+
+    def worker_states_snapshot(self) -> dict[str, WorkerLifecycleState]:
+        """Return defensive copy of worker lifecycle states."""
+        return dict(self._worker_states)
+
+    def channel_breaker_snapshot(self) -> dict[str, CircuitBreakerState]:
+        """Return defensive copy of channel circuit breaker states."""
+        return {
+            name: CircuitBreakerState(
+                consecutive_failures=state.consecutive_failures,
+                opened_until=state.opened_until,
+            )
+            for name, state in self._channel_breakers.items()
+        }
