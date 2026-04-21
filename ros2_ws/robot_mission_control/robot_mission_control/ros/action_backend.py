@@ -35,6 +35,11 @@ class ActionBackendConfig:
 class Ros2MissionActionBackend:
     """Backend realizujący transport Action na żywym runtime ROS2."""
 
+    # [AI-CHANGE | 2026-04-21 18:06 UTC | v0.179]
+    # CO ZMIENIONO: Dodano pole `last_start_reason_code` udostępniane przez property do diagnostyki startu backendu.
+    # DLACZEGO: Warstwa bridge musi odczytać konkretną przyczynę awarii i opublikować ją jako `reason_code`.
+    # JAK TO DZIAŁA: Po każdym `start()` backend zapisuje kod błędu; property zwraca ostatnią wartość albo `None`.
+    # TODO: Wystawić ten kod także w telemetrii metryk runtime, aby skrócić diagnostykę operacyjną.
     def __init__(self, *, rclpy_module: Any, config: ActionBackendConfig, logger: logging.Logger | None = None) -> None:
         self._rclpy = rclpy_module
         self._config = config
@@ -46,23 +51,71 @@ class Ros2MissionActionBackend:
         self._goal_handles: dict[str, Any] = {}
         self._result_futures: dict[str, Any] = {}
         self._feedback_by_goal: dict[str, float] = {}
+        self._last_start_reason_code: str | None = None
 
+    @property
+    def last_start_reason_code(self) -> str | None:
+        """Zwraca ostatni kod przyczyny błędu startu backendu Action."""
+        return self._last_start_reason_code
+
+    # [AI-CHANGE | 2026-04-21 18:06 UTC | v0.179]
+    # CO ZMIENIONO: Rozszerzono start backendu o precyzyjne `reason_code` dla błędów kontraktu i importu typu Action.
+    # DLACZEGO: Warstwa wyżej musi raportować konkretną przyczynę awarii, zamiast ogólnego `action_backend_unavailable`.
+    # JAK TO DZIAŁA: Start resetuje i zapisuje `self._last_start_reason_code`; przy błędzie kontraktu/importu/runtime
+    #                ustawia dedykowany kod (`action_contract_missing`, `action_type_import_failed`, itd.) i zwraca `False`.
+    # TODO: Dodać telemetrię liczników per `reason_code`, żeby mierzyć najczęstsze przyczyny awarii backendu.
     def start(self) -> bool:
         """Inicjalizuje node i klienta Action; przy braku kontraktu zwraca False."""
+        self._last_start_reason_code = None
+        if not self._has_valid_action_contract():
+            self._last_start_reason_code = "action_contract_missing"
+            self._logger.error("action_backend_start_failed reason_code=%s", self._last_start_reason_code)
+            return False
         try:
             self._action_type = self._load_action_type()
             action_mod = importlib.import_module("rclpy.action")
             action_client_cls = getattr(action_mod, "ActionClient", None)
             create_node = getattr(self._rclpy, "create_node", None)
             if action_client_cls is None or not callable(create_node):
-                self._logger.error("action_backend_missing_runtime")
+                self._last_start_reason_code = "action_runtime_missing"
+                self._logger.error("action_backend_start_failed reason_code=%s", self._last_start_reason_code)
                 return False
 
             self._node = create_node(self._config.node_name)
             self._action_client = action_client_cls(self._node, self._action_type, self._config.action_name)
             return True
+        except (ImportError, ModuleNotFoundError) as exc:
+            self._last_start_reason_code = "action_type_import_failed"
+            self._logger.error(
+                "action_backend_start_failed reason_code=%s error=%s",
+                self._last_start_reason_code,
+                exc,
+            )
+            self._node = None
+            self._action_client = None
+            self._action_type = None
+            return False
+        except RuntimeError as exc:
+            if str(exc) == "action_type_not_found":
+                self._last_start_reason_code = "action_contract_missing"
+            else:
+                self._last_start_reason_code = "action_backend_start_failed"
+            self._logger.error(
+                "action_backend_start_failed reason_code=%s error=%s",
+                self._last_start_reason_code,
+                exc,
+            )
+            self._node = None
+            self._action_client = None
+            self._action_type = None
+            return False
         except Exception as exc:  # noqa: BLE001
-            self._logger.error("action_backend_start_failed error=%s", exc)
+            self._last_start_reason_code = "action_backend_start_failed"
+            self._logger.error(
+                "action_backend_start_failed reason_code=%s error=%s",
+                self._last_start_reason_code,
+                exc,
+            )
             self._node = None
             self._action_client = None
             self._action_type = None
@@ -171,6 +224,19 @@ class Ros2MissionActionBackend:
         if action_type is None:
             raise RuntimeError("action_type_not_found")
         return action_type
+
+    def _has_valid_action_contract(self) -> bool:
+        action_name = self._config.action_name.strip()
+        action_type_module = self._config.action_type_module.strip()
+        action_type_name = self._config.action_type_name.strip()
+        node_name = self._config.node_name.strip()
+        if not all((action_name, action_type_module, action_type_name, node_name)):
+            return False
+        if self._config.server_wait_timeout_sec <= 0.0:
+            return False
+        if self._config.future_wait_timeout_sec <= 0.0:
+            return False
+        return True
 
     def _build_goal_message(self, goal_payload: dict[str, Any]) -> Any | None:
         goal_msg = self._action_type.Goal()
