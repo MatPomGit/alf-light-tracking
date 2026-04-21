@@ -1,0 +1,9 @@
+# [AI-CHANGE | 2026-04-21 09:30 UTC | v0.166]
+# CO ZMIENIONO: Dodano domyślną konfigurację runtime modułu Mission Control.
+# DLACZEGO: Potrzebujemy jednego, jawnego źródła parametrów przekazywanych przez launch ROS2.
+# JAK TO DZIAŁA: Plik zawiera wyłącznie wymagane pola walidowane przez `config_loader.py`.
+# TODO: Rozszerzyć konfigurację o politykę retry dla kanałów ROS i ograniczenia zasobów UI.
+session_id: "default-session"
+operator_timeout_sec: 2.5
+max_event_queue_size: 1024
+log_level: "INFO"

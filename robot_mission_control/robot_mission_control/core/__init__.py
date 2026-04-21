@@ -1,21 +1,29 @@
 """Core domain primitives for robot mission control."""
 
-# [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
-# CO ZMIENIONO: Rozszerzono publiczne API `core` o klucz `STATE_KEY_ROS_CONNECTION_STATUS`.
-# DLACZEGO: Warstwy app/UI muszą używać jednego źródła nazw dla statusu połączenia ROS.
-# JAK TO DZIAŁA: Import i `__all__` publikują nową stałą, dzięki czemu wszystkie moduły pobierają ten sam klucz.
-# TODO: Zastąpić ręczne `__all__` generowaniem statycznym z testem spójności eksportów.
-
-# [AI-CHANGE | 2026-04-21 05:21 UTC | v0.163]
-# CO ZMIENIONO: Rozszerzono eksporty publiczne `core` o klucze stanu akcji dla UI i warstwy aplikacji.
-# DLACZEGO: Moduły bootstrap/main_window/controls_tab wymagają wspólnych stałych bez lokalnego duplikowania.
-# JAK TO DZIAŁA: Nowe klucze są importowane z `state_store` i publikowane w `__all__`.
-# TODO: Dodać test kontraktowy pilnujący zgodności `__all__` z rzeczywistymi importami.
-
+# [AI-CHANGE | 2026-04-21 09:30 UTC | v0.166]
+# CO ZMIENIONO: Rozszerzono publiczne API `core` o nowe moduły backlogu (config/event/log/error/models)
+#               przy zachowaniu kompatybilności dotychczasowych importów Supervisor.
+# DLACZEGO: Warstwy aplikacji i integracje zewnętrzne potrzebują jednego miejsca importu stabilnych kontraktów.
+# JAK TO DZIAŁA: `__all__` publikuje zarówno istniejące prymitywy monitoringu, jak i nowe klasy/funkcje core.
+# TODO: Dodać test jednostkowy, który waliduje kompletność eksportów względem dokumentacji architektury.
+from robot_mission_control.core.config_loader import ConfigValidationError, load_config
+from robot_mission_control.core.error_boundary import (
+    ErrorBoundary as UiErrorBoundary,
+)
+from robot_mission_control.core.error_boundary import GuardedExecutionResult
+from robot_mission_control.core.error_codes import DEFAULT_ERROR_MESSAGES, ErrorCode as CoreErrorCode
+from robot_mission_control.core.event_bus import EventBus, EventBusValidationError
 from robot_mission_control.core.health_monitor import (
     HealthMonitor,
     IncidentRecord,
     WorkerLifecycleState,
+)
+from robot_mission_control.core.logger import MissionControlFormatter, get_logger
+from robot_mission_control.core.models import (
+    ErrorDescriptor,
+    EventCategory,
+    MissionControlConfig,
+    MissionEvent,
 )
 from robot_mission_control.core.state_store import (
     DataQuality,
@@ -69,4 +77,18 @@ __all__ = [
     "ErrorCode",
     "Supervisor",
     "WorkerModule",
+    "load_config",
+    "ConfigValidationError",
+    "EventBus",
+    "EventBusValidationError",
+    "MissionControlFormatter",
+    "get_logger",
+    "MissionControlConfig",
+    "MissionEvent",
+    "EventCategory",
+    "ErrorDescriptor",
+    "UiErrorBoundary",
+    "GuardedExecutionResult",
+    "CoreErrorCode",
+    "DEFAULT_ERROR_MESSAGES",
 ]
