@@ -42,8 +42,19 @@ STATE_KEY_RECORDING_STATUS = "recording_status"
 STATE_KEY_PLAYBACK_STATUS = "playback_status"
 STATE_KEY_SELECTED_BAG = "selected_bag"
 STATE_KEY_BAG_INTEGRITY_STATUS = "bag_integrity_status"
+# [AI-CHANGE | 2026-04-21 05:21 UTC | v0.163]
+# CO ZMIENIONO: Rozszerzono StateStore o klucze statusu akcji (`action_status`, `action_progress`,
+#               `action_result`, `action_goal_id`) wykorzystywane przez UI operatorskie.
+# DLACZEGO: Operator musi widzieć pełny cykl wykonania akcji: goal/progress/cancel/result bez rozproszenia danych.
+# JAK TO DZIAŁA: Klucze są bootstrapowane do stanu UNAVAILABLE, a warstwa ROS/UI czyta je przez
+#                istniejące `set_with_inference` i bezpieczne fallbacki `BRAK DANYCH`.
+# TODO: Ujednolicić status akcji do osobnego enum domenowego zamiast surowych stringów.
 STATE_KEY_DEPENDENCY_STATUS = "dependency_status"
 STATE_KEY_ROS_CONNECTION_STATUS = "ros_connection_status"
+STATE_KEY_ACTION_STATUS = "action_status"
+STATE_KEY_ACTION_PROGRESS = "action_progress"
+STATE_KEY_ACTION_RESULT = "action_result"
+STATE_KEY_ACTION_GOAL_ID = "action_goal_id"
 
 GLOBAL_STATE_KEYS = (
     STATE_KEY_DATA_SOURCE_MODE,
@@ -53,6 +64,10 @@ GLOBAL_STATE_KEYS = (
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DEPENDENCY_STATUS,
     STATE_KEY_ROS_CONNECTION_STATUS,
+    STATE_KEY_ACTION_STATUS,
+    STATE_KEY_ACTION_PROGRESS,
+    STATE_KEY_ACTION_RESULT,
+    STATE_KEY_ACTION_GOAL_ID,
 )
 
 

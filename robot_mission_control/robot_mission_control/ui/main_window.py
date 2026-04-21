@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Callable
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
@@ -19,6 +20,9 @@ from PySide6.QtWidgets import (
 
 from robot_mission_control.core import (
     DataQuality,
+    STATE_KEY_ACTION_PROGRESS,
+    STATE_KEY_ACTION_RESULT,
+    STATE_KEY_ACTION_STATUS,
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
     STATE_KEY_DEPENDENCY_STATUS,
@@ -51,10 +55,26 @@ from robot_mission_control.versioning import VersionMetadata
 # TODO: Dodać kod kolorów (zielony/żółty/czerwony) zależny od jakości i reason_code dla szybszej diagnostyki.
 
 
+# [AI-CHANGE | 2026-04-21 05:21 UTC | v0.163]
+# CO ZMIENIONO: MainWindow rozszerzono o callbacki start/cancel akcji i render statusu akcji
+#               (status, progress, wynik) w status barze aplikacji.
+# DLACZEGO: Operator ma otrzymywać pełny stan wykonania akcji w czasie rzeczywistym bez dodatkowych narzędzi.
+# JAK TO DZIAŁA: Okno trzyma referencje do callbacków z warstwy bridge oraz co 1 s odczytuje nowe klucze
+#                StateStore; przy niepewnych danych używa fallbacku `BRAK DANYCH`.
+# TODO: Dodać osobny pasek kolorystyczny statusu akcji (RUNNING/SUCCEEDED/CANCELED/FAILED).
+
+
 class MainWindow(QMainWindow):
     """Main mission control desktop window."""
 
-    def __init__(self, state_store: StateStore, supervisor: Supervisor, version_metadata: VersionMetadata) -> None:
+    def __init__(
+        self,
+        state_store: StateStore,
+        supervisor: Supervisor,
+        version_metadata: VersionMetadata,
+        submit_action_goal: Callable[[], None] | None = None,
+        cancel_action_goal: Callable[[], None] | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("Robot Mission Control")
         self.resize(1400, 900)
@@ -62,6 +82,8 @@ class MainWindow(QMainWindow):
         self._state_store = state_store
         self._supervisor = supervisor
         self._version_metadata = version_metadata
+        self._submit_action_goal = submit_action_goal or (lambda: None)
+        self._cancel_action_goal = cancel_action_goal or (lambda: None)
         self._connection_label: QLabel | None = None
         self._source_quality_label: QLabel | None = None
         self._status_bar: QStatusBar | None = None
@@ -80,6 +102,19 @@ class MainWindow(QMainWindow):
         self._refresh_timer.setInterval(1000)
         self._refresh_timer.timeout.connect(self._refresh_runtime_status)
         self._refresh_timer.start()
+
+    @property
+    def state_store(self) -> StateStore:
+        """Eksponuje store dla zakładek odczytujących status operatorski."""
+        return self._state_store
+
+    def submit_operator_action_goal(self) -> None:
+        """Deleguje start akcji do warstwy bridge."""
+        self._submit_action_goal()
+
+    def cancel_operator_action_goal(self) -> None:
+        """Deleguje anulowanie akcji do warstwy bridge."""
+        self._cancel_action_goal()
 
     def _render_value(self, item: StateValue | None, *, fallback: str = "BRAK DANYCH") -> str:
         """Render store value with quality-aware safety fallback."""
@@ -256,6 +291,9 @@ class MainWindow(QMainWindow):
         )
         source_item = self._state_store.get(STATE_KEY_DATA_SOURCE_MODE)
         incidents_count = len(self._supervisor.incidents())
+        action_status = self._render_value(self._state_store.get(STATE_KEY_ACTION_STATUS))
+        action_progress = self._render_value(self._state_store.get(STATE_KEY_ACTION_PROGRESS))
+        action_result = self._render_value(self._state_store.get(STATE_KEY_ACTION_RESULT))
         dependency_message = self._render_dependency_status()
         version_message = self._render_version_status()
 
@@ -265,7 +303,9 @@ class MainWindow(QMainWindow):
             self._source_quality_label.setText(f"Jakość źródła: {self._render_quality(source_item)}")
         if self._status_bar is not None:
             self._status_bar.showMessage(
-                f"{version_message} | STATUS: ROS={connection} PLAYBACK={playback} RECORDING={recording} INCIDENTS={incidents_count} | {dependency_message}"
+                f"{version_message} | STATUS: ROS={connection} PLAYBACK={playback} RECORDING={recording} "
+                f"ACTION={action_status} PROGRESS={action_progress} RESULT={action_result} INCIDENTS={incidents_count} | "
+                f"{dependency_message}"
             )
 
     def _render_version_status(self) -> str:

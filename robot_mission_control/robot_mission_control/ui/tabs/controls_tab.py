@@ -1,18 +1,124 @@
-"""ControlsTab placeholder."""
+"""Controls tab with mission action lifecycle controls."""
 
 from __future__ import annotations
 
-from robot_mission_control.ui.tabs._placeholder import UnavailableTab
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
-# [AI-CHANGE | 2026-04-20 14:12 UTC | v0.141]
-# CO ZMIENIONO: Dodano szkielet zakładki ControlsTab jako jawnie niedostępny komponent UI.
-# DLACZEGO: Wymagany jest komplet zakładek, ale funkcjonalność jest poza zakresem tej iteracji.
-# JAK TO DZIAŁA: Zakładka dziedziczy po wspólnym placeholderze i renderuje stan BRAK DANYCH + komunikat niedostępności.
-# TODO: Zaimplementować logikę danych i akcje operatora dla zakładki ControlsTab.
+from robot_mission_control.core import (
+    STATE_KEY_ACTION_GOAL_ID,
+    STATE_KEY_ACTION_PROGRESS,
+    STATE_KEY_ACTION_RESULT,
+    STATE_KEY_ACTION_STATUS,
+    DataQuality,
+    StateStore,
+)
 
 
-class ControlsTab(UnavailableTab):
-    """Temporary tab with explicit unavailable status."""
+# [AI-CHANGE | 2026-04-21 05:21 UTC | v0.163]
+# CO ZMIENIONO: Zastąpiono placeholder zakładki ControlsTab pełnym panelem operatora dla akcji
+#               (start goal, cancel, podgląd progress oraz wynik końcowy).
+# DLACZEGO: DoD wymaga, aby operator widział pełny status wykonania akcji bez przełączania do logów.
+# JAK TO DZIAŁA: Zakładka pobiera dane ze StateStore, wywołuje callbacki z MainWindow i odświeża widok co 500 ms;
+#                przy jakości != VALID pokazuje bezpieczny fallback `BRAK DANYCH`.
+# TODO: Dodać wizualny timeline etapów akcji z dokładnymi timestampami i kodami błędów.
+
+
+class ControlsTab(QWidget):
+    """Operator panel for action lifecycle operations."""
 
     def __init__(self, parent=None) -> None:
-        super().__init__(tab_name="ControlsTab", parent=parent)
+        super().__init__(parent)
+        self._state_store = self._resolve_state_store(parent)
+
+        root = QVBoxLayout(self)
+        card = QFrame(self)
+        root.addWidget(card)
+
+        layout = QVBoxLayout(card)
+        title = QLabel("Sterowanie akcją", card)
+        title.setStyleSheet("font-size: 16px; font-weight: 600;")
+
+        buttons = QHBoxLayout()
+        self._send_button = QPushButton("Wyślij goal", card)
+        self._cancel_button = QPushButton("Anuluj goal", card)
+        self._cancel_button.setEnabled(False)
+
+        self._send_button.clicked.connect(self._on_send_goal)
+        self._cancel_button.clicked.connect(self._on_cancel_goal)
+
+        buttons.addWidget(self._send_button)
+        buttons.addWidget(self._cancel_button)
+
+        self._status_value = QLabel("BRAK DANYCH", card)
+        self._goal_id_value = QLabel("BRAK DANYCH", card)
+        self._progress_value = QLabel("BRAK DANYCH", card)
+        self._result_value = QLabel("BRAK DANYCH", card)
+
+        grid = QGridLayout()
+        grid.addWidget(QLabel("Status:", card), 0, 0)
+        grid.addWidget(self._status_value, 0, 1)
+        grid.addWidget(QLabel("Goal ID:", card), 1, 0)
+        grid.addWidget(self._goal_id_value, 1, 1)
+        grid.addWidget(QLabel("Postęp:", card), 2, 0)
+        grid.addWidget(self._progress_value, 2, 1)
+        grid.addWidget(QLabel("Wynik końcowy:", card), 3, 0)
+        grid.addWidget(self._result_value, 3, 1)
+
+        layout.addWidget(title)
+        layout.addLayout(buttons)
+        layout.addLayout(grid)
+        layout.addStretch(1)
+
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(500)
+        self._refresh_timer.timeout.connect(self._refresh_view)
+        self._refresh_timer.start()
+        self._refresh_view()
+
+    def _resolve_state_store(self, parent: QWidget | None) -> StateStore | None:
+        window = parent.window() if parent is not None else None
+        return getattr(window, "state_store", None)
+
+    def _on_send_goal(self) -> None:
+        window = self.window()
+        submit_fn = getattr(window, "submit_operator_action_goal", None)
+        if callable(submit_fn):
+            submit_fn()
+        self._refresh_view()
+
+    def _on_cancel_goal(self) -> None:
+        window = self.window()
+        cancel_fn = getattr(window, "cancel_operator_action_goal", None)
+        if callable(cancel_fn):
+            cancel_fn()
+        self._refresh_view()
+
+    def _render_store_value(self, key: str, *, fallback: str = "BRAK DANYCH") -> str:
+        if self._state_store is None:
+            return fallback
+
+        item = self._state_store.get(key)
+        if item is None or item.quality is not DataQuality.VALID or item.value is None:
+            return fallback
+        return str(item.value)
+
+    def _refresh_view(self) -> None:
+        status = self._render_store_value(STATE_KEY_ACTION_STATUS)
+        goal_id = self._render_store_value(STATE_KEY_ACTION_GOAL_ID)
+        progress_text = self._render_store_value(STATE_KEY_ACTION_PROGRESS)
+        result = self._render_store_value(STATE_KEY_ACTION_RESULT)
+
+        self._status_value.setText(status)
+        self._goal_id_value.setText(goal_id)
+        self._progress_value.setText(progress_text)
+        self._result_value.setText(result)
+        self._cancel_button.setEnabled(goal_id != "BRAK DANYCH" and status in {"RUNNING", "CANCEL_REQUESTED"})
