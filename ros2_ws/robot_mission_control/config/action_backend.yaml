@@ -1,0 +1,11 @@
+# [AI-CHANGE | 2026-04-21 10:35 UTC | v0.169]
+# CO ZMIENIONO: Dodano jawny kontrakt konfiguracji backendu ROS2 Action.
+# DLACZEGO: Produkcyjny backend Action wymaga deklaracji typu akcji i nazwy endpointu bez hardcodowania w kodzie.
+# JAK TO DZIAŁA: Bootstrap ładuje ten plik i inicjalizuje `Ros2MissionActionBackend` z podanym modułem/typem akcji.
+# TODO: Dodać walidację schematu YAML i blokadę uruchomienia przy brakujących polach krytycznych.
+action_name: "/mission_control/execute_step"
+action_type_module: "robot_mission_control_interfaces.action"
+action_type_name: "MissionStep"
+node_name: "robot_mission_control_action_client"
+server_wait_timeout_sec: 1.0
+future_wait_timeout_sec: 2.0

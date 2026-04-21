@@ -37,7 +37,7 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml", "README.md", "requirements.txt"]),
         ("share/" + package_name + "/launch", ["launch/mission_control.launch.py"]),
-        ("share/" + package_name + "/config", ["config/default.yaml"]),
+        ("share/" + package_name + "/config", ["config/default.yaml", "config/action_backend.yaml"]),
     ],
     install_requires=_read_requirements(),
     zip_safe=False,

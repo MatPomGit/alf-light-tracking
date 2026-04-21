@@ -6,8 +6,9 @@ import importlib
 import json
 import importlib.util
 import sys
+
+import yaml
 from datetime import timedelta
-from uuid import uuid4
 from pathlib import Path
 from typing import Optional
 
@@ -32,6 +33,7 @@ from robot_mission_control.core import (
     WorkerModule,
     utc_now,
 )
+from robot_mission_control.ros.action_backend import ActionBackendConfig, Ros2MissionActionBackend
 from robot_mission_control.ros.action_clients import ActionClientBindings, MissionActionClient
 from robot_mission_control.ros.dependency_audit_client import DependencyStatusClient
 from robot_mission_control.ros.node_manager import ReconnectPolicy, RosNodeManager
@@ -69,32 +71,13 @@ class _RclpyRuntime:
         shutdown_fn()
 
 
-# [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
-# CO ZMIENIONO: Zastąpiono transport in-memory akcji transportem `unavailable`, który nie symuluje sukcesu.
-# DLACZEGO: W monitoringu operatorskim nie wolno prezentować danych fikcyjnych jako rzeczywistych.
-# JAK TO DZIAŁA: Każda operacja Action zwraca brak wyniku (`None`/`False`), a warstwa bridge publikuje
-#                `UNAVAILABLE` z `reason_code`, dzięki czemu UI pokazuje brak danych zamiast sztucznego sukcesu.
-# TODO: Podłączyć produkcyjny klient ROS2 Action i mapować statusy backendu 1:1 bez inferencji heurystycznej.
-
-
-class _UnavailableMissionActionTransport:
-    """Transport akcji dla trybu bez backendu; zawsze zwraca brak danych."""
-
-    def send_goal(self, goal_payload: dict[str, object]) -> str | None:
-        _ = goal_payload
-        return None
-
-    def fetch_progress(self, goal_id: str) -> float | None:
-        _ = goal_id
-        return None
-
-    def cancel_goal(self, goal_id: str) -> bool:
-        _ = goal_id
-        return False
-
-    def fetch_result(self, goal_id: str) -> dict[str, object] | None:
-        _ = goal_id
-        return None
+# [AI-CHANGE | 2026-04-21 10:35 UTC | v0.169]
+# CO ZMIENIONO: Zastąpiono lokalny transport unavailable pełnym backendem ROS2 Action
+#               z dynamicznym ładowaniem typu akcji i bezpiecznym fallbackiem.
+# DLACZEGO: Moduł operatorski ma korzystać z realnego backendu Action, a nie z warstwy bez transportu.
+# JAK TO DZIAŁA: `Ros2MissionActionBackend` obsługuje send/progress/result/cancel przez rclpy ActionClient;
+#                gdy kontrakt lub serwer są niedostępne, metody zwracają None/False (UNAVAILABLE).
+# TODO: Dodać walidację payloadu goal względem jawnego schematu kontraktu Action.
 
 
 class RosBridgeService:
@@ -116,14 +99,14 @@ class RosBridgeService:
         self._record_controller = RecordController()
         self._session_id = f"ros-bridge-{utc_now().strftime('%Y%m%d%H%M%S')}"
         self._node_manager: RosNodeManager | None = None
-        self._action_transport = _UnavailableMissionActionTransport()
+        self._action_backend: Ros2MissionActionBackend | None = None
         self._action_client = MissionActionClient(
             session_id=self._session_id,
             bindings=ActionClientBindings(
-                send_goal=self._action_transport.send_goal,
-                cancel_goal=self._action_transport.cancel_goal,
-                fetch_result=self._action_transport.fetch_result,
-                fetch_progress=self._action_transport.fetch_progress,
+                send_goal=self._send_action_goal,
+                cancel_goal=self._cancel_action_goal_transport,
+                fetch_result=self._fetch_action_result,
+                fetch_progress=self._fetch_action_progress,
             ),
         )
         self._active_goal_id: str | None = None
@@ -134,6 +117,55 @@ class RosBridgeService:
         if local_path.exists():
             return local_path
         return Path(__file__).resolve().parent.parent / "config" / "dependency_catalog.yaml"
+
+    # [AI-CHANGE | 2026-04-21 10:35 UTC | v0.169]
+    # CO ZMIENIONO: Dodano odczyt jawnej konfiguracji backendu Action z pliku YAML.
+    # DLACZEGO: Typ i endpoint akcji nie mogą być ukryte w kodzie; muszą być konfigurowalne pod środowisko robota.
+    # JAK TO DZIAŁA: Bridge rozwiązuje ścieżkę pliku, waliduje wymagane pola i tworzy `ActionBackendConfig`.
+    # TODO: Dodać formalną walidację typów/liczb dodatnich przez dedykowany schemat (np. pydantic/cerberus).
+    def _resolve_action_backend_config_path(self) -> Path:
+        """Rozwiązuje położenie pliku konfiguracyjnego backendu Action."""
+        local_path = Path(__file__).resolve().parent / "config" / "action_backend.yaml"
+        if local_path.exists():
+            return local_path
+        return Path(__file__).resolve().parent.parent / "config" / "action_backend.yaml"
+
+    def _load_action_backend_config(self) -> ActionBackendConfig | None:
+        """Wczytuje konfigurację Action; przy błędzie zwraca None (bezpieczny fallback)."""
+        config_path = self._resolve_action_backend_config_path()
+        if not config_path.exists():
+            return None
+
+        try:
+            raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return None
+
+        if not isinstance(raw, dict):
+            return None
+
+        required = [
+            "action_name",
+            "action_type_module",
+            "action_type_name",
+            "node_name",
+            "server_wait_timeout_sec",
+            "future_wait_timeout_sec",
+        ]
+        if any(key not in raw for key in required):
+            return None
+
+        try:
+            return ActionBackendConfig(
+                action_name=str(raw["action_name"]),
+                action_type_module=str(raw["action_type_module"]),
+                action_type_name=str(raw["action_type_name"]),
+                node_name=str(raw["node_name"]),
+                server_wait_timeout_sec=float(raw["server_wait_timeout_sec"]),
+                future_wait_timeout_sec=float(raw["future_wait_timeout_sec"]),
+            )
+        except Exception:  # noqa: BLE001
+            return None
 
     def init(self) -> None:
         """Prepare ROS bindings without crashing GUI boot."""
@@ -164,6 +196,20 @@ class RosBridgeService:
             state_store=self._state_store,
         )
         self._initialized = self._node_manager.init_node(correlation_id="bridge_init")
+        if not self._initialized:
+            return
+
+        action_config = self._load_action_backend_config()
+        if action_config is None:
+            self._action_backend = None
+            return
+
+        self._action_backend = Ros2MissionActionBackend(
+            rclpy_module=rclpy_module,
+            config=action_config,
+        )
+        if not self._action_backend.start():
+            self._action_backend = None
 
     def start(self) -> None:
         """Start ROS worker and publish safe source status."""
@@ -185,6 +231,10 @@ class RosBridgeService:
 
     def stop(self) -> None:
         """Safely shutdown ROS2 if it was initialized."""
+        if self._action_backend is not None:
+            self._action_backend.shutdown()
+            self._action_backend = None
+
         if self._node_manager is not None:
             self._node_manager.shutdown_node(correlation_id="bridge_stop")
 
@@ -233,6 +283,30 @@ class RosBridgeService:
             return
 
         self._supervisor.heartbeat_channel(self._channel_name, heartbeat)
+
+    def _send_action_goal(self, goal_payload: dict[str, object]) -> str | None:
+        """Deleguje wysyłkę goal do backendu Action; brak backendu => None."""
+        if self._action_backend is None:
+            return None
+        return self._action_backend.send_goal(goal_payload)
+
+    def _cancel_action_goal_transport(self, goal_id: str) -> bool:
+        """Deleguje cancel goal do backendu Action; brak backendu => False."""
+        if self._action_backend is None:
+            return False
+        return self._action_backend.cancel_goal(goal_id)
+
+    def _fetch_action_result(self, goal_id: str) -> dict[str, object] | None:
+        """Deleguje pobranie result do backendu Action; brak backendu => None."""
+        if self._action_backend is None:
+            return None
+        return self._action_backend.fetch_result(goal_id)
+
+    def _fetch_action_progress(self, goal_id: str) -> float | None:
+        """Deleguje pobranie feedback progress do backendu Action; brak backendu => None."""
+        if self._action_backend is None:
+            return None
+        return self._action_backend.fetch_progress(goal_id)
 
     def submit_action_goal(self) -> None:
         """Wysyła goal akcji i publikuje stan początkowy do store."""
