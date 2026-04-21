@@ -18,12 +18,19 @@ Aplikacja desktopowa do nadzoru misji robota (PySide6 + most ROS2).
 
 ## Uruchomienie lokalne
 
+
+<!-- [AI-CHANGE | 2026-04-21 10:19 UTC | v0.168] -->
+<!-- CO ZMIENIONO: Dodano instrukcję instalacji zależności z nowego pliku `requirements.txt`. -->
+<!-- DLACZEGO: Pakiet wymaga jawnego kroku instalacji bibliotek Python przed uruchomieniem GUI poza buildem ROS2. -->
+<!-- JAK TO DZIAŁA: Przed `colcon build` instalujemy zależności pip, co redukuje ryzyko błędów importu runtime. -->
+<!-- TODO: Zautomatyzować ten krok w skrypcie bootstrap środowiska developerskiego. -->
 <!-- [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167] -->
 <!-- CO ZMIENIONO: Zaktualizowano instrukcję uruchamiania po relokacji pakietu do `ros2_ws/robot_mission_control`. -->
 <!-- DLACZEGO: Stare polecenia (`cd robot_mission_control`) były niezgodne z nową strukturą workspace ROS2. -->
 <!-- JAK TO DZIAŁA: README prowadzi przez `colcon build`, `source install/setup.bash` i uruchomienie przez `ros2 launch`. -->
 <!-- TODO: Dodać wariant uruchomienia headless do testów CI bez środowiska graficznego. -->
 ```bash
+pip install -r ros2_ws/robot_mission_control/requirements.txt
 cd ros2_ws
 colcon build --packages-select robot_mission_control
 source install/setup.bash

@@ -1,0 +1,7 @@
+# [AI-CHANGE | 2026-04-21 10:19 UTC | v0.168]
+# CO ZMIENIONO: Dodano jawny plik zależności runtime pakietu operatorskiego.
+# DLACZEGO: Operator i CI potrzebują jednej listy bibliotek do instalacji poza mechanizmem ROS2.
+# JAK TO DZIAŁA: `pip install -r requirements.txt` instaluje dokładnie biblioteki wymagane do uruchomienia UI/bridge.
+# TODO: Dodać pinowanie wersji z hashami (`--require-hashes`) dla środowisk produkcyjnych.
+PySide6>=6.7
+PyYAML>=6.0
