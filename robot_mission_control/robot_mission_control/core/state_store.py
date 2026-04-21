@@ -9,12 +9,12 @@ from threading import RLock
 from typing import Any
 
 
-# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
-# CO ZMIENIONO: Rozszerzono zestaw kluczy globalnego store o stan audytu zależności (`dependency_status`).
-# DLACZEGO: UI musi prezentować wynik kontraktu `system/dependency_status` bez hardcodu i z pełnym fallbackiem.
-# JAK TO DZIAŁA: StateStore bootstrapuje nowy klucz jako UNAVAILABLE; warstwa ROS zapisuje tam raport,
-#                a UI może bezpiecznie renderować "BRAK DANYCH" gdy raport nie jest wiarygodny.
-# TODO: Rozważyć osobny model typed-state dla audytu zależności (z walidacją schematu przy zapisie).
+# [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
+# CO ZMIENIONO: Dodano globalny klucz `ros_connection_status` do StateStore.
+# DLACZEGO: Status utraty i odzyskania połączenia ma być publikowany centralnie i renderowany przez UI.
+# JAK TO DZIAŁA: Bootstrap store tworzy wpis dla nowego klucza w stanie UNAVAILABLE; warstwa ROS
+#                nadpisuje go przez `set_with_inference`, a UI otrzymuje bezpieczny fallback.
+# TODO: Wprowadzić enum domenowy dla statusu połączenia zamiast surowego stringa.
 
 
 class DataQuality(Enum):
@@ -43,6 +43,7 @@ STATE_KEY_PLAYBACK_STATUS = "playback_status"
 STATE_KEY_SELECTED_BAG = "selected_bag"
 STATE_KEY_BAG_INTEGRITY_STATUS = "bag_integrity_status"
 STATE_KEY_DEPENDENCY_STATUS = "dependency_status"
+STATE_KEY_ROS_CONNECTION_STATUS = "ros_connection_status"
 
 GLOBAL_STATE_KEYS = (
     STATE_KEY_DATA_SOURCE_MODE,
@@ -51,6 +52,7 @@ GLOBAL_STATE_KEYS = (
     STATE_KEY_SELECTED_BAG,
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DEPENDENCY_STATUS,
+    STATE_KEY_ROS_CONNECTION_STATUS,
 )
 
 

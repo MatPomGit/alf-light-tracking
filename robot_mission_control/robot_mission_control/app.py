@@ -9,6 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from robot_mission_control.core import (
@@ -17,6 +18,7 @@ from robot_mission_control.core import (
     STATE_KEY_DEPENDENCY_STATUS,
     STATE_KEY_PLAYBACK_STATUS,
     STATE_KEY_RECORDING_STATUS,
+    STATE_KEY_ROS_CONNECTION_STATUS,
     STATE_KEY_SELECTED_BAG,
     HealthMonitor,
     StateStore,
@@ -25,20 +27,39 @@ from robot_mission_control.core import (
     utc_now,
 )
 from robot_mission_control.ros.dependency_audit_client import DependencyStatusClient
+from robot_mission_control.ros.node_manager import ReconnectPolicy, RosNodeManager
 from robot_mission_control.ui.main_window import MainWindow
 from robot_mission_control.rosbag.integrity_checker import IntegrityChecker
 from robot_mission_control.rosbag.playback_controller import PlaybackController
 from robot_mission_control.rosbag.record_controller import RecordController
 from robot_mission_control.versioning import resolve_version_metadata
 
-# [AI-CHANGE | 2026-04-20 22:05 UTC | v0.158]
-# CO ZMIENIONO: Rozszerzono RosBridgeService o publikowanie wszystkich globalnych pól rosbag/source
-#               (`data_source_mode`, `recording_status`, `playback_status`, `selected_bag`, `bag_integrity_status`)
-#               wyłącznie do StateStore oraz utrzymano publikację `dependency_status`.
-# DLACZEGO: UI ma czytać stan tylko ze store; warstwa ROS nie może wykonywać bezpośrednich aktualizacji widgetów.
-# JAK TO DZIAŁA: RosBridgeService utrzymuje kontrolery playback/recording, wylicza bezpieczny snapshot
-#                i zapisuje go przez `set_with_inference`; gdy integralność lub dane są niepewne, publikuje `None`.
-# TODO: Dodać cykliczny polling runtime ROS, aby odświeżać statusy rosbag także po zdarzeniach asynchronicznych.
+# [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
+# CO ZMIENIONO: RosBridgeService zintegrowano z RosNodeManager (init/shutdown/reconnect/heartbeat)
+#               i publikacją statusu połączenia `ros_connection_status` do StateStore.
+# DLACZEGO: DoD wymaga, by utrata i odzyskanie połączenia były widoczne w UI na podstawie danych ze store.
+# JAK TO DZIAŁA: Serwis deleguje zarządzanie cyklem życia ROS do node managera i wykonuje polling, który
+#                publikuje heartbeat, wykrywa stale heartbeat oraz uruchamia reconnect z bezpiecznym fallbackiem.
+# TODO: Podmienić polling timer na sygnały z warstwy ROS (event-driven), gdy pojawi się stabilny adapter.
+
+
+class _RclpyRuntime:
+    """Adapter runtime rclpy zgodny z kontraktem RosRuntime."""
+
+    def __init__(self, module: object) -> None:
+        self._module = module
+
+    def init(self) -> None:
+        init_fn = getattr(self._module, "init", None)
+        if not callable(init_fn):
+            raise RuntimeError("rclpy_init_missing")
+        init_fn()
+
+    def shutdown(self) -> None:
+        shutdown_fn = getattr(self._module, "shutdown", None)
+        if not callable(shutdown_fn):
+            raise RuntimeError("rclpy_shutdown_missing")
+        shutdown_fn()
 
 
 class RosBridgeService:
@@ -50,7 +71,7 @@ class RosBridgeService:
         self._initialized = False
         self._state_store = StateStore()
         self._channel_name = "ros_bridge_channel"
-        config_path = Path(__file__).resolve().parent / "config" / "dependency_catalog.yaml"
+        config_path = self._resolve_dependency_catalog_path()
         self._dependency_client = DependencyStatusClient(
             request_fn=self._request_dependency_status,
             dependencies_config_path=config_path,
@@ -58,6 +79,15 @@ class RosBridgeService:
         self._integrity_checker = IntegrityChecker()
         self._playback_controller = PlaybackController(integrity_checker=self._integrity_checker)
         self._record_controller = RecordController()
+        self._session_id = f"ros-bridge-{utc_now().strftime('%Y%m%d%H%M%S')}"
+        self._node_manager: RosNodeManager | None = None
+
+    def _resolve_dependency_catalog_path(self) -> Path:
+        """Rozwiązuje położenie katalogu config dla obu ścieżek uruchamiania (moduł/pakiet)."""
+        local_path = Path(__file__).resolve().parent / "config" / "dependency_catalog.yaml"
+        if local_path.exists():
+            return local_path
+        return Path(__file__).resolve().parent.parent / "config" / "dependency_catalog.yaml"
 
     def init(self) -> None:
         """Prepare ROS bindings without crashing GUI boot."""
@@ -70,15 +100,28 @@ class RosBridgeService:
                 timestamp=utc_now(),
                 reason_code="ros_unavailable",
             )
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ROS_CONNECTION_STATUS,
+                value=None,
+                source="node_manager",
+                timestamp=utc_now(),
+                reason_code="ros_unavailable",
+            )
             return
 
         rclpy_module = importlib.import_module("rclpy")
         self._rclpy = rclpy_module
-        self._initialized = True
+        self._node_manager = RosNodeManager(
+            runtime=_RclpyRuntime(rclpy_module),
+            session_id=self._session_id,
+            reconnect_policy=ReconnectPolicy(max_attempts=3, base_delay_seconds=0.5, max_delay_seconds=2.0),
+            state_store=self._state_store,
+        )
+        self._initialized = self._node_manager.init_node(correlation_id="bridge_init")
 
     def start(self) -> None:
         """Start ROS worker and publish safe source status."""
-        if not self._initialized:
+        if not self._initialized or self._node_manager is None:
             self._state_store.set_with_inference(
                 key=STATE_KEY_DATA_SOURCE_MODE,
                 value=None,
@@ -90,16 +133,14 @@ class RosBridgeService:
             self._publish_dependency_report()
             return
 
+        self._poll_connection()
         self._publish_rosbag_snapshot(reason_code="waiting_for_topics")
-        self._supervisor.heartbeat_channel(self._channel_name, utc_now())
         self._publish_dependency_report()
 
     def stop(self) -> None:
         """Safely shutdown ROS2 if it was initialized."""
-        if self._initialized and self._rclpy is not None:
-            shutdown_fn = getattr(self._rclpy, "shutdown", None)
-            if callable(shutdown_fn):
-                shutdown_fn()
+        if self._node_manager is not None:
+            self._node_manager.shutdown_node(correlation_id="bridge_stop")
 
         self._state_store.set_with_inference(
             key=STATE_KEY_DATA_SOURCE_MODE,
@@ -109,6 +150,43 @@ class RosBridgeService:
             reason_code="app_shutdown",
         )
         self._publish_rosbag_snapshot(reason_code="app_shutdown")
+
+    def _poll_connection(self) -> None:
+        """Aktualizuje heartbeat i reconnect, publikując bezpieczny status połączenia."""
+        if self._node_manager is None:
+            self._state_store.set_with_inference(
+                key=STATE_KEY_ROS_CONNECTION_STATUS,
+                value=None,
+                source="node_manager",
+                timestamp=utc_now(),
+                reason_code="node_manager_unavailable",
+            )
+            return
+
+        now = utc_now()
+        is_connected = self._node_manager.ensure_connected(correlation_id="bridge_poll_connect")
+        if not is_connected:
+            self._initialized = False
+            self._state_store.set_with_inference(
+                key=STATE_KEY_DATA_SOURCE_MODE,
+                value=None,
+                source="ros_bridge",
+                timestamp=now,
+                reason_code="reconnect_failed",
+            )
+            return
+
+        self._initialized = True
+        heartbeat = self._node_manager.heartbeat(correlation_id="bridge_poll_heartbeat")
+        if heartbeat is None:
+            self._initialized = False
+            return
+
+        if self._node_manager.is_heartbeat_stale(now=now, max_age=timedelta(seconds=5)):
+            self._initialized = False
+            return
+
+        self._supervisor.heartbeat_channel(self._channel_name, heartbeat)
 
     def _request_dependency_status(self, payload: dict[str, object]) -> dict[str, object] | None:
         """Placeholder contract call returning conservative UNKNOWN when transport is unavailable."""
@@ -244,6 +322,22 @@ def main(argv: Optional[list[str]] = None) -> int:
         version_metadata=resolve_version_metadata(),
     )
     window.show()
+    # [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
+    # CO ZMIENIONO: Dodano cykliczny polling połączenia ROS w pętli UI (QTimer co 1 s).
+    # DLACZEGO: Utrata i odzyskanie połączenia mają być widoczne w runtime, nie tylko przy starcie aplikacji.
+    # JAK TO DZIAŁA: Timer uruchamia `_poll_connection` i odświeża snapshot rosbag; przy utracie połączenia
+    #                store dostaje wartości bezpieczne (`None`), a po reconnect wraca status `CONNECTED`.
+    # TODO: Dodać adaptacyjny interwał timera zależny od stanu (krótszy podczas reconnect, dłuższy gdy stabilnie).
+    poll_timer = QTimer()
+    poll_timer.setInterval(1000)
+
+    def _tick() -> None:
+        bridge._poll_connection()
+        reason = None if bridge._initialized else "ros_unavailable"
+        bridge._publish_rosbag_snapshot(reason_code=reason)
+
+    poll_timer.timeout.connect(_tick)
+    poll_timer.start()
 
     exit_code = qt_app.exec()
     supervisor.stop_worker("ros_bridge", utc_now())
