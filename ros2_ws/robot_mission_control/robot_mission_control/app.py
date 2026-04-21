@@ -9,22 +9,29 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
+# [AI-CHANGE | 2026-04-21 14:43 UTC | v0.175]
+# CO ZMIENIONO: Rozszerzono bootstrap ścieżek importu i przeniesiono go przed importy zewnętrzne (PySide6),
+#               aby zawsze przygotować poprawne `sys.path` jeszcze przed ładowaniem modułów aplikacji.
+# DLACZEGO: W części środowisk uruchomieniowych (np. uruchomienie pliku po absolutnej ścieżce przez IDE)
+#           pojedyncze dodanie `parent.parent` nie wystarczało i nadal pojawiał się `ModuleNotFoundError`
+#           dla pakietu `robot_mission_control`.
+# JAK TO DZIAŁA: Dla trybu skryptowego (`__package__` puste) kod sprawdza kilka katalogów nadrzędnych
+#                i dodaje do `sys.path` pierwszy, który realnie zawiera pakiet `robot_mission_control`.
+#                Jeżeli żaden kandydat nie pasuje, nic nie dopina (bezpieczny fallback bez fałszywych założeń).
+# TODO: Dodać test uruchomieniowy CLI, który waliduje start zarówno przez `python app.py`, jak i `python -m`.
+if __package__ in (None, ""):
+    app_file = Path(__file__).resolve()
+    path_candidates = (app_file.parent.parent, app_file.parent.parent.parent)
+    for candidate in path_candidates:
+        package_init_file = candidate / "robot_mission_control" / "__init__.py"
+        if package_init_file.exists():
+            candidate_str = str(candidate)
+            if candidate_str not in sys.path:
+                sys.path.insert(0, candidate_str)
+            break
+
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
-
-# [AI-CHANGE | 2026-04-21 14:31 UTC | v0.174]
-# CO ZMIENIONO: Dodano bootstrap ścieżki importu dla uruchamiania pliku `app.py` bezpośrednio przez interpreter
-#               (np. `py app.py`) z katalogu pakietu `robot_mission_control/robot_mission_control`.
-# DLACZEGO: Przy uruchomieniu skryptowym `sys.path` nie zawiera katalogu nadrzędnego pakietu, więc import
-#           `from robot_mission_control...` kończył się `ModuleNotFoundError`.
-# JAK TO DZIAŁA: Gdy moduł nie ma kontekstu pakietu (`__package__` puste), kod dopina do `sys.path` folder
-#                nadrzędny pakietu; dzięki temu importy absolutne działają jak przy `python -m`.
-# TODO: Usunąć ten fallback po pełnej migracji uruchamiania na pojedynczy entrypoint `python -m robot_mission_control`.
-if __package__ in (None, ""):
-    package_parent = Path(__file__).resolve().parent.parent
-    package_parent_str = str(package_parent)
-    if package_parent_str not in sys.path:
-        sys.path.insert(0, package_parent_str)
 
 from robot_mission_control.core import (
     STATE_KEY_BAG_INTEGRITY_STATUS,
