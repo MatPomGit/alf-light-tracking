@@ -9,12 +9,16 @@ from robot_mission_control.core.state_store import StateStore
 from robot_mission_control.ros.dependency_audit_client import DependencyAuditClient
 
 
-# [AI-CHANGE | 2026-04-20 19:24 UTC | v0.147]
-# CO ZMIENIONO: Dodano mapowanie telemetry do state_store z walidacją typu, source oraz dryfu czasu.
-# DLACZEGO: Dane z topiców mogą być uszkodzone lub spóźnione; bez walidacji UI mogłoby pokazać błędny stan robota.
-# JAK TO DZIAŁA: TelemetryTopicSubscribers odrzuca niepewne próbki (brak wyniku), zapisuje bezpieczny fallback
-#                przez `set_with_inference` i loguje każdy sukces/błąd z correlation_id + session_id.
-# TODO: Dodać per-topic adaptacyjne progi driftu czasu zależnie od częstotliwości publikacji.
+# [AI-CHANGE | 2026-04-21 04:42 UTC | v0.161]
+# CO ZMIENIONO: Rozszerzono mapowanie telemetryki o jawne fallbacki STALE/UNAVAILABLE
+#               dla danych starych, brakujących i z niepoprawnego źródła, przy zachowaniu
+#               walidacji source/timestamp/type.
+# DLACZEGO: KPI i wykresy muszą pokazywać albo dane rzeczywiste, albo jednoznaczny brak danych,
+#           bez ryzyka prezentacji błędnych wartości jako poprawnych.
+# JAK TO DZIAŁA: Subskrybent waliduje źródło i timestamp, a następnie dla każdego pola
+#                zapisuje stan do store. Gdy próbka jest stara -> STALE, gdy niekompletna
+#                lub z niedozwolonego źródła -> UNAVAILABLE, gdy typ błędny -> ERROR.
+# TODO: Dodać per-field politykę jakości (np. dla liczników kumulacyjnych dopuszczać większy max_age).
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +71,7 @@ class TelemetryTopicSubscribers:
         )
 
         if source not in self._allowed_sources:
+            self._set_all_fields_unavailable(source=source, timestamp=sample_timestamp, reason_code="invalid_source")
             self._log_rejection(
                 reason="invalid_source",
                 correlation_id=correlation_id,
@@ -74,29 +79,53 @@ class TelemetryTopicSubscribers:
             )
             return
 
+        normalized_timestamp = self._normalize_timestamp(sample_timestamp)
         now = datetime.now(timezone.utc)
-        if sample_timestamp.tzinfo is None:
-            sample_timestamp = sample_timestamp.replace(tzinfo=timezone.utc)
-
-        if abs(now - sample_timestamp) > self._max_timestamp_drift:
+        if normalized_timestamp > now + self._max_timestamp_drift:
+            self._set_all_fields_unavailable(
+                source=source,
+                timestamp=now,
+                reason_code="future_timestamp",
+            )
             self._log_rejection(
-                reason="timestamp_drift",
+                reason="future_timestamp",
                 correlation_id=correlation_id,
-                details={
-                    "sample_timestamp": sample_timestamp.isoformat(),
-                    "now": now.isoformat(),
-                },
+                details={"sample_timestamp": normalized_timestamp.isoformat(), "now": now.isoformat()},
+            )
+            return
+
+        if now - normalized_timestamp > self._max_timestamp_drift:
+            self._set_all_fields_stale(source=source, timestamp=normalized_timestamp)
+            self._log_rejection(
+                reason="timestamp_stale",
+                correlation_id=correlation_id,
+                details={"sample_timestamp": normalized_timestamp.isoformat(), "now": now.isoformat()},
             )
             return
 
         for field_name, spec in self._specs.items():
-            value = payload.get(field_name)
+            if field_name not in payload:
+                self._state_store.set_with_inference(
+                    key=spec.state_key,
+                    value=None,
+                    source=source,
+                    timestamp=normalized_timestamp,
+                    reason_code="missing_field",
+                )
+                self._log_rejection(
+                    reason="missing_field",
+                    correlation_id=correlation_id,
+                    details={"field": field_name},
+                )
+                continue
+
+            value = payload[field_name]
             if not isinstance(value, spec.expected_type):
                 self._state_store.set_with_inference(
                     key=spec.state_key,
                     value=None,
                     source=source,
-                    timestamp=sample_timestamp,
+                    timestamp=normalized_timestamp,
                     is_corrupted=True,
                     reason_code="invalid_type",
                 )
@@ -111,7 +140,8 @@ class TelemetryTopicSubscribers:
                 key=spec.state_key,
                 value=value,
                 source=source,
-                timestamp=sample_timestamp,
+                timestamp=normalized_timestamp,
+                max_age=self._max_timestamp_drift,
             )
             self._audit.emit(
                 component="topic_subscribers",
@@ -120,6 +150,35 @@ class TelemetryTopicSubscribers:
                 correlation_id=correlation_id,
                 session_id=self._session_id,
                 details={"state_key": spec.state_key},
+            )
+
+    def _normalize_timestamp(self, sample_timestamp: datetime) -> datetime:
+        """Normalizuje timestamp do UTC aware, aby walidacja czasu była deterministyczna."""
+        if sample_timestamp.tzinfo is None:
+            return sample_timestamp.replace(tzinfo=timezone.utc)
+        return sample_timestamp.astimezone(timezone.utc)
+
+    def _set_all_fields_unavailable(self, *, source: str, timestamp: datetime, reason_code: str) -> None:
+        """Wymusza bezpieczny fallback UNAVAILABLE dla wszystkich mapowanych pól."""
+        for spec in self._specs.values():
+            self._state_store.set_with_inference(
+                key=spec.state_key,
+                value=None,
+                source=source,
+                timestamp=self._normalize_timestamp(timestamp),
+                reason_code=reason_code,
+            )
+
+    def _set_all_fields_stale(self, *, source: str, timestamp: datetime) -> None:
+        """Wymusza fallback STALE dla wszystkich mapowanych pól przy przeterminowanej próbce."""
+        for spec in self._specs.values():
+            self._state_store.set_with_inference(
+                key=spec.state_key,
+                value="stale_sample",
+                source=source,
+                timestamp=self._normalize_timestamp(timestamp),
+                max_age=self._max_timestamp_drift,
+                reason_code="stale_data",
             )
 
     def _log_rejection(self, *, reason: str, correlation_id: str, details: dict[str, Any]) -> None:
