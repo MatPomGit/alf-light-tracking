@@ -6,6 +6,11 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from robot_mission_control.core.action_status import (
+    ACTION_STATUS_FROM_GOAL_STATUS_CODE,
+    ActionStatusLabel,
+)
+
 
 # [AI-CHANGE | 2026-04-21 10:35 UTC | v0.169]
 # CO ZMIENIONO: Dodano produkcyjny backend ROS2 Action oparty o `rclpy.action.ActionClient`.
@@ -263,17 +268,20 @@ class Ros2MissionActionBackend:
             return False
         return bool(future.done())
 
+    # [AI-CHANGE | 2026-04-21 17:42 UTC | v0.178]
+    # CO ZMIENIONO: Zastąpiono lokalne, błędne mapowanie statusów ROS2 Action translacją opartą o
+    #               `action_msgs/msg/GoalStatus` (kody 0-6) do jednego domenowego słownika UI/StateStore.
+    # DLACZEGO: Poprzednio kod 2 był mapowany jako `CANCELED`, co mieszało status transportowy i domenowy
+    #           oraz mogło prezentować operatorowi nieprawidłowy stan wykonania.
+    # JAK TO DZIAŁA: Funkcja rzutuje wejście do int i pobiera etykietę z tabeli `ACTION_STATUS_FROM_GOAL_STATUS_CODE`;
+    #                przy nieparsowalnym kodzie lub braku klucza zwraca bezpieczny fallback `UNKNOWN`.
+    # TODO: Dodać telemetryczny licznik nieznanych kodów statusu, aby łatwiej wykrywać niezgodności kontraktu ROS.
     def _status_to_label(self, status: Any) -> str:
-        status_map = {
-            2: "CANCELED",
-            4: "SUCCEEDED",
-            5: "ABORTED",
-        }
         try:
             status_int = int(status)
         except Exception:  # noqa: BLE001
-            return "UNKNOWN"
-        return status_map.get(status_int, "UNKNOWN")
+            return ActionStatusLabel.UNKNOWN.value
+        return ACTION_STATUS_FROM_GOAL_STATUS_CODE.get(status_int, ActionStatusLabel.UNKNOWN).value
 
     def _serialize_message(self, msg: Any) -> Any:
         if msg is None:

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from robot_mission_control.core import (
+    ActionStatusLabel,
     STATE_KEY_ACTION_GOAL_ID,
     STATE_KEY_ACTION_PROGRESS,
     STATE_KEY_ACTION_RESULT,
@@ -155,7 +156,17 @@ class ControlsTab(QWidget):
         self._goal_id_value.setText(goal_id)
         self._progress_value.setText(progress_text)
         self._result_value.setText(result)
-        goal_active = goal_id != "BRAK DANYCH" and status in {"RUNNING", "CANCEL_REQUESTED"}
+        # [AI-CHANGE | 2026-04-21 17:42 UTC | v0.178]
+        # CO ZMIENIONO: Przełączono warunek aktywności goal na wspólny enum statusów domenowych.
+        # DLACZEGO: UI ma korzystać z jednej semantyki statusów i nie opierać się na rozsianych literałach string.
+        # JAK TO DZIAŁA: Przycisk anulowania pozostaje aktywny dla faz przejściowych `ACCEPTED`, `RUNNING`
+        #                i `CANCEL_REQUESTED`, kiedy goal_id nadal istnieje w StateStore.
+        # TODO: Dodać mapowanie kolorów statusu w kontrolce tak, aby operator szybciej odróżniał fazy przejściowe.
+        goal_active = goal_id != "BRAK DANYCH" and status in {
+            ActionStatusLabel.ACCEPTED.value,
+            ActionStatusLabel.RUNNING.value,
+            ActionStatusLabel.CANCEL_REQUESTED.value,
+        }
         self._cancel_button.setEnabled(goal_active)
         for button in self._quick_buttons.values():
             button.setEnabled(not goal_active)
