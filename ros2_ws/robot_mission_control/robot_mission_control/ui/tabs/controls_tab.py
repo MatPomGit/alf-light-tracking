@@ -20,9 +20,9 @@ from robot_mission_control.core import (
     STATE_KEY_ACTION_PROGRESS,
     STATE_KEY_ACTION_RESULT,
     STATE_KEY_ACTION_STATUS,
-    DataQuality,
     StateStore,
 )
+from .state_rendering import is_actionable, render_value
 
 
 # [AI-CHANGE | 2026-04-21 05:21 UTC | v0.163]
@@ -168,14 +168,22 @@ class ControlsTab(QWidget):
             quick_fn(command_key)
         self._refresh_view()
 
+    # [AI-CHANGE | 2026-04-23 17:10 UTC | v0.192]
+    # CO ZMIENIONO: Przełączono lokalne renderowanie wartości ControlsTab na wspólne helpery
+    #               `is_actionable` + `render_value` z modułu `state_rendering`.
+    # DLACZEGO: Dzięki temu karta współdzieli tę samą regułę bezpieczeństwa co pozostałe widoki:
+    #           żadna wartość operacyjna nie pojawia się dla quality różnego od VALID.
+    # JAK TO DZIAŁA: Dla `None` i każdego stanu jakości != VALID funkcja zwraca fallback;
+    #                tylko próbka operacyjna (VALID + value) przechodzi do widoku.
+    # TODO: Rozważyć zwrot rozszerzonej struktury (value + state), żeby łatwiej kolorować statusy.
     def _render_store_value(self, key: str, *, fallback: str = "BRAK DANYCH") -> str:
         if self._state_store is None:
             return fallback
 
         item = self._state_store.get(key)
-        if item is None or item.quality is not DataQuality.VALID or item.value is None:
+        if not is_actionable(item):
             return fallback
-        return str(item.value)
+        return render_value(item, fallback=fallback)
 
     def _refresh_view(self) -> None:
         status = self._render_store_value(STATE_KEY_ACTION_STATUS)
