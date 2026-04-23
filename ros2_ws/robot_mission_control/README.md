@@ -1,8 +1,10 @@
-<!-- [AI-CHANGE | 2026-04-20 14:12 UTC | v0.141] -->
-<!-- CO ZMIENIONO: Dodano dokumentację nowego modułu robot_mission_control i instrukcję uruchamiania. -->
-<!-- DLACZEGO: Użytkownik i zespół potrzebują jasnego opisu celu, ograniczeń i sposobu startu aplikacji. -->
-<!-- JAK TO DZIAŁA: README opisuje strukturę katalogów, punkt wejścia i stan początkowy bez robota. -->
-<!-- TODO: Uzupełnić sekcję o architekturę sygnałów Qt oraz macierz kompatybilności ROS2 dystrybucji. -->
+<!--
+[AI-CHANGE | 2026-04-23 19:01 UTC | v0.195]
+CO ZMIENIONO: Uporządkowano dokumentację modułu, scalono rozproszone notatki edytorskie i skrócono komentarze AI do jednego bloku.
+DLACZEGO: Dokument miał wiele nakładających się komentarzy, co utrudniało utrzymanie i czytelność.
+JAK TO DZIAŁA: README zawiera teraz jedną, zwartą sekcję zmian oraz aktualny opis uruchomienia, struktury i funkcji modułu.
+TODO: Uzupełnić README o diagram przepływu zdarzeń operatora i mapę kontraktów Action po stabilizacji API.
+-->
 
 # robot_mission_control
 
@@ -18,17 +20,6 @@ Aplikacja desktopowa do nadzoru misji robota (PySide6 + most ROS2).
 
 ## Uruchomienie lokalne
 
-
-<!-- [AI-CHANGE | 2026-04-21 10:19 UTC | v0.168] -->
-<!-- CO ZMIENIONO: Dodano instrukcję instalacji zależności z nowego pliku `requirements.txt`. -->
-<!-- DLACZEGO: Pakiet wymaga jawnego kroku instalacji bibliotek Python przed uruchomieniem GUI poza buildem ROS2. -->
-<!-- JAK TO DZIAŁA: Przed `colcon build` instalujemy zależności pip, co redukuje ryzyko błędów importu runtime. -->
-<!-- TODO: Zautomatyzować ten krok w skrypcie bootstrap środowiska developerskiego. -->
-<!-- [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167] -->
-<!-- CO ZMIENIONO: Zaktualizowano instrukcję uruchamiania po relokacji pakietu do `ros2_ws/robot_mission_control`. -->
-<!-- DLACZEGO: Stare polecenia (`cd robot_mission_control`) były niezgodne z nową strukturą workspace ROS2. -->
-<!-- JAK TO DZIAŁA: README prowadzi przez `colcon build`, `source install/setup.bash` i uruchomienie przez `ros2 launch`. -->
-<!-- TODO: Dodać wariant uruchomienia headless do testów CI bez środowiska graficznego. -->
 ```bash
 pip install -r ros2_ws/robot_mission_control/requirements.txt
 cd ros2_ws
@@ -41,16 +32,9 @@ ros2 launch robot_mission_control mission_control.launch.py
 
 - `robot_mission_control/app.py` – entrypoint aplikacji.
 - `robot_mission_control/ui/main_window.py` – główne okno i layout.
-- `robot_mission_control/ui/tabs/` – zakładki funkcjonalne (placeholdery).
+- `robot_mission_control/ui/tabs/` – zakładki funkcjonalne.
 
-
-<!-- [AI-CHANGE | 2026-04-21 09:30 UTC | v0.166] -->
-<!-- CO ZMIENIONO: Dodano opis nowych modułów core, konfiguracji i launch ROS2 zgodnych z backlogiem. -->
-<!-- DLACZEGO: Zespół potrzebuje jasnego mapowania odpowiedzialności oraz instrukcji uruchamiania przez tooling ROS2. -->
-<!-- JAK TO DZIAŁA: README opisuje nowe pliki `config/default.yaml`, `launch/mission_control.launch.py` i moduły `core/*`. -->
-<!-- TODO: Dodać diagram przepływu zdarzeń operatora z correlation_id po wdrożeniu telemetrycznego traceingu. -->
-
-## Nowe moduły core (backlog)
+## Moduły core
 
 - `robot_mission_control/core/config_loader.py` – rygorystyczny odczyt i walidacja YAML (bez cichych defaultów).
 - `robot_mission_control/core/event_bus.py` – szyna zdarzeń z wymuszeniem `correlation_id` dla zdarzeń operatorskich.
@@ -64,41 +48,11 @@ ros2 launch robot_mission_control mission_control.launch.py
 - `launch/mission_control.launch.py` uruchamia node Mission Control z parametrami z `config/default.yaml`.
 - `package.xml` deklaruje pakiet ROS2 kompatybilny z `ament_python`.
 
-<!-- [AI-CHANGE | 2026-04-21 15:52 UTC | v0.176] -->
-<!-- CO ZMIENIONO: Dodano opis rozbudowanego modułu kontroli misji: komunikacja ROS2 Action oraz szybkie akcje operatora. -->
-<!-- DLACZEGO: README ma odzwierciedlać realnie zaimplementowane funkcje i zakres sterowania robotem. -->
-<!-- JAK TO DZIAŁA: Sekcja poniżej opisuje nowe callbacki, statusy w StateStore oraz przyciski skrótów w ControlsTab. -->
-<!-- TODO: Dodać tabelę mapowania komend szybkich na konkretne kontrakty Action po finalizacji interfejsu robota. -->
+## Controls — komunikacja i szybkie akcje
 
-## Rozszerzony moduł kontroli misji (Controls)
-
-Zaadresowane zostały dwa obszary: **szersza komunikacja z robotem po ROS2** oraz **szybkie akcje operatorskie**.
-
-### Zakres komunikacji ROS2 (Action)
-
-- Moduł `RosBridgeService` integruje backend `Ros2MissionActionBackend` oraz klienta `MissionActionClient`.
-- Obsługiwane są operacje:
-  - wysłanie goal (`send_goal`),
-  - anulowanie (`cancel_goal`),
-  - odczyt postępu (`fetch_progress`),
-  - odczyt wyniku (`fetch_result`).
-- Dane publikowane do `StateStore`:
-  - `action_goal_id`,
-  - `action_status`,
-  - `action_progress`,
-  - `action_result`.
-- Przy braku backendu lub niepewnym wyniku obowiązuje bezpieczny fallback:
-  - brak goal/result => `None`,
-  - UI pokazuje `BRAK DANYCH` zamiast ryzyka fałszywego sukcesu.
-
-### Szybkie akcje operatorskie (przyciski)
-
-W zakładce **Controls** dodano panel **„Szybkie akcje misji”** z przyciskami:
-
-- `Rozpocznij patrol`,
-- `Powrót do bazy`,
-- `Wstrzymaj misję`,
-- `Wznów misję`.
-
-Każdy przycisk wysyła predefiniowany `command_key` do bridge i dalej do ROS2 Action.
-Podczas aktywnego goal szybkie przyciski są blokowane, aby uniknąć kolizji komend.
+- `RosBridgeService` integruje backend `Ros2MissionActionBackend` i klienta `MissionActionClient`.
+- Obsługiwane operacje: `send_goal`, `cancel_goal`, `fetch_progress`, `fetch_result`.
+- Publikowany stan: `action_goal_id`, `action_status`, `action_progress`, `action_result`.
+- Bezpieczny fallback: przy niepewności wynik pozostaje `None`, UI pokazuje `BRAK DANYCH`.
+- W zakładce **Controls** dostępne są szybkie akcje: `Rozpocznij patrol`, `Powrót do bazy`, `Wstrzymaj misję`, `Wznów misję`.
+- Podczas aktywnego goal szybkie akcje są blokowane, by uniknąć kolizji komend.
