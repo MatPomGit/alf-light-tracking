@@ -1,0 +1,16 @@
+<!-- [AI-CHANGE | 2026-04-23 14:44 UTC | v0.189]
+CO ZMIENIONO: Dodano placeholder logo aplikacji w formacie SVG do renderowania w MainWindow.
+DLACZEGO: UI musi pokazywać logo już teraz, a później plik może zostać podmieniony na docelowy PNG.
+JAK TO DZIAŁA: MainWindow ładuje ten plik i skaluje go do 40x40 px; w razie braku assetu przechodzi na fallback tekstowy.
+TODO: Podmienić grafikę na finalny znak marki i dodać wariant dark/light theme. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Robot Mission Control logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B3D91"/>
+      <stop offset="100%" stop-color="#1976D2"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="116" height="116" rx="24" fill="url(#bg)"/>
+  <circle cx="64" cy="64" r="28" fill="none" stroke="#FFFFFF" stroke-width="8"/>
+  <path d="M46 66 L58 78 L84 52" fill="none" stroke="#7CFFB2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

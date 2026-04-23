@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QStatusBar,
     QTabWidget,
@@ -82,7 +85,14 @@ class MainWindow(QMainWindow):
         stop_playback: Callable[[], None] | None = None,
     ) -> None:
         super().__init__()
+        # [AI-CHANGE | 2026-04-23 14:44 UTC | v0.189]
+        # CO ZMIENIONO: Dodano ustawienie ikony okna aplikacji z lokalnego assetu SVG.
+        # DLACZEGO: Użytkownik potrzebuje widocznego logo w interfejsie oraz spójnej identyfikacji aplikacji.
+        # JAK TO DZIAŁA: Przy starcie MainWindow próbuje wczytać `ui/assets/app_logo.svg`;
+        #                jeśli plik nie istnieje, używany jest bezpieczny fallback bez ikony.
+        # TODO: Podmienić SVG na docelowy wariant PNG z pipeline brandingu i dodać test snapshot UI.
         self.setWindowTitle("Robot Mission Control")
+        self.setWindowIcon(self._load_application_icon())
         self.resize(1400, 900)
 
         self._state_store = state_store
@@ -204,15 +214,69 @@ class MainWindow(QMainWindow):
         )
         self._source_quality_label = QLabel(f"Jakość źródła: {self._render_quality(source_item)}", top_bar)
 
+        # [AI-CHANGE | 2026-04-23 14:44 UTC | v0.189]
+        # CO ZMIENIONO: Rozszerzono top bar o logo aplikacji, etykietę wersji i aktywny przycisk pomocy.
+        # DLACZEGO: Operator ma mieć szybki dostęp do numeru wersji oraz instrukcji obsługi bez opuszczania aplikacji.
+        # JAK TO DZIAŁA: `logo_label` renderuje asset SVG, `version_label` pokazuje `v0.<commit_count>`,
+        #                a `help_button` otwiera okno dialogowe z instrukcją zarządzania aplikacją.
+        # TODO: Dodać i18n (PL/EN) dla treści pomocy oraz skrót klawiaturowy otwierający okno help.
+        logo_label = self._build_logo_label(top_bar)
+        version_label = QLabel(f"Wersja: {self._version_metadata.version_tag}", top_bar)
+        help_button = QPushButton("Help", top_bar)
+        help_button.clicked.connect(self._show_help_dialog)
+
         unavailable_btn = QPushButton("NIEDOSTĘPNE W TEJ WERSJI", top_bar)
         unavailable_btn.setEnabled(False)
-
         layout.addWidget(title)
         layout.addStretch(1)
+        layout.addWidget(logo_label)
+        layout.addWidget(version_label)
         layout.addWidget(self._connection_label)
         layout.addWidget(self._source_quality_label)
+        layout.addWidget(help_button)
         layout.addWidget(unavailable_btn)
         return top_bar
+
+    # [AI-CHANGE | 2026-04-23 14:44 UTC | v0.189]
+    # CO ZMIENIONO: Dodano funkcje pomocnicze do renderowania logo i obsługi okna Help.
+    # DLACZEGO: Logika UI dla logo i pomocy nie powinna być rozproszona po metodzie budującej top bar.
+    # JAK TO DZIAŁA: `_build_logo_label` pokazuje grafikę lub fallback tekstowy, a `_show_help_dialog`
+    #                prezentuje instrukcję operacyjną w bezpiecznym modalu bez wpływu na stan misji.
+    # TODO: Dodać walidację obecności assetu przy starcie aplikacji i telemetryczny event otwarcia pomocy.
+    def _load_application_icon(self) -> QIcon:
+        icon_path = Path(__file__).resolve().parent / "assets" / "app_logo.svg"
+        if not icon_path.exists():
+            return QIcon()
+        return QIcon(str(icon_path))
+
+    def _build_logo_label(self, parent: QWidget) -> QLabel:
+        logo_label = QLabel(parent)
+        logo_path = Path(__file__).resolve().parent / "assets" / "app_logo.svg"
+        pixmap = QPixmap(str(logo_path))
+        if pixmap.isNull():
+            logo_label.setText("LOGO")
+            logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            logo_label.setFixedSize(40, 40)
+            return logo_label
+
+        logo_label.setPixmap(
+            pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        )
+        return logo_label
+
+    def _show_help_dialog(self) -> None:
+        QMessageBox.information(
+            self,
+            "Help — Robot Mission Control",
+            (
+                "Jak zarządzać aplikacją:\n"
+                "1) Sprawdź status połączenia ROS oraz jakość źródła w górnym pasku.\n"
+                "2) Używaj zakładki Controls do uruchamiania i anulowania akcji operatora.\n"
+                "3) Zakładka Rosbag służy do nagrywania i odtwarzania danych diagnostycznych.\n"
+                "4) Przed rozpoczęciem misji zweryfikuj panel alarmów i status zależności.\n"
+                "5) Jeśli status pokazuje BRAK DANYCH, traktuj wynik jako niepewny i nie wykonuj krytycznych decyzji."
+            ),
+        )
 
     def _build_middle_layout(self) -> QHBoxLayout:
         layout = QHBoxLayout()
