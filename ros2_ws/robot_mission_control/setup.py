@@ -40,6 +40,13 @@ setup(
         ("share/" + package_name + "/config", ["config/default.yaml", "config/action_backend.yaml"]),
     ],
     install_requires=_read_requirements(),
+    # [AI-CHANGE | 2026-04-23 14:44 UTC | v0.189]
+    # CO ZMIENIONO: Dodano `package_data` i `include_package_data`, aby dystrybuować asset logo UI.
+    # DLACZEGO: Bez jawnego dołączenia plików nie-pythonowych logo nie trafi do instalacji pakietu ROS2.
+    # JAK TO DZIAŁA: Wzorzec `ui/assets/*.svg` trafia do wheel/install-space i może być wczytany przez MainWindow.
+    # TODO: Rozszerzyć reguły o PNG/SVG oraz walidację obecności wszystkich assetów podczas builda.
+    package_data={package_name: ["ui/assets/*.svg"]},
+    include_package_data=True,
     zip_safe=False,
     maintainer="Mission Control Team",
     maintainer_email="team@example.com",
