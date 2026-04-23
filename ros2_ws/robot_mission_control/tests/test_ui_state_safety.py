@@ -24,6 +24,7 @@ from robot_mission_control.core import (
 )
 from robot_mission_control.ui.tabs.controls_tab import ControlsTab
 from robot_mission_control.ui.tabs.overview_tab import OverviewTab
+from robot_mission_control.ui.tabs.diagnostics_tab import DiagnosticsTab
 from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
 from robot_mission_control.ui.tabs.state_rendering import render_value
 from robot_mission_control.ui.operator_alerts import OperatorAlerts
@@ -211,6 +212,58 @@ def test_overview_tab_blocks_continue_when_critical_alert_is_active() -> None:
     assert overview_tab._critical_alarm_count_value.text() == "1"
     assert overview_tab._alarm_banner.isVisible() is True
 
+
+
+# [AI-CHANGE | 2026-04-23 21:10 UTC | v0.194]
+# CO ZMIENIONO: Dodano test tabeli problemów w DiagnosticsTab budowanej bezpośrednio
+#               z `StateStore.snapshot()` wraz z walidacją kolumn przyczyna/czas/źródło.
+# DLACZEGO: Kryterium ukończenia wymaga, aby każdy problem pokazywał przyczynę i czas wystąpienia
+#           oraz aby źródło było jawnie widoczne dla operatora.
+# JAK TO DZIAŁA: Test tworzy dwa problemy (ERROR i STALE), odświeża widok i sprawdza,
+#                że tabela ma właściwe severity, source, cause i timestamp UTC dla obu rekordów.
+# TODO: Dodać test integracyjny sortowania po czasie i filtrowania po severity w DiagnosticsTab.
+def test_diagnostics_tab_renders_problem_rows_with_cause_source_and_timestamp() -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    diagnostics_tab = DiagnosticsTab(window)
+    diagnostics_tab._refresh_timer.stop()
+
+    error_timestamp = datetime(2026, 4, 23, 21, 8, tzinfo=timezone.utc)
+    stale_timestamp = datetime(2026, 4, 23, 21, 7, tzinfo=timezone.utc)
+
+    window.state_store.set(
+        STATE_KEY_ROS_CONNECTION_STATUS,
+        StateValue(
+            value="CONNECTED",
+            timestamp=error_timestamp,
+            source="ros_bridge",
+            quality=DataQuality.ERROR,
+            reason_code="transport_failure",
+        ),
+    )
+    window.state_store.set(
+        STATE_KEY_ACTION_STATUS,
+        StateValue(
+            value="RUNNING",
+            timestamp=stale_timestamp,
+            source="action_client",
+            quality=DataQuality.STALE,
+            reason_code="timeout",
+        ),
+    )
+
+    diagnostics_tab._refresh_view()
+
+    assert diagnostics_tab._issues_table.rowCount() == 2
+    assert diagnostics_tab._issues_table.item(0, 0).text() == "CRITICAL"
+    assert diagnostics_tab._issues_table.item(0, 1).text() == "ros_bridge"
+    assert diagnostics_tab._issues_table.item(0, 2).text() == "transport_failure"
+    assert diagnostics_tab._issues_table.item(0, 4).text() == "2026-04-23 21:08:00 UTC"
+
+    assert diagnostics_tab._issues_table.item(1, 0).text() == "MEDIUM"
+    assert diagnostics_tab._issues_table.item(1, 1).text() == "action_client"
+    assert diagnostics_tab._issues_table.item(1, 2).text() == "timeout"
+    assert diagnostics_tab._issues_table.item(1, 4).text() == "2026-04-23 21:07:00 UTC"
 
 def test_rosbag_tab_blocks_buttons_and_skips_callbacks_for_unreliable_state() -> None:
     _ensure_qapplication()
