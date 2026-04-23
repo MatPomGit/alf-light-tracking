@@ -12,17 +12,18 @@ STATE_KEY_DEPTH_STREAM_STATUS = "depth_stream_status"
 STATE_KEY_TIME_SYNC_STATUS = "time_sync_status"
 
 
-# [AI-CHANGE | 2026-04-23 18:10 UTC | v0.182]
-# CO ZMIENIONO: Zastąpiono placeholder zakładki pełnym panelem operatorskim z trzema blokami statusu:
-#               „Video stream status”, „Depth stream status” i „Synchronizacja czasowa”. Dodano też
-#               disabled kontrolki funkcji przyszłych z etykietą „NIEDOSTĘPNE W TEJ WERSJI”.
-# DLACZEGO: Operator musi widzieć bieżący stan logiczny strumieni już na etapie bez pełnego playera,
-#           z bezpiecznym fallbackiem `BRAK DANYCH`, gdy brak wiarygodnych informacji.
-# JAK TO DZIAŁA: Zakładka cyklicznie odświeża wartości ze StateStore (co 700 ms) i mapuje je na statusy:
-#                `CONNECTED`, `STALE`, `BRAK DANYCH`. Każda niepewna/nieobsługiwana wartość jest
-#                celowo degradowna do `BRAK DANYCH` zgodnie z zasadą bezpieczeństwa projektu.
-# TODO: Podpiąć klucze statusów do rzeczywistego feedu video/depth oraz dodać walidację synchronizacji
-#       timestampów ramek (video vs depth) z progiem tolerancji opóźnienia.
+# [AI-CHANGE | 2026-04-23 13:10 UTC | v0.183]
+# CO ZMIENIONO: Zbudowano panel operatorski z 3 blokami statusu: „Video stream status”,
+#               „Depth stream status” oraz „Synchronizacja czasowa”. Dodano też disabled
+#               kontrolki funkcji przyszłych opisane jako „NIEDOSTĘPNE W TEJ WERSJI”.
+# DLACZEGO: Na etapie bez pełnego playera operator ma widzieć bezpieczny stan logiczny
+#           strumieni pobierany z warstwy StateStore/bridge, bez ryzyka domyślnego „OK”.
+# JAK TO DZIAŁA: Widok odświeża się cyklicznie (700 ms), pobiera stan z `StateStore`
+#                i mapuje go wyłącznie na `CONNECTED`, `STALE` albo `BRAK DANYCH`.
+#                Niepewne, puste lub nieznane wartości są celowo degradowane do
+#                `BRAK DANYCH` (fail-safe).
+# TODO: Dodać integrację z rzeczywistym feedem video/depth i logikę jakościową opartą
+#       o wiek ostatniej ramki oraz telemetrię opóźnień transportu.
 class VideoDepthTab(QWidget):
     """Panel operatorski dla statusu strumieni video/depth i synchronizacji czasowej."""
 
@@ -72,9 +73,17 @@ class VideoDepthTab(QWidget):
         return value_label
 
     def _resolve_state_store(self, parent: QWidget | None) -> StateStore | None:
-        """Pobiera StateStore z MainWindow, jeśli zakładka działa wewnątrz głównego UI."""
+        """Pobiera StateStore bezpośrednio z okna lub pośrednio przez bridge."""
         window = parent.window() if parent is not None else None
-        return getattr(window, "state_store", None)
+        direct_store = getattr(window, "state_store", None)
+        if isinstance(direct_store, StateStore):
+            return direct_store
+
+        bridge = getattr(window, "bridge", None)
+        bridged_store = getattr(bridge, "state_store", None)
+        if isinstance(bridged_store, StateStore):
+            return bridged_store
+        return None
 
     def _render_stream_status(self, item: StateValue | None) -> str:
         """Mapuje stan ze Store na bezpieczne wartości operatorskie."""
