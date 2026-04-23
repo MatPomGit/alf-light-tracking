@@ -1,18 +1,146 @@
-"""TelemetryTab placeholder."""
+"""Telemetry tab with quality-aware state table."""
 
 from __future__ import annotations
 
-from robot_mission_control.ui.tabs._placeholder import UnavailableTab
+from datetime import datetime, timezone
 
-# [AI-CHANGE | 2026-04-20 14:12 UTC | v0.141]
-# CO ZMIENIONO: Dodano szkielet zakładki TelemetryTab jako jawnie niedostępny komponent UI.
-# DLACZEGO: Wymagany jest komplet zakładek, ale funkcjonalność jest poza zakresem tej iteracji.
-# JAK TO DZIAŁA: Zakładka dziedziczy po wspólnym placeholderze i renderuje stan BRAK DANYCH + komunikat niedostępności.
-# TODO: Zaimplementować logikę danych i akcje operatora dla zakładki TelemetryTab.
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QCheckBox, QHeaderView, QLabel, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+
+from robot_mission_control.core import (
+    GLOBAL_STATE_KEYS,
+    STATE_KEY_DATA_SOURCE_MODE,
+    STATE_KEY_DEPENDENCY_STATUS,
+    STATE_KEY_ROS_CONNECTION_STATUS,
+    DataQuality,
+    StateStore,
+    StateValue,
+)
 
 
-class TelemetryTab(UnavailableTab):
-    """Temporary tab with explicit unavailable status."""
+# [AI-CHANGE | 2026-04-23 16:20 UTC | v0.181]
+# CO ZMIENIONO: Zastąpiono placeholder TelemetryTab pełnym widokiem tabelarycznym QTableWidget,
+#               który prezentuje klucze telemetryczne ze StateStore (tryb źródła, dependency,
+#               połączenie ROS i wszystkie klucze akcji `action_*`) razem z kolumnami: value,
+#               quality, reason_code, timestamp oraz ostrzeżenie jakości.
+# DLACZEGO: Operator potrzebuje jednego miejsca do diagnostyki telemetrii wykonania; dodatkowo
+#           wymagane jest bezpieczne zachowanie: gdy jakość nie jest pewna, UI ma pokazywać brak
+#           bieżącej wartości zamiast potencjalnie błędnej ostatniej próbki.
+# JAK TO DZIAŁA: Zakładka cyklicznie odczytuje snapshot ze StateStore, mapuje każdy klucz na wiersz
+#                tabeli, a dla jakości UNAVAILABLE/STALE/ERROR wymusza tekst `BRAK DANYCH` w kolumnie
+#                wartości oraz etykietę ostrzegawczą. Checkbox "Tylko problemy" ukrywa rekordy VALID.
+# TODO: Dodać sortowanie po czasie i opcjonalne grupowanie kluczy (source/dependency/ros/action).
+class TelemetryTab(QWidget):
+    """Telemetry panel with conservative data rendering."""
+
+    _BASE_KEYS: tuple[str, ...] = (
+        STATE_KEY_DATA_SOURCE_MODE,
+        STATE_KEY_DEPENDENCY_STATUS,
+        STATE_KEY_ROS_CONNECTION_STATUS,
+    )
 
     def __init__(self, parent=None) -> None:
-        super().__init__(tab_name="TelemetryTab", parent=parent)
+        super().__init__(parent)
+        self._state_store = self._resolve_state_store(parent)
+        self._telemetry_keys = self._build_telemetry_keys()
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(8)
+
+        self._title = QLabel("Telemetry danych runtime", self)
+        self._title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        root.addWidget(self._title)
+
+        self._problems_only_checkbox = QCheckBox("Tylko problemy", self)
+        self._problems_only_checkbox.toggled.connect(self._refresh_table)
+        root.addWidget(self._problems_only_checkbox)
+
+        self._table = QTableWidget(self)
+        self._table.setColumnCount(6)
+        self._table.setHorizontalHeaderLabels(["Klucz", "Wartość", "Quality", "Reason code", "Timestamp", "Ostrzeżenie"])
+        self._table.verticalHeader().setVisible(False)
+        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._table.setAlternatingRowColors(True)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        root.addWidget(self._table)
+
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(700)
+        self._refresh_timer.timeout.connect(self._refresh_table)
+        self._refresh_timer.start()
+        self._refresh_table()
+
+    def _resolve_state_store(self, parent: QWidget | None) -> StateStore | None:
+        window = parent.window() if parent is not None else None
+        return getattr(window, "state_store", None)
+
+    def _build_telemetry_keys(self) -> tuple[str, ...]:
+        action_keys = tuple(key for key in GLOBAL_STATE_KEYS if key.startswith("action_"))
+        ordered_keys: list[str] = []
+        for key in (*self._BASE_KEYS, *action_keys):
+            if key not in ordered_keys:
+                ordered_keys.append(key)
+        return tuple(ordered_keys)
+
+    def _refresh_table(self) -> None:
+        problems_only = self._problems_only_checkbox.isChecked()
+        snapshot = self._state_store.snapshot() if self._state_store is not None else {}
+
+        rows: list[tuple[str, StateValue | None]] = []
+        for key in self._telemetry_keys:
+            item = snapshot.get(key)
+            if problems_only and item is not None and item.quality is DataQuality.VALID:
+                continue
+            rows.append((key, item))
+
+        self._table.setRowCount(len(rows))
+        for row_index, (key, item) in enumerate(rows):
+            self._table.setItem(row_index, 0, QTableWidgetItem(key))
+            self._table.setItem(row_index, 1, QTableWidgetItem(self._render_value(item)))
+            self._table.setItem(row_index, 2, QTableWidgetItem(self._render_quality(item)))
+            self._table.setItem(row_index, 3, QTableWidgetItem(self._render_reason_code(item)))
+            self._table.setItem(row_index, 4, QTableWidgetItem(self._render_timestamp(item)))
+            self._table.setItem(row_index, 5, QTableWidgetItem(self._render_warning_label(item)))
+
+    def _render_value(self, item: StateValue | None) -> str:
+        if item is None:
+            return "BRAK DANYCH"
+        if item.quality is not DataQuality.VALID or item.value is None:
+            return "BRAK DANYCH"
+        return str(item.value)
+
+    def _render_quality(self, item: StateValue | None) -> str:
+        if item is None:
+            return DataQuality.UNAVAILABLE.value
+        return item.quality.value
+
+    def _render_reason_code(self, item: StateValue | None) -> str:
+        if item is None:
+            return "missing_state"
+        return item.reason_code or "-"
+
+    def _render_timestamp(self, item: StateValue | None) -> str:
+        if item is None:
+            return "-"
+        timestamp = item.timestamp
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return self._format_timestamp(timestamp)
+
+    def _format_timestamp(self, timestamp: datetime) -> str:
+        return timestamp.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    def _render_warning_label(self, item: StateValue | None) -> str:
+        if item is None:
+            return "⚠ UNAVAILABLE"
+        if item.quality in (DataQuality.UNAVAILABLE, DataQuality.STALE, DataQuality.ERROR):
+            return f"⚠ {item.quality.value}"
+        return "-"
