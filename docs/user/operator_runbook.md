@@ -1,183 +1,190 @@
 <!--
-[AI-CHANGE | 2026-04-23 14:48 UTC | v0.191]
-CO ZMIENIONO: Dodano nowy dokument użytkowy opisujący pracę operatora z zakładkami UI, interpretacją DataQuality/reason_code, scenariuszami awarii i checklistą przedmisyjną.
-DLACZEGO: Operator potrzebuje jednoznacznych, technicznych procedur operacyjnych i zasad bezpieczeństwa danych, aby unikać publikacji błędnych detekcji.
-JAK TO DZIAŁA: Dokument pełni rolę runbooka operacyjnego — prowadzi krok po kroku przez przygotowanie, monitoring, reakcję na awarie i decyzje o odrzuceniu danych.
-TODO: Dodać zrzuty ekranu po wdrożeniu UI (widok każdej zakładki + przykładowe alerty jakości).
+[AI-CHANGE | 2026-04-23 19:01 UTC | v0.195]
+CO ZMIENIONO: Rozszerzono runbook o pełną procedurę dla wszystkich tabów UI, instrukcje pracy na kartach, interpretację jakości danych i reakcje na awarie.
+DLACZEGO: Operator ma mieć jedną, kompletną instrukcję działania bez luk i bez rozproszonych notatek.
+JAK TO DZIAŁA: Dokument prowadzi operatora kolejno przez zakładki, decyzje jakościowe i scenariusze awaryjne; domyślną decyzją przy niepewności jest odrzucenie wyniku.
+TODO: Dodać mapowanie pól UI do konkretnych tematów ROS2 po zamrożeniu kontraktu telemetrycznego.
 -->
 
 # Runbook operatora UI
 
-## Cel dokumentu
-Ten dokument definiuje **operacyjną procedurę pracy operatora** dla UI systemu `alf-light-tracking`.
-Priorytet bezpieczeństwa danych: **nie publikować wyniku, jeśli istnieje niepewność jakości**.
+## Zasada nadrzędna
+Jeśli jakość próbki jest niepewna, wynik detekcji **nie może** zostać opublikowany (`None` / pusty wynik).
+
+## Procedura pracy operatora (pełny obieg)
+1. Wejdź w `Overview` i potwierdź status globalny.
+2. Wejdź w `Telemetry` i sprawdź świeżość oraz kompletność strumieni.
+3. Wejdź w `Video & Depth` i potwierdź poprawność wejścia wizualnego.
+4. Wejdź w `Controls` i sprawdź gotowość akcji (bez uruchamiania ryzykownych komend).
+5. Wejdź w `Diagnostics` i zweryfikuj brak aktywnych błędów krytycznych.
+6. Wejdź w `Rosbag` i potwierdź gotowość zapisu/odtwarzania dla analizy incydentu.
+7. Wejdź w `Extensions` i upewnij się, że rozszerzenia nie są źródłem degradacji.
+8. Wejdź w `Debug` tylko gdy wymaga tego diagnostyka, nie do normalnej pracy operacyjnej.
 
 ---
 
-## Zakładki UI — opis i zastosowanie
+## Zakładki i karty — instrukcje operacyjne
 
-### 1. Zakładka `Overview`
-**Cel:** szybka ocena, czy system może pracować w trybie operacyjnym.
+### 1) `Overview`
+**Cel:** decyzja GO/NO-GO.
 
-**Operator widzi:**
-- globalny status pipeline (`NOMINAL`, `DEGRADED`, `FAIL_SAFE`),
-- aktualny stan strumieni wejściowych,
-- licznik odrzuconych próbek,
-- czas ostatniej poprawnej detekcji.
+**Karty (co sprawdzać):**
+- **Pipeline Status**: `NOMINAL` / `DEGRADED` / `FAIL_SAFE`.
+- **Input Health**: stan źródeł danych.
+- **Rejected Samples**: trend odrzuceń.
+- **Last Valid Detection**: czas ostatniej poprawnej detekcji.
 
-**Działanie operatora:**
-- jeśli status to `NOMINAL`: można kontynuować,
-- jeśli status to `DEGRADED`: ograniczyć zaufanie do automatyki i przejść do diagnostyki,
-- jeśli status to `FAIL_SAFE`: wstrzymać użycie wyników i uruchomić procedurę awaryjną.
+**Reakcja operatora:**
+- `NOMINAL`: przejdź do dalszych tabów.
+- `DEGRADED`: ogranicz zaufanie do automatyki i przejdź do `Diagnostics`.
+- `FAIL_SAFE`: natychmiast procedura awaryjna, brak użycia wyników.
 
-### 2. Zakładka `Detections`
-**Cel:** podgląd zaakceptowanych detekcji i ich metadanych jakościowych.
+### 2) `Telemetry`
+**Cel:** kontrola integralności strumieni runtime.
 
-**Operator widzi:**
-- listę detekcji przekazanych przez walidator jakości,
-- znaczniki czasu i identyfikator źródła,
-- powiązane wskaźniki jakości (`DataQuality`).
+**Karty:**
+- **Topics Freshness**: czy dane przychodzą w oknie czasowym.
+- **Rate/Latency**: czy opóźnienia nie rosną ponad próg.
+- **Source Consistency**: zgodność metryk między źródłami.
 
-**Działanie operatora:**
-- nie traktować pustej listy jako błędu UI,
-- potwierdzić, czy pusta lista wynika z odrzucenia danych niskiej jakości,
-- eskalować tylko wtedy, gdy brak detekcji współwystępuje z błędami systemowymi.
+**Reakcja operatora:**
+- przy spadku świeżości lub rosnącym opóźnieniu oznacz system jako ryzykowny,
+- potwierdź, czy problem lokalny czy globalny,
+- przy niejednoznaczności zatrzymaj decyzje oparte na detekcjach.
 
-### 3. Zakładka `Data Quality`
-**Cel:** interpretacja jakości wejścia i powodów odrzucenia.
+### 3) `Video & Depth`
+**Cel:** ocena jakości wejścia percepcji.
 
-**Operator widzi:**
-- bieżący stan `DataQuality` per źródło,
-- `reason_code` dla każdej odrzuconej próbki,
-- trendy degradacji (np. rosnący odsetek odrzuceń).
+**Karty:**
+- **RGB Preview**: ekspozycja, ostrość, saturacja.
+- **Depth Preview**: stabilność mapy głębi i brak „dziur”.
+- **Frame Sync**: zgodność czasowa RGB/Depth.
 
-**Działanie operatora:**
-- identyfikacja dominującego `reason_code`,
-- decyzja: kontynuować, przełączyć tryb, czy zatrzymać misję,
-- dołączenie kodów przyczyn do zgłoszenia incydentu.
+**Reakcja operatora:**
+- przy artefaktach obrazu lub desynchronizacji oznacz próbki jako niepewne,
+- nie kompensuj ręcznie braków obrazu,
+- zgłoś incydent, jeśli problem utrzymuje się dłużej niż okno kontrolne.
 
-### 4. Zakładka `Diagnostics`
-**Cel:** analiza techniczna problemów i korelacja z logami runtime.
+### 4) `Controls`
+**Cel:** bezpieczne sterowanie misją.
 
-**Operator widzi:**
-- błędy synchronizacji czasu,
-- błędy transportu/telemetrii,
-- informacje o restartach komponentów.
+**Karty:**
+- **Mission Actions**: uruchomienie/anulowanie akcji.
+- **Quick Actions**: skróty operatorskie.
+- **Action Result**: status wykonania i wynik backendu.
 
-**Działanie operatora:**
-- potwierdzić, czy problem dotyczy jakości danych czy infrastruktury,
-- jeśli infrastruktura niestabilna — wstrzymać zaufanie do detekcji,
-- wykonać checklistę awaryjną i zarejestrować incydent.
+**Reakcja operatora:**
+- nie wysyłaj kolejnej komendy przy aktywnym goal,
+- przy braku pewnego statusu wyniku traktuj wynik jako `BRAK DANYCH`,
+- po błędzie backendu przejdź do `Diagnostics` i zabezpiecz logi.
 
----
+### 5) `Diagnostics`
+**Cel:** rozdzielenie problemu jakości danych od awarii infrastruktury.
 
-## Znaczenie `DataQuality` i `reason_code`
+**Karty:**
+- **Errors**: aktywne błędy i ich kody.
+- **Time Sync**: alarmy `TIME_DESYNC`.
+- **Restarts/Health**: restarty komponentów i heartbeat.
 
-## `DataQuality` — jak interpretować
-`DataQuality` określa, czy próbka może być użyta do bezpiecznej detekcji.
+**Reakcja operatora:**
+- potwierdź źródło awarii,
+- przy niestabilnej infrastrukturze nie ufaj detekcjom,
+- uruchom odpowiedni scenariusz awaryjny.
 
-Minimalny model operacyjny:
-- `GOOD` — próbka spełnia progi jakości i może być użyta,
-- `UNCERTAIN` — próbka częściowo niespełnia kryteriów; **nie publikować wyniku**,
-- `BAD` — próbka niespełnia kryteriów krytycznych; odrzucić bezwarunkowo,
-- `MISSING` — brak próbki lub brak metadanych jakości; traktować jak odrzucenie.
+### 6) `Rosbag`
+**Cel:** materiał dowodowy i analiza po incydencie.
 
-> Reguła: `UNCERTAIN`, `BAD`, `MISSING` => brak wyniku detekcji (`None` / pusty rezultat).
+**Karty:**
+- **Recording**: status i ścieżka zapisu.
+- **Integrity**: kompletność i spójność plików.
+- **Playback**: kontrola odtwarzania diagnostycznego.
 
-## `reason_code` — po co jest i jak używać
-`reason_code` to techniczny kod przyczyny odrzucenia lub degradacji.
+**Reakcja operatora:**
+- uruchom zapis przed testami ryzykownymi,
+- po awarii zabezpiecz paczkę bag + metadane,
+- nie opieraj decyzji operacyjnej wyłącznie na niezweryfikowanym playbacku.
 
-Przykładowa interpretacja operacyjna:
-- `LOW_SIGNAL` — zbyt niski poziom sygnału wejściowego,
-- `TIME_DESYNC` — niespójność czasowa między źródłami,
-- `OUT_OF_RANGE` — parametry poza dopuszczalnym zakresem,
-- `SENSOR_TIMEOUT` — brak danych w oknie czasowym,
-- `VALIDATION_ERROR` — naruszenie reguł walidatora.
+### 7) `Extensions`
+**Cel:** kontrola modułów dodatkowych.
 
-Wymóg operacyjny:
-- każdy incydent musi zawierać: timestamp, `DataQuality`, `reason_code`, źródło danych i status systemu.
+**Karty:**
+- **Loaded Extensions**: lista załadowanych rozszerzeń.
+- **Extension Health**: błędy i wpływ na pipeline.
+- **Compatibility**: zgodność wersji.
 
----
+**Reakcja operatora:**
+- jeśli rozszerzenie degraduje system, odłącz je i przejdź na bazową konfigurację,
+- dokumentuj wpływ rozszerzenia na jakość i opóźnienia.
 
-## Niepewne dane = BRAK DANYCH
+### 8) `Debug`
+**Cel:** diagnostyka inżynierska (tab nieoperacyjny).
 
-**Twarda reguła operacyjna (bez wyjątków):**
+**Karty:**
+- **Raw State**: surowy stan store.
+- **Event Stream**: zdarzenia i korelacja.
+- **Developer Flags**: przełączniki diagnostyczne.
 
-Jeżeli operator lub system nie może jednoznacznie potwierdzić jakości próbki, wynik detekcji **musi zostać odrzucony**.
-
-Konsekwencje praktyczne:
-1. brak „ręcznego dopychania” niepewnej detekcji do UI,
-2. brak interpolacji „na oko” w celu utrzymania ciągłości,
-3. brak zastępowania odrzuconych danych danymi syntetycznymi,
-4. w przypadku wątpliwości — eskalacja i analiza przyczyny, nie publikacja wyniku.
-
-Ta reguła jest nadrzędna wobec presji czasowej i oczekiwania ciągłości strumienia.
-
----
-
-## Scenariusze awarii: co widzi operator i co robić
-
-### Scenariusz A — brak detekcji przy aktywnych wejściach
-**Co widzi operator:**
-- pusta lista w `Detections`,
-- wzrost odrzuceń w `Data Quality`,
-- status `DEGRADED` lub `NOMINAL` z alertami jakości.
-
-**Co robić:**
-1. sprawdzić dominujący `reason_code`,
-2. potwierdzić, że odrzucenie jest celowe (mechanizm bezpieczeństwa),
-3. uruchomić diagnostykę źródła z najwyższą liczbą odrzuceń,
-4. nie zgłaszać „awarii detektora” bez potwierdzenia symptomów infrastrukturalnych.
-
-### Scenariusz B — `TIME_DESYNC` i niestabilna oś czasu
-**Co widzi operator:**
-- alarmy synchronizacji,
-- skoki timestampów,
-- duży udział `reason_code=TIME_DESYNC`.
-
-**Co robić:**
-1. wstrzymać decyzje oparte na automatycznych detekcjach,
-2. sprawdzić źródło czasu i opóźnienia transportowe,
-3. po stabilizacji odczekać okno kontrolne i potwierdzić spadek odrzuceń,
-4. dopiero po potwierdzeniu wrócić do pracy operacyjnej.
-
-### Scenariusz C — `FAIL_SAFE`
-**Co widzi operator:**
-- czerwony status globalny,
-- odcięcie publikacji wyników,
-- aktywną informację o pracy w trybie bezpiecznym.
-
-**Co robić:**
-1. przejść na procedurę ręczną,
-2. zabezpieczyć logi i metryki z okresu poprzedzającego awarię,
-3. otworzyć incydent z pełnym kontekstem (`DataQuality`, `reason_code`, komponent),
-4. wznowić automatykę tylko po formalnym potwierdzeniu gotowości.
-
-### Scenariusz D — zanik telemetrii (`SENSOR_TIMEOUT`)
-**Co widzi operator:**
-- brak aktualizacji dla jednego lub wielu źródeł,
-- `reason_code=SENSOR_TIMEOUT`,
-- możliwe przejście do `DEGRADED`.
-
-**Co robić:**
-1. potwierdzić, czy zanik dotyczy sensora czy transportu,
-2. sprawdzić, czy problem lokalny czy systemowy,
-3. utrzymać blokadę publikacji dla brakujących danych,
-4. kontynuować tylko na źródłach, które mają stabilne `DataQuality=GOOD`.
+**Reakcja operatora:**
+- używaj tylko do potwierdzania hipotez diagnostycznych,
+- nie podejmuj decyzji GO/NO-GO wyłącznie na podstawie danych debugowych,
+- po zakończeniu analizy wróć do standardowej ścieżki (`Overview` → `Telemetry` → `Diagnostics`).
 
 ---
 
-## Checklista „przed startem misji”
+## Interpretacja jakości danych
 
-1. **Status systemu:** `Overview` pokazuje brak aktywnych alarmów krytycznych.
-2. **Synchronizacja czasu:** brak bieżących błędów typu `TIME_DESYNC`.
-3. **Jakość danych:** dla wszystkich źródeł krytycznych `DataQuality=GOOD`.
-4. **Odrzucenia próbek:** brak niekontrolowanego trendu wzrostowego.
-5. **Łączność sensorów:** brak `SENSOR_TIMEOUT` w oknie kontrolnym.
-6. **Pipeline detekcji:** pojawiają się świeże, poprawne detekcje testowe.
-7. **Procedura awaryjna:** operator ma otwartą instrukcję dla `FAIL_SAFE`.
-8. **Logowanie incydentów:** dostępny kanał i szablon zgłoszenia z polami `reason_code`.
-9. **Reguła bezpieczeństwa:** zespół potwierdził zasadę „Niepewne dane = BRAK DANYCH”.
-10. **Decyzja GO/NO-GO:** formalnie podjęta i zapisana z timestampem.
+### `DataQuality`
+- `GOOD`: można wykorzystać próbkę.
+- `UNCERTAIN`: próbka niepewna, wynik odrzucić.
+- `BAD`: próbka niespełnia kryteriów krytycznych, odrzucić.
+- `MISSING`: brak danych/metadanych, odrzucić.
 
-Jeżeli którykolwiek punkt 1–10 nie jest spełniony, decyzja domyślna to **NO-GO**.
+**Reguła operacyjna:** `UNCERTAIN | BAD | MISSING` => brak publikacji wyniku.
+
+### `reason_code` (przykłady)
+- `LOW_SIGNAL`: zbyt słaby sygnał wejścia.
+- `TIME_DESYNC`: niespójna oś czasu źródeł.
+- `OUT_OF_RANGE`: parametry poza zakresem walidacji.
+- `SENSOR_TIMEOUT`: brak próbki w oknie czasowym.
+- `VALIDATION_ERROR`: naruszenie reguł walidatora.
+
+Każde zgłoszenie incydentu musi zawierać: timestamp, `DataQuality`, `reason_code`, źródło i status globalny pipeline.
+
+---
+
+## Reakcja na awarie (skrócone procedury)
+
+### A) Brak detekcji przy aktywnych wejściach
+1. Sprawdź `Overview` i `Telemetry`.
+2. Potwierdź dominujący `reason_code`.
+3. Jeśli odrzucenia są celowe (jakość) — utrzymaj blokadę publikacji.
+4. Eskaluj dopiero przy symptomach infrastrukturalnych.
+
+### B) `TIME_DESYNC`
+1. Wstrzymaj decyzje oparte na automatyce.
+2. Sprawdź źródło czasu i opóźnienia transportowe.
+3. Wznów operację dopiero po stabilizacji trendu odrzuceń.
+
+### C) `FAIL_SAFE`
+1. Przejdź na procedurę ręczną.
+2. Zabezpiecz logi, metryki i bag z okna awarii.
+3. Wznowienie automatyki tylko po formalnym potwierdzeniu gotowości.
+
+### D) `SENSOR_TIMEOUT`
+1. Rozróżnij awarię sensora od problemu transportu.
+2. Utrzymaj blokadę publikacji dla brakujących danych.
+3. Kontynuuj wyłącznie na źródłach ze stabilnym `DataQuality=GOOD`.
+
+---
+
+## Checklista końcowa operatora (dla wszystkich tabów)
+- `Overview`: brak aktywnego stanu krytycznego.
+- `Telemetry`: strumienie świeże i kompletne.
+- `Video & Depth`: brak trwałej degradacji obrazu/głębi.
+- `Controls`: backend akcji odpowiada poprawnie.
+- `Diagnostics`: brak nierozwiązanych błędów krytycznych.
+- `Rosbag`: gotowy zapis materiału diagnostycznego.
+- `Extensions`: brak degradujących dodatków.
+- `Debug`: brak aktywnych flag zaburzających pracę operacyjną.
+
+Jeśli dowolny punkt jest niespełniony, domyślna decyzja to **NO-GO**.
