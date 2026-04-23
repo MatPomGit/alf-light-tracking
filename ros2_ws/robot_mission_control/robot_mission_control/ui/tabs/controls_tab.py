@@ -117,6 +117,16 @@ class ControlsTab(QWidget):
         return getattr(window, "state_store", None)
 
     def _on_send_goal(self) -> None:
+        # [AI-CHANGE | 2026-04-23 19:05 UTC | v0.189]
+        # CO ZMIENIONO: Dodano twardą bramkę bezpieczeństwa przed wywołaniem callbacku wysyłki goala.
+        # DLACZEGO: Kliknięcie (lub programowe wywołanie) nie może inicjować akcji, gdy UI pokazuje
+        #           stan niepewny i nie ma wiarygodnych danych operacyjnych.
+        # JAK TO DZIAŁA: Handler sprawdza stan aktywności przycisku; gdy jest disabled, kończy działanie
+        #                bez side effectów i jedynie odświeża widok fallbacków.
+        # TODO: Dodać reason_code blokady do osobnego logu audytowego operatora.
+        if not self._send_button.isEnabled():
+            self._refresh_view()
+            return
         window = self.window()
         submit_fn = getattr(window, "submit_operator_action_goal", None)
         if callable(submit_fn):
@@ -124,6 +134,16 @@ class ControlsTab(QWidget):
         self._refresh_view()
 
     def _on_cancel_goal(self) -> None:
+        # [AI-CHANGE | 2026-04-23 19:05 UTC | v0.189]
+        # CO ZMIENIONO: Dodano defensywną walidację aktywności przycisku cancel.
+        # DLACZEGO: UI ma gwarantować „brak akcji” przy danych niepewnych nawet dla wywołania metody
+        #           z pominięciem zdarzenia kliknięcia.
+        # JAK TO DZIAŁA: Gdy cancel jest disabled, callback nie jest uruchamiany, a widok zostaje
+        #                zsynchronizowany z bezpiecznym fallbackiem.
+        # TODO: Rozszerzyć blokadę o potwierdzenie operatora dla anulowania w stanie RUNNING.
+        if not self._cancel_button.isEnabled():
+            self._refresh_view()
+            return
         window = self.window()
         cancel_fn = getattr(window, "cancel_operator_action_goal", None)
         if callable(cancel_fn):
@@ -131,6 +151,17 @@ class ControlsTab(QWidget):
         self._refresh_view()
 
     def _on_quick_action(self, command_key: str) -> None:
+        # [AI-CHANGE | 2026-04-23 19:05 UTC | v0.189]
+        # CO ZMIENIONO: Dodano sprawdzanie aktywności konkretnego przycisku szybkiej akcji.
+        # DLACZEGO: Szybkie akcje nie mogą wywoływać side effectów, jeśli stan jest niepewny
+        #           i panel powinien pozostać w trybie „tylko odczyt”.
+        # JAK TO DZIAŁA: Handler pobiera przycisk po `command_key`; dla disabled/nieznanego klucza
+        #                kończy wykonanie bez wywołania callbacku.
+        # TODO: Dodać telemetrykę odrzuconych prób szybkich akcji z rozróżnieniem przyczyny.
+        button = self._quick_buttons.get(command_key)
+        if button is None or not button.isEnabled():
+            self._refresh_view()
+            return
         window = self.window()
         quick_fn = getattr(window, "submit_quick_operator_action", None)
         if callable(quick_fn):
@@ -167,6 +198,15 @@ class ControlsTab(QWidget):
             ActionStatusLabel.RUNNING.value,
             ActionStatusLabel.CANCEL_REQUESTED.value,
         }
-        self._cancel_button.setEnabled(goal_active)
+        # [AI-CHANGE | 2026-04-23 19:05 UTC | v0.189]
+        # CO ZMIENIONO: Dodano globalne bramkowanie przycisków akcji stanem wiarygodności danych.
+        # DLACZEGO: Przy jakości != VALID panel ma przejść w tryb bezpieczny i blokować wszystkie akcje,
+        #           aby nie wywołać błędnej komendy na podstawie niepewnego stanu.
+        # JAK TO DZIAŁA: `reliable_state` jest True tylko wtedy, gdy status i goal_id po renderowaniu
+        #                nie są fallbackiem; w przeciwnym razie send/cancel/quick actions są disabled.
+        # TODO: Wynieść wyliczanie `reliable_state` do wspólnego helpera dla wszystkich paneli akcji.
+        reliable_state = status != "BRAK DANYCH" and goal_id != "BRAK DANYCH"
+        self._send_button.setEnabled(reliable_state and not goal_active)
+        self._cancel_button.setEnabled(reliable_state and goal_active)
         for button in self._quick_buttons.values():
-            button.setEnabled(not goal_active)
+            button.setEnabled(reliable_state and not goal_active)
