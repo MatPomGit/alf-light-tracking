@@ -133,6 +133,24 @@ class RosbagTab(QWidget):
         self._event_log_view.setPlainText("\n".join(self._event_log))
 
     def _invoke_window_callback(self, callback_name: str, event_name: str) -> None:
+        # [AI-CHANGE | 2026-04-23 19:05 UTC | v0.189]
+        # CO ZMIENIONO: Dodano defensywne sprawdzenie aktywności przycisku przed wywołaniem callbacku.
+        # DLACZEGO: Programowe wywołanie handlera nie może omijać blokady UI dla niepewnego stanu danych.
+        # JAK TO DZIAŁA: Dla callbacków mapowanych na disabled przycisk metoda kończy się bez side effectów
+        #                i zapisuje zdarzenie o pominięciu akcji.
+        # TODO: Dodać reason_code do wpisu logu, aby łatwiej diagnozować przyczynę blokady.
+        callback_to_button = {
+            "start_rosbag_recording": self._start_recording_button,
+            "stop_rosbag_recording": self._stop_recording_button,
+            "start_rosbag_playback": self._start_playback_button,
+            "stop_rosbag_playback": self._stop_playback_button,
+        }
+        mapped_button = callback_to_button.get(callback_name)
+        if mapped_button is not None and not mapped_button.isEnabled():
+            self._append_event(f"Pominięto: {event_name} (stan niewiarygodny).")
+            self._refresh_view()
+            return
+
         window = self.window()
         callback = getattr(window, callback_name, None)
         if callable(callback):
