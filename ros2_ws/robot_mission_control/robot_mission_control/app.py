@@ -117,6 +117,19 @@ class RosBridgeService:
         # JAK TO DZIAŁA: Pole jest aktualizowane podczas walidacji configu i startu backendu.
         # TODO: Zmapować reason_code na opis operatorski w panelu sterowania.
         self._action_backend_unavailable_reason_code: str = "action_backend_unavailable"
+        # [AI-CHANGE | 2026-04-23 21:40 UTC | v0.198]
+        # CO ZMIENIONO: Dodano pola konfigurowalne dla kontraktu Goal/Feedback/Result klienta Action.
+        # DLACZEGO: Mapowania nie powinny być hardkodowane; finalny kontrakt musi być spójny z `action_backend.yaml`.
+        # JAK TO DZIAŁA: Bridge trzyma mapę payloadów goal, mapę statusów wyniku i listę pól wyniku do renderu.
+        # TODO: Przenieść te ustawienia do dedykowanego obiektu DTO walidowanego schematem.
+        self._quick_command_map: dict[str, dict[str, object]] = {
+            "start_patrol": {"goal": "start_patrol"},
+            "return_to_base": {"goal": "return_to_base"},
+            "pause_mission": {"goal": "pause_mission"},
+            "resume_mission": {"goal": "resume_mission"},
+        }
+        self._action_result_status_map: dict[str, str] = {}
+        self._action_result_display_fields: list[str] = []
         self._action_client = MissionActionClient(
             session_id=self._session_id,
             bindings=ActionClientBindings(
@@ -205,11 +218,72 @@ class RosBridgeService:
             ):
                 self._action_backend_unavailable_reason_code = "action_contract_missing"
                 return None
+            # [AI-CHANGE | 2026-04-23 21:40 UTC | v0.198]
+            # CO ZMIENIONO: Dodano wczytywanie mapowań Goal/Result z `action_backend.yaml`.
+            # DLACZEGO: Kontrakt Action ma być konfigurowalny i spójny z runtime bez edycji kodu.
+            # JAK TO DZIAŁA: Jeśli YAML zawiera poprawne mapy, nadpisują domyślne ustawienia; przy błędzie
+            #                parser pozostawia bezpieczne wartości domyślne, by uniknąć fałszywych danych.
+            # TODO: Rozszerzyć walidację o wykrywanie niespójności pól `display_fields` z realnym typem Result.
+            goal_payload_map = raw.get("goal_payload_map")
+            if isinstance(goal_payload_map, dict):
+                parsed_map: dict[str, dict[str, object]] = {}
+                for command_key, payload in goal_payload_map.items():
+                    if isinstance(command_key, str) and isinstance(payload, dict) and payload:
+                        parsed_map[command_key] = dict(payload)
+                if parsed_map:
+                    self._quick_command_map = parsed_map
+
+            result_cfg = raw.get("result")
+            if isinstance(result_cfg, dict):
+                status_map_cfg = result_cfg.get("status_map")
+                parsed_status_map: dict[str, str] = {}
+                if isinstance(status_map_cfg, dict):
+                    for status_key, status_label in status_map_cfg.items():
+                        if isinstance(status_key, str) and isinstance(status_label, str):
+                            parsed_status_map[status_key.upper()] = status_label.upper()
+                self._action_result_status_map = parsed_status_map
+
+                display_fields_cfg = result_cfg.get("display_fields")
+                parsed_display_fields: list[str] = []
+                if isinstance(display_fields_cfg, list):
+                    for field_name in display_fields_cfg:
+                        if isinstance(field_name, str) and field_name.strip():
+                            parsed_display_fields.append(field_name.strip())
+                self._action_result_display_fields = parsed_display_fields
             self._action_backend_unavailable_reason_code = "action_backend_unavailable"
             return config
         except Exception:  # noqa: BLE001
             self._action_backend_unavailable_reason_code = "action_contract_missing"
             return None
+
+    # [AI-CHANGE | 2026-04-23 21:40 UTC | v0.198]
+    # CO ZMIENIONO: Dodano normalizację statusu wyniku akcji i bezpieczny render payloadu Result.
+    # DLACZEGO: Chcemy spójnie mapować statusy z backendu zgodnie z configiem i ograniczyć prezentację
+    #           do uzgodnionych pól kontraktu, aby nie eksponować niepewnych danych.
+    # JAK TO DZIAŁA: `_resolve_result_status_label` korzysta z mapy `result.status_map`, a
+    #                `_render_result_payload` renderuje wyłącznie `display_fields`; gdy brak danych, zwraca `BRAK DANYCH`.
+    # TODO: Dodać obsługę zagnieżdżonych ścieżek pól result (np. `summary.outcome`) z walidacją typu.
+    def _resolve_result_status_label(self, status_value: object) -> str:
+        raw_status = str(status_value).upper()
+        mapped_status = self._action_result_status_map.get(raw_status)
+        if mapped_status is not None:
+            return mapped_status
+        return raw_status
+
+    def _render_result_payload(self, payload: object) -> str:
+        if not isinstance(payload, dict):
+            return "BRAK DANYCH"
+
+        if not self._action_result_display_fields:
+            return str(payload)
+
+        rendered_fields: list[str] = []
+        for field_name in self._action_result_display_fields:
+            if field_name in payload:
+                rendered_fields.append(f"{field_name}={payload[field_name]}")
+        if not rendered_fields:
+            return "BRAK DANYCH"
+        return ", ".join(rendered_fields)
 
     def init(self) -> None:
         """Prepare ROS bindings without crashing GUI boot."""
@@ -381,13 +455,7 @@ class RosBridgeService:
             )
             return
 
-        quick_command_map: dict[str, dict[str, object]] = {
-            "start_patrol": {"goal": "start_patrol"},
-            "return_to_base": {"goal": "return_to_base"},
-            "pause_mission": {"goal": "pause_mission"},
-            "resume_mission": {"goal": "resume_mission"},
-        }
-        goal_payload = quick_command_map.get(command_key)
+        goal_payload = self._quick_command_map.get(command_key)
         if goal_payload is None:
             self._state_store.set_with_inference(
                 key=STATE_KEY_ACTION_STATUS,
@@ -489,11 +557,11 @@ class RosBridgeService:
         if result is None:
             return
 
-        result_status = str(result.get("status", "UNKNOWN"))
+        result_status = self._resolve_result_status_label(result.get("status", "UNKNOWN"))
         self._state_store.set_with_inference(key=STATE_KEY_ACTION_STATUS, value=result_status, source="action_client", timestamp=now)
         self._state_store.set_with_inference(
             key=STATE_KEY_ACTION_RESULT,
-            value=str(result),
+            value=self._render_result_payload(result.get("result")),
             source="action_client",
             timestamp=now,
         )
