@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
         state_store: StateStore,
         supervisor: Supervisor,
         version_metadata: VersionMetadata,
+        ui_timer_intervals_ms: dict[str, int] | None = None,
         submit_action_goal: Callable[[], None] | None = None,
         cancel_action_goal: Callable[[], None] | None = None,
         submit_quick_action: Callable[[str], None] | None = None,
@@ -98,6 +99,12 @@ class MainWindow(QMainWindow):
         self._state_store = state_store
         self._supervisor = supervisor
         self._version_metadata = version_metadata
+        # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+        # CO ZMIENIONO: Dodano mapę konfiguracyjną `ui_timer_intervals_ms` używaną do sterowania timerami UI.
+        # DLACZEGO: Chcemy usunąć hardcode interwałów i umożliwić strojenie wydajności przez sam plik config.
+        # JAK TO DZIAŁA: MainWindow przechowuje słownik interwałów i udostępnia bezpieczny odczyt po kluczu.
+        # TODO: Przenieść klucze interwałów do stałych współdzielonych między loaderem i UI.
+        self._ui_timer_intervals_ms = dict(ui_timer_intervals_ms or {})
         self._submit_action_goal = submit_action_goal or (lambda: None)
         self._cancel_action_goal = cancel_action_goal or (lambda: None)
         self._submit_quick_action = submit_quick_action or (lambda _command_key: None)
@@ -133,9 +140,24 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self.setStatusBar(self._build_status_bar())
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(1000)
+        self._refresh_timer.setInterval(self._resolve_timer_interval_ms("main_window_refresh_interval_ms", default_ms=1000))
         self._refresh_timer.timeout.connect(self._refresh_runtime_status)
         self._refresh_timer.start()
+
+    # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+    # CO ZMIENIONO: Dodano metodę `_resolve_timer_interval_ms` do walidowanego odczytu interwałów timerów.
+    # DLACZEGO: Zakładki podrzędne muszą pobierać interwały z jednego, bezpiecznego punktu z fallbackiem.
+    # JAK TO DZIAŁA: Metoda zwraca dodatnią wartość `int` z konfiguracji; przy błędzie zwraca `default_ms`.
+    # TODO: Raportować do diagnostyki przypadki użycia fallbacku, aby szybciej wykrywać błędną konfigurację.
+    def _resolve_timer_interval_ms(self, timer_key: str, *, default_ms: int) -> int:
+        raw_value = self._ui_timer_intervals_ms.get(timer_key)
+        if isinstance(raw_value, int) and raw_value > 0:
+            return raw_value
+        return default_ms
+
+    def ui_timer_interval_ms(self, timer_key: str, *, default_ms: int) -> int:
+        """Publiczny accessor interwału timera dla zakładek potomnych."""
+        return self._resolve_timer_interval_ms(timer_key, default_ms=default_ms)
 
     @property
     def state_store(self) -> StateStore:

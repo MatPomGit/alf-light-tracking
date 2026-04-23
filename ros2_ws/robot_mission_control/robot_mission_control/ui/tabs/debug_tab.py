@@ -58,7 +58,16 @@ class DebugTab(QWidget):
         root.addWidget(self._copy_status)
 
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(1000)
+        # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+        # CO ZMIENIONO: DebugTab pobiera interwał timera z konfiguracji MainWindow zamiast stałej.
+        # DLACZEGO: Eliminujemy hardcode 1000 ms i umożliwiamy strojenie częstotliwości bez zmian w kodzie.
+        # JAK TO DZIAŁA: Dla klucza `debug_tab_refresh_interval_ms` pobierana jest wartość z configu,
+        #                a przy braku konfiguracji używany jest defensywny fallback 1000 ms.
+        # TODO: Dodać osobny profil interwału dla sesji debug z dużą liczbą kluczy w store.
+        window = self.window()
+        timer_fn = getattr(window, "ui_timer_interval_ms", None)
+        interval_ms = timer_fn("debug_tab_refresh_interval_ms", default_ms=1000) if callable(timer_fn) else 1000
+        self._refresh_timer.setInterval(interval_ms)
         self._refresh_timer.timeout.connect(self._refresh_snapshot_view)
         self._refresh_timer.start()
 

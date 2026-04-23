@@ -55,7 +55,16 @@ class VideoDepthTab(QWidget):
         root.addStretch(1)
 
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(700)
+        # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+        # CO ZMIENIONO: Interwał odświeżania VideoDepthTab został przeniesiony do konfiguracji.
+        # DLACZEGO: Usuwamy hardcode 700 ms, aby parametry odświeżania regulować przez YAML.
+        # JAK TO DZIAŁA: Zakładka odczytuje `video_depth_tab_refresh_interval_ms` z MainWindow,
+        #                a jeśli wartość nie jest dostępna, zachowuje fallback 700 ms.
+        # TODO: Dodać adaptacyjny interwał zależny od FPS źródła video.
+        window = self.window()
+        timer_fn = getattr(window, "ui_timer_interval_ms", None)
+        interval_ms = timer_fn("video_depth_tab_refresh_interval_ms", default_ms=700) if callable(timer_fn) else 700
+        self._refresh_timer.setInterval(interval_ms)
         self._refresh_timer.timeout.connect(self._refresh_view)
         self._refresh_timer.start()
 

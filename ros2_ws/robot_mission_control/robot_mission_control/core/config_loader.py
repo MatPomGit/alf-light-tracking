@@ -30,7 +30,21 @@ _REQUIRED_FIELDS: dict[str, type] = {
     "operator_timeout_sec": (int, float),
     "max_event_queue_size": int,
     "log_level": str,
+    "ui_timer_intervals_ms": dict,
 }
+
+_REQUIRED_UI_TIMER_KEYS: tuple[str, ...] = (
+    "bridge_poll_interval_ms",
+    "main_window_refresh_interval_ms",
+    "controls_tab_refresh_interval_ms",
+    "debug_tab_refresh_interval_ms",
+    "video_depth_tab_refresh_interval_ms",
+    "telemetry_tab_refresh_interval_ms",
+    "rosbag_tab_refresh_interval_ms",
+    "diagnostics_tab_refresh_interval_ms",
+    "extensions_tab_refresh_interval_ms",
+    "overview_tab_refresh_interval_ms",
+)
 
 
 def load_config(path: str | Path) -> MissionControlConfig:
@@ -83,9 +97,40 @@ def load_config(path: str | Path) -> MissionControlConfig:
             "Pole 'max_event_queue_size' musi być dodatnie.",
         )
 
+    # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+    # CO ZMIENIONO: Dodano rygorystyczną walidację sekcji `ui_timer_intervals_ms` wraz z pełnym
+    #               zestawem wymaganych kluczy i kontrolą dodatnich wartości liczbowych.
+    # DLACZEGO: Aplikacja ma sterować interwałami wyłącznie przez konfigurację; brak walidacji mógłby
+    #           dopuścić wartości błędne i prowadzić do niestabilnego odświeżania UI.
+    # JAK TO DZIAŁA: Loader sprawdza obecność mapy, komplet wymaganych kluczy, typ `int` oraz zakres > 0;
+    #                przy pierwszej niezgodności zgłasza `ConfigValidationError` i blokuje uruchomienie.
+    # TODO: Rozszerzyć walidację o górny limit interwału per klucz, aby wykrywać skrajnie duże wartości.
+    raw_ui_timers = raw_data["ui_timer_intervals_ms"]
+    missing_ui_timer_keys = [key for key in _REQUIRED_UI_TIMER_KEYS if key not in raw_ui_timers]
+    if missing_ui_timer_keys:
+        raise ConfigValidationError(
+            ErrorCode.CONFIG_MISSING_KEY,
+            "Brakuje wymaganych timerów UI: " + ", ".join(sorted(missing_ui_timer_keys)),
+        )
+    ui_timer_intervals_ms: dict[str, int] = {}
+    for timer_key in _REQUIRED_UI_TIMER_KEYS:
+        timer_value = raw_ui_timers[timer_key]
+        if not isinstance(timer_value, int):
+            raise ConfigValidationError(
+                ErrorCode.CONFIG_INVALID_TYPE,
+                f"Timer '{timer_key}' ma typ {type(timer_value).__name__}, oczekiwano int.",
+            )
+        if timer_value <= 0:
+            raise ConfigValidationError(
+                ErrorCode.CONFIG_INVALID_VALUE,
+                f"Timer '{timer_key}' musi być dodatni (ms).",
+            )
+        ui_timer_intervals_ms[timer_key] = timer_value
+
     return MissionControlConfig(
         session_id=str(raw_data["session_id"]).strip(),
         operator_timeout_sec=operator_timeout_sec,
         max_event_queue_size=max_event_queue_size,
         log_level=str(raw_data["log_level"]).strip().upper(),
+        ui_timer_intervals_ms=ui_timer_intervals_ms,
     )

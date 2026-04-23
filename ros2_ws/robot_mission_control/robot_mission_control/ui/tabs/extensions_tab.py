@@ -81,7 +81,16 @@ class ExtensionsTab(QWidget):
         root.addWidget(integrations_card)
 
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(1500)
+        # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+        # CO ZMIENIONO: ExtensionsTab odczytuje interwał timera z konfiguracji UI zamiast stałej.
+        # DLACZEGO: Hardcode 1500 ms utrudniał strojenie częstotliwości odświeżania listy pluginów.
+        # JAK TO DZIAŁA: Zakładka używa klucza `extensions_tab_refresh_interval_ms` z MainWindow,
+        #                a przy braku konfiguracji przechodzi na fallback 1500 ms.
+        # TODO: Dodać ręczny przycisk „odśwież teraz” niezależny od timera.
+        window = self.window()
+        timer_fn = getattr(window, "ui_timer_interval_ms", None)
+        interval_ms = timer_fn("extensions_tab_refresh_interval_ms", default_ms=1500) if callable(timer_fn) else 1500
+        self._refresh_timer.setInterval(interval_ms)
         self._refresh_timer.timeout.connect(self._refresh_plugin_table)
         self._refresh_timer.start()
 
