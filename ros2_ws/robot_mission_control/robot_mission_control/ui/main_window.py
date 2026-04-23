@@ -75,6 +75,10 @@ class MainWindow(QMainWindow):
         submit_action_goal: Callable[[], None] | None = None,
         cancel_action_goal: Callable[[], None] | None = None,
         submit_quick_action: Callable[[str], None] | None = None,
+        start_recording: Callable[[], None] | None = None,
+        stop_recording: Callable[[], None] | None = None,
+        start_playback: Callable[[], None] | None = None,
+        stop_playback: Callable[[], None] | None = None,
     ) -> None:
         super().__init__()
         self.setWindowTitle("Robot Mission Control")
@@ -86,6 +90,16 @@ class MainWindow(QMainWindow):
         self._submit_action_goal = submit_action_goal or (lambda: None)
         self._cancel_action_goal = cancel_action_goal or (lambda: None)
         self._submit_quick_action = submit_quick_action or (lambda _command_key: None)
+        # [AI-CHANGE | 2026-04-23 13:27 UTC | v0.185]
+        # CO ZMIENIONO: Dodano callbacki operacji rosbag (start/stop recording oraz start/stop playback)
+        #               delegowane przez MainWindow do warstwy bridge.
+        # DLACZEGO: RosbagTab ma działać analogicznie do ControlsTab i nie może znać implementacji backendu.
+        # JAK TO DZIAŁA: Gdy callback nie jest przekazany, MainWindow podstawia bezpieczny no-op.
+        # TODO: Podpiąć callbacki do realnych komend ROS2 po stabilizacji kontraktu transportowego rosbag.
+        self._start_recording = start_recording or (lambda: None)
+        self._stop_recording = stop_recording or (lambda: None)
+        self._start_playback = start_playback or (lambda: None)
+        self._stop_playback = stop_playback or (lambda: None)
         self._connection_label: QLabel | None = None
         self._source_quality_label: QLabel | None = None
         self._status_bar: QStatusBar | None = None
@@ -126,6 +140,22 @@ class MainWindow(QMainWindow):
     def submit_quick_operator_action(self, command_key: str) -> None:
         """Deleguje szybką komendę operatora do warstwy bridge."""
         self._submit_quick_action(command_key)
+
+    def start_rosbag_recording(self) -> None:
+        """Deleguje start nagrywania rosbag do warstwy bridge."""
+        self._start_recording()
+
+    def stop_rosbag_recording(self) -> None:
+        """Deleguje zatrzymanie nagrywania rosbag do warstwy bridge."""
+        self._stop_recording()
+
+    def start_rosbag_playback(self) -> None:
+        """Deleguje start playback rosbag do warstwy bridge."""
+        self._start_playback()
+
+    def stop_rosbag_playback(self) -> None:
+        """Deleguje zatrzymanie playback rosbag do warstwy bridge."""
+        self._stop_playback()
 
     def _render_value(self, item: StateValue | None, *, fallback: str = "BRAK DANYCH") -> str:
         """Render store value with quality-aware safety fallback."""
