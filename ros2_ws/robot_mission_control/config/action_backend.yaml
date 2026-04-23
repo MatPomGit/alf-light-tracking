@@ -9,3 +9,34 @@ action_type_name: "MissionStep"
 node_name: "robot_mission_control_action_client"
 server_wait_timeout_sec: 1.0
 future_wait_timeout_sec: 2.0
+# [AI-CHANGE | 2026-04-23 21:40 UTC | v0.198]
+# CO ZMIENIONO: Doprecyzowano finalny kontrakt Goal/Feedback/Result i mapowania statusów
+#               bezpośrednio w `action_backend.yaml`.
+# DLACZEGO: Usuwa to rozjazd między kodem i konfiguracją, a klient Action może działać E2E
+#           w scenariuszu nominalnym bez fallbacku `action_backend_unavailable`.
+# JAK TO DZIAŁA: `goal_payload_map` mapuje szybkie akcje UI na payload Goal,
+#                `result.status_map` normalizuje statusy domenowe, a `display_fields`
+#                wskazuje jakie pola wyniku prezentować operatorowi.
+# TODO: Dodać walidację schematu tych pól (typy i kompletność mapy) na etapie startu aplikacji.
+goal_payload_map:
+  start_patrol:
+    goal: "start_patrol"
+  return_to_base:
+    goal: "return_to_base"
+  pause_mission:
+    goal: "pause_mission"
+  resume_mission:
+    goal: "resume_mission"
+feedback:
+  progress_range: [0.0, 1.0]
+result:
+  status_map:
+    ACCEPTED: "ACCEPTED"
+    RUNNING: "RUNNING"
+    CANCEL_REQUESTED: "CANCEL_REQUESTED"
+    SUCCEEDED: "SUCCEEDED"
+    CANCELED: "CANCELED"
+    ABORTED: "ABORTED"
+    UNKNOWN: "UNKNOWN"
+  display_fields:
+    - "outcome"
