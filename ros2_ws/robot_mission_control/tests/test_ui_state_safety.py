@@ -26,6 +26,7 @@ from robot_mission_control.ui.tabs.controls_tab import ControlsTab
 from robot_mission_control.ui.tabs.overview_tab import OverviewTab
 from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
 from robot_mission_control.ui.tabs.state_rendering import render_value
+from robot_mission_control.ui.operator_alerts import OperatorAlerts
 
 
 # [AI-CHANGE | 2026-04-23 19:05 UTC | v0.189]
@@ -47,6 +48,7 @@ class _DummyWindow(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.state_store = StateStore()
+        self.operator_alerts = OperatorAlerts()
         self.send_goal_calls = 0
         self.cancel_goal_calls = 0
         self.quick_action_calls: list[str] = []
@@ -157,6 +159,57 @@ def test_overview_tab_does_not_present_stale_data_as_current() -> None:
 
     assert overview_tab._action_status_value.text() == "BRAK DANYCH"
     assert overview_tab._quality_value.text() == DataQuality.STALE.value
+
+
+# [AI-CHANGE | 2026-04-23 20:11 UTC | v0.193]
+# CO ZMIENIONO: Dodano testy nowego panelu decyzji operatorskiej w OverviewTab:
+#               przypadek bezpieczny (kontynuacja) i przypadek z alarmem krytycznym (wstrzymanie).
+# DLACZEGO: Kryterium funkcjonalne wymaga „jednego spojrzenia”, więc potrzebna jest ochrona regresyjna
+#           dla logiki werdyktu bezpieczeństwa i liczby aktywnych alarmów krytycznych.
+# JAK TO DZIAŁA: Testy przygotowują wiarygodny stan Store + OperatorAlerts i asertywnie sprawdzają
+#                teksty panelu (`MOŻNA KONTYNUOWAĆ` / `WSTRZYMAJ MISJĘ`) oraz licznik alarmów.
+# TODO: Dodać test GUI dla kolorów etykiet (zielony/czerwony) po ustabilizowaniu stylów Qt w CI.
+def test_overview_tab_allows_safe_continue_when_ros_and_action_are_valid() -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    overview_tab = OverviewTab(window)
+    overview_tab._refresh_timer.stop()
+
+    _set_state(window.state_store, STATE_KEY_ROS_CONNECTION_STATUS, value="CONNECTED", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ACTION_STATUS, value="RUNNING", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ACTION_PROGRESS, value="25%", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ACTION_RESULT, value="pending", quality=DataQuality.VALID)
+
+    overview_tab._refresh_view()
+
+    assert overview_tab._safety_value.text() == "MOŻNA KONTYNUOWAĆ"
+    assert overview_tab._mission_state_value.text() == "MISJA W TOKU"
+    assert overview_tab._critical_alarm_count_value.text() == "0"
+
+
+def test_overview_tab_blocks_continue_when_critical_alert_is_active() -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    overview_tab = OverviewTab(window)
+    overview_tab._refresh_timer.stop()
+
+    _set_state(window.state_store, STATE_KEY_ROS_CONNECTION_STATUS, value="CONNECTED", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ACTION_STATUS, value="RUNNING", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ACTION_PROGRESS, value="25%", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ACTION_RESULT, value="pending", quality=DataQuality.VALID)
+    window.operator_alerts.publish_alert(
+        state_key=STATE_KEY_ROS_CONNECTION_STATUS,
+        severity="CRITICAL",
+        code="ros_link_down",
+        message="Połączenie ROS niestabilne",
+        timestamp=datetime(2026, 4, 23, 20, 11, tzinfo=timezone.utc),
+    )
+
+    overview_tab._refresh_view()
+
+    assert overview_tab._safety_value.text() == "WSTRZYMAJ MISJĘ"
+    assert overview_tab._critical_alarm_count_value.text() == "1"
+    assert overview_tab._alarm_banner.isVisible() is True
 
 
 def test_rosbag_tab_blocks_buttons_and_skips_callbacks_for_unreliable_state() -> None:
