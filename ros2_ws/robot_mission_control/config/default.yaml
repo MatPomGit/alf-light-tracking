@@ -7,3 +7,19 @@ session_id: "default-session"
 operator_timeout_sec: 2.5
 max_event_queue_size: 1024
 log_level: "INFO"
+# [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+# CO ZMIENIONO: Dodano sekcję `ui_timer_intervals_ms` zawierającą wszystkie interwały timerów UI i bridge.
+# DLACZEGO: Interwały mają być sterowane wyłącznie konfiguracją, bez konieczności modyfikacji kodu źródłowego.
+# JAK TO DZIAŁA: Każdy klucz odpowiada konkretnemu timerowi (w milisekundach) i jest walidowany podczas startu.
+# TODO: Dodać profile środowiskowe (dev/sim/prod) z różnymi wartościami interwałów.
+ui_timer_intervals_ms:
+  bridge_poll_interval_ms: 1000
+  main_window_refresh_interval_ms: 1000
+  controls_tab_refresh_interval_ms: 500
+  debug_tab_refresh_interval_ms: 1000
+  video_depth_tab_refresh_interval_ms: 700
+  telemetry_tab_refresh_interval_ms: 700
+  rosbag_tab_refresh_interval_ms: 500
+  diagnostics_tab_refresh_interval_ms: 1200
+  extensions_tab_refresh_interval_ms: 1500
+  overview_tab_refresh_interval_ms: 700

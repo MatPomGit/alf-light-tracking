@@ -25,10 +25,16 @@ class EventCategory(str, Enum):
 class MissionControlConfig:
     """Zweryfikowany model konfiguracji aplikacji."""
 
+    # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+    # CO ZMIENIONO: Rozszerzono model konfiguracji o mapę `ui_timer_intervals_ms`.
+    # DLACZEGO: Interwały timerów UI nie mogą być hardcodowane; muszą być sterowane z walidowanej konfiguracji.
+    # JAK TO DZIAŁA: Loader wypełnia słownik nazwanych interwałów (ms), a warstwa UI pobiera wartości po kluczu.
+    # TODO: Dodać typowaną klasę (`dataclass`) dla interwałów, aby wyeliminować literówki kluczy.
     session_id: str
     operator_timeout_sec: float
     max_event_queue_size: int
     log_level: str
+    ui_timer_intervals_ms: dict[str, int]
 
 
 @dataclass(frozen=True, slots=True)

@@ -74,7 +74,16 @@ class TelemetryTab(QWidget):
         root.addWidget(self._table)
 
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(700)
+        # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+        # CO ZMIENIONO: TelemetryTab korzysta teraz z interwału timera podanego w konfiguracji.
+        # DLACZEGO: Hardcode 700 ms utrudniał strojenie obciążenia UI i częstotliwości telemetrii.
+        # JAK TO DZIAŁA: Zakładka pobiera `telemetry_tab_refresh_interval_ms` z MainWindow,
+        #                a gdy konfiguracja nie jest dostępna, stosuje fallback 700 ms.
+        # TODO: Dodać metrykę czasu renderowania, by automatycznie dobierać interwał.
+        window = self.window()
+        timer_fn = getattr(window, "ui_timer_interval_ms", None)
+        interval_ms = timer_fn("telemetry_tab_refresh_interval_ms", default_ms=700) if callable(timer_fn) else 700
+        self._refresh_timer.setInterval(interval_ms)
         self._refresh_timer.timeout.connect(self._refresh_table)
         self._refresh_timer.start()
         self._refresh_table()

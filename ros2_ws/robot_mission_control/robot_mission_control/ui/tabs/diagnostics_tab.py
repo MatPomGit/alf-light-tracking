@@ -120,7 +120,16 @@ class DiagnosticsTab(QWidget):
         root.addWidget(dependency_card)
 
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(1200)
+        # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+        # CO ZMIENIONO: DiagnosticsTab pobiera interwał odświeżania z konfiguracji timera UI.
+        # DLACZEGO: Stała 1200 ms została usunięta, aby umożliwić zmianę rytmu diagnostyki z pliku YAML.
+        # JAK TO DZIAŁA: Zakładka odczytuje `diagnostics_tab_refresh_interval_ms` z MainWindow;
+        #                przy niedostępności konfiguracji używa fallbacku 1200 ms.
+        # TODO: Wprowadzić osobne interwały dla sekcji alertów i sekcji tabel diagnostycznych.
+        window = self.window()
+        timer_fn = getattr(window, "ui_timer_interval_ms", None)
+        interval_ms = timer_fn("diagnostics_tab_refresh_interval_ms", default_ms=1200) if callable(timer_fn) else 1200
+        self._refresh_timer.setInterval(interval_ms)
         self._refresh_timer.timeout.connect(self._refresh_view)
         self._refresh_timer.start()
 

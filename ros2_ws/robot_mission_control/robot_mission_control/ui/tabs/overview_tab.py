@@ -118,7 +118,16 @@ class OverviewTab(QWidget):
         root.addStretch(1)
 
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(700)
+        # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+        # CO ZMIENIONO: OverviewTab pobiera interwał odświeżania z konfiguracji MainWindow.
+        # DLACZEGO: Usuwamy hardcode 700 ms i umożliwiamy dostrojenie panelu decyzyjnego przez YAML.
+        # JAK TO DZIAŁA: Zakładka odczytuje `overview_tab_refresh_interval_ms`; gdy brak wartości,
+        #                stosowany jest fallback 700 ms bez wpływu na bezpieczeństwo renderowania.
+        # TODO: Uzależnić interwał od liczby aktywnych alertów krytycznych.
+        window = self.window()
+        timer_fn = getattr(window, "ui_timer_interval_ms", None)
+        interval_ms = timer_fn("overview_tab_refresh_interval_ms", default_ms=700) if callable(timer_fn) else 700
+        self._refresh_timer.setInterval(interval_ms)
         self._refresh_timer.timeout.connect(self._refresh_view)
         self._refresh_timer.start()
         self._refresh_view()

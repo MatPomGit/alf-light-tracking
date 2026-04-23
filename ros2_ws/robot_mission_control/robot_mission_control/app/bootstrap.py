@@ -38,6 +38,7 @@ from robot_mission_control.ros.action_backend import ActionBackendConfig, Ros2Mi
 from robot_mission_control.ros.action_clients import ActionClientBindings, MissionActionClient
 from robot_mission_control.ros.dependency_audit_client import DependencyStatusClient
 from robot_mission_control.ros.node_manager import ReconnectPolicy, RosNodeManager
+from robot_mission_control.core.config_loader import ConfigValidationError, load_config
 from robot_mission_control.ui.main_window import MainWindow
 from robot_mission_control.rosbag.integrity_checker import IntegrityChecker
 from robot_mission_control.rosbag.playback_controller import PlaybackController
@@ -624,6 +625,25 @@ def main(argv: Optional[list[str]] = None) -> int:
     supervisor.init_worker("ros_bridge", now)
     supervisor.start_worker("ros_bridge", now)
 
+    # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+    # CO ZMIENIONO: Dodano ładowanie i walidację konfiguracji runtime przed startem UI.
+    # DLACZEGO: Interwały timerów mają być sterowane przez plik konfiguracyjny, a błędny config
+    #           powinien zatrzymać start zamiast uruchamiać aplikację z niepewnymi wartościami.
+    # JAK TO DZIAŁA: `load_config` waliduje `default.yaml`; przy błędzie rzucamy RuntimeError,
+    #                co wymusza bezpieczne przerwanie startu aplikacji.
+    # TODO: Dodać obsługę argumentu CLI `--config`, aby jawnie wskazywać plik konfiguracji.
+    config_path_candidates = [
+        Path(__file__).resolve().parents[2] / "config" / "default.yaml",
+        Path(__file__).resolve().parents[3] / "config" / "default.yaml",
+    ]
+    config_path = next((path for path in config_path_candidates if path.exists()), None)
+    if config_path is None:
+        raise RuntimeError("mission_control_config_missing")
+    try:
+        runtime_config = load_config(config_path)
+    except ConfigValidationError as exc:
+        raise RuntimeError(f"mission_control_config_invalid: {exc.message}") from exc
+
     qt_app = QApplication(argv or sys.argv)
     # [AI-CHANGE | 2026-04-21 16:02 UTC | v0.177]
     # CO ZMIENIONO: Dodano przekazanie callbacku `submit_quick_action` do MainWindow.
@@ -634,6 +654,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         state_store=bridge.state_store,
         supervisor=supervisor,
         version_metadata=resolve_version_metadata(),
+        ui_timer_intervals_ms=runtime_config.ui_timer_intervals_ms,
         submit_action_goal=bridge.submit_action_goal,
         cancel_action_goal=bridge.cancel_action_goal,
         submit_quick_action=bridge.submit_quick_action,
@@ -646,7 +667,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     #                store dostaje wartości bezpieczne (`None`), a po reconnect wraca status `CONNECTED`.
     # TODO: Dodać adaptacyjny interwał timera zależny od stanu (krótszy podczas reconnect, dłuższy gdy stabilnie).
     poll_timer = QTimer()
-    poll_timer.setInterval(1000)
+    # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
+    # CO ZMIENIONO: Interwał pollingu bridge został podpięty do walidowanej konfiguracji.
+    # DLACZEGO: Usuwamy hardcode 1000 ms i umożliwiamy zmianę częstotliwości reconnect/pollingu bez deployu kodu.
+    # JAK TO DZIAŁA: Timer korzysta z klucza `bridge_poll_interval_ms` zwalidowanego przez `config_loader`.
+    # TODO: Rozdzielić interwał pollingu łączności i interwał pollingu statusu akcji.
+    poll_timer.setInterval(runtime_config.ui_timer_intervals_ms["bridge_poll_interval_ms"])
 
     def _tick() -> None:
         bridge._poll_connection()
