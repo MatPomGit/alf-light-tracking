@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget
 
@@ -14,8 +12,8 @@ from robot_mission_control.core import (
     STATE_KEY_ROS_CONNECTION_STATUS,
     DataQuality,
     StateStore,
-    StateValue,
 )
+from .state_rendering import render_quality, render_value
 
 
 # [AI-CHANGE | 2026-04-23 12:55 UTC | v0.180]
@@ -92,25 +90,14 @@ class OverviewTab(QWidget):
         window = parent.window() if parent is not None else None
         return getattr(window, "state_store", None)
 
-    def _resolve_render_helper(self) -> Callable[[StateValue | None], str]:
-        window = self.window()
-        render_fn = getattr(window, "_render_value", None)
-        if callable(render_fn):
-            return render_fn
-
-        def _fallback_render(item: StateValue | None, *, fallback: str = "BRAK DANYCH") -> str:
-            if item is None:
-                return fallback
-            if item.quality is not DataQuality.VALID:
-                if item.quality is DataQuality.ERROR:
-                    return "BŁĄD DANYCH"
-                if item.quality is DataQuality.STALE:
-                    return "DANE PRZETERMINOWANE"
-                return fallback
-            return str(item.value)
-
-        return _fallback_render
-
+    # [AI-CHANGE | 2026-04-23 14:15 UTC | v0.187]
+    # CO ZMIENIONO: Usunięto lokalny helper fallbacków i podpięto wspólne funkcje
+    #               `render_value` / `render_quality` z modułu `state_rendering`.
+    # DLACZEGO: Jedno źródło prawdy eliminuje duplikację i wymusza jednolite bramkowanie jakości
+    #           we wszystkich zakładkach operacyjnych.
+    # JAK TO DZIAŁA: Widok renderuje wartości przez wspólny helper, który zwraca fallback dla każdego
+    #                stanu nie-VALID, więc operator nie zobaczy wartości operacyjnej z niepewnej próbki.
+    # TODO: Ujednolicić ranking „worst_quality” przez centralny helper z priorytetami jakości.
     def _refresh_view(self) -> None:
         if self._state_store is None:
             self._connection_value.setText("ROZŁĄCZONY")
@@ -120,8 +107,6 @@ class OverviewTab(QWidget):
             self._quality_value.setText(DataQuality.UNAVAILABLE.value)
             self._alarm_banner.setVisible(True)
             return
-
-        render_value = self._resolve_render_helper()
 
         connection_item = self._state_store.get(STATE_KEY_ROS_CONNECTION_STATUS)
         action_status_item = self._state_store.get(STATE_KEY_ACTION_STATUS)
@@ -135,7 +120,8 @@ class OverviewTab(QWidget):
 
         observed_items = [connection_item, action_status_item, action_progress_item, action_result_item]
         worst_quality = next((item.quality for item in observed_items if item is not None and item.quality is not DataQuality.VALID), None)
-        self._quality_value.setText(worst_quality.value if worst_quality is not None else DataQuality.VALID.value)
+        representative_item = next((item for item in observed_items if item is not None and item.quality is worst_quality), None)
+        self._quality_value.setText(DataQuality.VALID.value if worst_quality is None else render_quality(representative_item))
 
         connection_uncertain = connection_item is None or connection_item.quality is not DataQuality.VALID
         data_quality_invalid = worst_quality is not None

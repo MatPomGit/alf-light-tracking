@@ -16,6 +16,7 @@ from robot_mission_control.core import (
     StateStore,
     StateValue,
 )
+from .state_rendering import render_quality, render_value
 
 
 # [AI-CHANGE | 2026-04-23 16:20 UTC | v0.181]
@@ -101,26 +102,20 @@ class TelemetryTab(QWidget):
                 continue
             rows.append((key, item))
 
+        # [AI-CHANGE | 2026-04-23 14:15 UTC | v0.187]
+        # CO ZMIENIONO: Przełączono renderowanie kolumn value/quality na wspólne helpery.
+        # DLACZEGO: Eliminujemy duplikację logiki fallbacków i utrzymujemy jednolite bramkowanie jakości.
+        # JAK TO DZIAŁA: `render_value` zwraca wyłącznie bezpieczny fallback dla quality != VALID, a
+        #                `render_quality` spójnie mapuje brak próbki na UNAVAILABLE.
+        # TODO: Dodać kolorystykę per quality bezpośrednio na komórkach tabeli.
         self._table.setRowCount(len(rows))
         for row_index, (key, item) in enumerate(rows):
             self._table.setItem(row_index, 0, QTableWidgetItem(key))
-            self._table.setItem(row_index, 1, QTableWidgetItem(self._render_value(item)))
-            self._table.setItem(row_index, 2, QTableWidgetItem(self._render_quality(item)))
+            self._table.setItem(row_index, 1, QTableWidgetItem(render_value(item)))
+            self._table.setItem(row_index, 2, QTableWidgetItem(render_quality(item)))
             self._table.setItem(row_index, 3, QTableWidgetItem(self._render_reason_code(item)))
             self._table.setItem(row_index, 4, QTableWidgetItem(self._render_timestamp(item)))
             self._table.setItem(row_index, 5, QTableWidgetItem(self._render_warning_label(item)))
-
-    def _render_value(self, item: StateValue | None) -> str:
-        if item is None:
-            return "BRAK DANYCH"
-        if item.quality is not DataQuality.VALID or item.value is None:
-            return "BRAK DANYCH"
-        return str(item.value)
-
-    def _render_quality(self, item: StateValue | None) -> str:
-        if item is None:
-            return DataQuality.UNAVAILABLE.value
-        return item.quality.value
 
     def _render_reason_code(self, item: StateValue | None) -> str:
         if item is None:

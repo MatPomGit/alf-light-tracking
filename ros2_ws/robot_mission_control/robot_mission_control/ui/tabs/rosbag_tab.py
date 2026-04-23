@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 )
 
 from robot_mission_control.core import (
-    DataQuality,
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_PLAYBACK_STATUS,
     STATE_KEY_RECORDING_STATUS,
@@ -26,6 +25,7 @@ from robot_mission_control.core import (
     StateStore,
     utc_now,
 )
+from .state_rendering import is_actionable, render_value
 
 # [AI-CHANGE | 2026-04-23 13:27 UTC | v0.185]
 # CO ZMIENIONO: Zastąpiono placeholder pełnym panelem Rosbag z sekcjami Recording/Playback/Wybrany bag/Integralność,
@@ -111,14 +111,21 @@ class RosbagTab(QWidget):
         window = parent.window() if parent is not None else None
         return getattr(window, "state_store", None)
 
+    # [AI-CHANGE | 2026-04-23 14:15 UTC | v0.187]
+    # CO ZMIENIONO: Zastąpiono lokalną walidację item.quality przez wspólne helpery
+    #               `is_actionable` i `render_value`.
+    # DLACZEGO: Panel rosbag ma współdzielić identyczną semantykę bezpieczeństwa z innymi zakładkami.
+    # JAK TO DZIAŁA: Dla quality != VALID helper zawsze zwraca fallback i znacznik `ok=False`, więc
+    #                przyciski krytyczne zostają zablokowane zanim operator wykona ryzykowną akcję.
+    # TODO: Dodać telemetryczny licznik blokad akcji z rozbiciem po reason_code.
     def _render_store_value(self, key: str, *, fallback: str = "BRAK DANYCH") -> tuple[str, bool]:
         if self._state_store is None:
             return fallback, False
 
         item = self._state_store.get(key)
-        if item is None or item.quality is not DataQuality.VALID or item.value is None:
+        if not is_actionable(item):
             return fallback, False
-        return str(item.value), True
+        return render_value(item, fallback=fallback), True
 
     def _append_event(self, message: str) -> None:
         timestamp = utc_now().strftime("%H:%M:%S")
