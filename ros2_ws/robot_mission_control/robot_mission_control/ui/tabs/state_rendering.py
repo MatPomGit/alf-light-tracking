@@ -35,3 +35,16 @@ def render_quality(item: StateValue | None) -> str:
     if item is None:
         return DataQuality.UNAVAILABLE.value
     return item.quality.value
+
+
+# [AI-CHANGE | 2026-04-23 17:10 UTC | v0.192]
+# CO ZMIENIONO: Dodano jawny alias `render_state` dla statusów jakości
+#               (`VALID/STALE/UNAVAILABLE/ERROR`) wykorzystywanych przez karty UI.
+# DLACZEGO: Wymaganie wdrożeniowe mówi o wspólnym module helperów renderujących stan,
+#           więc nazwa funkcji musi być semantycznie czytelna dla wszystkich kart.
+# JAK TO DZIAŁA: `render_state` deleguje do `render_quality`, dzięki czemu każda karta
+#                otrzymuje identyczne mapowanie stanu i spójne fallbacki dla braku próbki.
+# TODO: Rozdzielić w przyszłości `render_state` na wariant surowy i wariant lokalizowany (PL/EN).
+def render_state(item: StateValue | None) -> str:
+    """Renderuje stan jakości danych dla etykiet kart UI."""
+    return render_quality(item)

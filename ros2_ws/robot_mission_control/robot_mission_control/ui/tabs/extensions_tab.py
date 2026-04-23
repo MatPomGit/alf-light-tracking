@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from robot_mission_control.core import DataQuality, StateStore, StateValue
+from robot_mission_control.core import StateStore, StateValue
+from .state_rendering import is_actionable, render_state
 
 
 # [AI-CHANGE | 2026-04-23 13:40 UTC | v0.186]
@@ -118,19 +119,23 @@ class ExtensionsTab(QWidget):
         activation_key = f"plugin.{plugin_name}.active"
         return snapshot.get(activation_key)
 
+    # [AI-CHANGE | 2026-04-23 17:10 UTC | v0.192]
+    # CO ZMIENIONO: Ujednolicono renderowanie statusu aktywacji/quality pluginów przez helpery
+    #               `is_actionable` i `render_state` z modułu współdzielonego.
+    # DLACZEGO: Karta Extensions musi respektować ten sam kontrakt bezpieczeństwa co pozostałe karty:
+    #           brak wartości operacyjnej przy quality != VALID.
+    # JAK TO DZIAŁA: `is_actionable` blokuje interpretację aktywacji dla próbek niepewnych, a
+    #                `render_state` dostarcza spójną etykietę stanu jakości do kolumny tabeli.
+    # TODO: Dodać osobny znacznik „NIEPEWNE AKTYWOWANIE” dla przypadków z value=True i quality!=VALID.
     def _render_activation(self, item: StateValue | None) -> str:
-        if item is None:
-            return "BRAK DANYCH"
-        if item.quality is not DataQuality.VALID:
+        if not is_actionable(item):
             return "BRAK DANYCH"
         if bool(item.value):
             return "AKTYWNE"
         return "NIEAKTYWNE"
 
     def _render_quality(self, item: StateValue | None) -> str:
-        if item is None:
-            return DataQuality.UNAVAILABLE.value
-        return item.quality.value
+        return render_state(item)
 
     def _render_reason_code(self, item: StateValue | None) -> str:
         if item is None:

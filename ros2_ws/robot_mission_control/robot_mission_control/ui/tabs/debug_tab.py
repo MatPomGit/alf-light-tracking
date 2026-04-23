@@ -8,7 +8,8 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QLabel, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
-from robot_mission_control.core import DataQuality, StateStore, StateValue
+from robot_mission_control.core import StateStore, StateValue
+from .state_rendering import render_state, render_value
 
 
 # [AI-CHANGE | 2026-04-23 13:40 UTC | v0.186]
@@ -82,17 +83,22 @@ class DebugTab(QWidget):
         self._last_export_payload = "\n".join(lines)
         self._snapshot_view.setPlainText(self._last_export_payload)
 
+    # [AI-CHANGE | 2026-04-23 17:10 UTC | v0.192]
+    # CO ZMIENIONO: DebugTab przełączono na wspólne helpery `render_value` i `render_state`
+    #               podczas renderowania pojedynczej linii snapshotu.
+    # DLACZEGO: Utrzymujemy jeden mechanizm maskowania wartości operacyjnych dla quality != VALID
+    #           oraz wspólne nazewnictwo stanów `VALID/STALE/UNAVAILABLE/ERROR`.
+    # JAK TO DZIAŁA: `render_value` zwraca bezpieczny fallback `BRAK DANYCH`, a `render_state`
+    #                odpowiada za status jakości wpisywany do payloadu diagnostycznego.
+    # TODO: Dodać opcję filtrowania wyłącznie rekordów `quality != VALID` w trybie debug.
     def _render_snapshot_line(self, key: str, item: StateValue) -> str:
-        if item.quality is not DataQuality.VALID or item.value is None:
-            safe_value = "BRAK DANYCH"
-        else:
-            safe_value = str(item.value)
+        safe_value = render_value(item)
         timestamp = item.timestamp
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=timezone.utc)
         timestamp_label = timestamp.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         return (
-            f"- {key}: value={safe_value}; quality={item.quality.value}; reason={item.reason_code or '-'}; "
+            f"- {key}: value={safe_value}; quality={render_state(item)}; reason={item.reason_code or '-'}; "
             f"source={item.source or '-'}; ts={timestamp_label}"
         )
 
