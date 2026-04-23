@@ -24,6 +24,7 @@ from robot_mission_control.core import (
     StateStore,
     StateValue,
 )
+from .state_rendering import is_actionable, render_quality, render_value
 
 
 # [AI-CHANGE | 2026-04-23 13:22 UTC | v0.184]
@@ -126,17 +127,24 @@ class DiagnosticsTab(QWidget):
 
     def _render_dependency_status(self, snapshot: dict[str, StateValue]) -> None:
         item = snapshot.get(STATE_KEY_DEPENDENCY_STATUS)
+        # [AI-CHANGE | 2026-04-23 14:15 UTC | v0.187]
+        # CO ZMIENIONO: Ujednolicono fallbacki dependency/ROS przez helpery `render_value`,
+        #               `render_quality` i `is_actionable`.
+        # DLACZEGO: Diagnostyka ma stosować dokładnie tę samą regułę bezpieczeństwa, co reszta UI:
+        #           brak wartości operacyjnej dla quality różnego od VALID.
+        # JAK TO DZIAŁA: Dla nieoperacyjnej próbki widok zwraca `BRAK DANYCH` z dopisanym znacznikiem
+        #                quality; szczególny komunikat STALE pozostaje jawny dla operatora.
+        # TODO: Dodać mapowanie severity -> kolor etykiety statusu zależności i łączności ROS.
         if item is None:
-            self._dependency_status_value.setText("BRAK DANYCH")
+            self._dependency_status_value.setText(render_value(None))
             return
 
         # Zasada bezpieczeństwa: nie wolno propagować historycznego "OK", gdy bieżący stan jest niepewny.
-        if item.quality in (DataQuality.UNAVAILABLE, DataQuality.ERROR):
-            self._dependency_status_value.setText(f"BRAK DANYCH ({item.quality.value})")
-            return
-
-        if item.quality is DataQuality.STALE:
-            self._dependency_status_value.setText("DANE PRZETERMINOWANE")
+        if not is_actionable(item):
+            if item.quality is DataQuality.STALE:
+                self._dependency_status_value.setText("DANE PRZETERMINOWANE")
+                return
+            self._dependency_status_value.setText(f"{render_value(item)} ({render_quality(item)})")
             return
 
         report = item.value
@@ -163,10 +171,7 @@ class DiagnosticsTab(QWidget):
 
     def _render_ros_connection(self, snapshot: dict[str, StateValue]) -> None:
         item = snapshot.get(STATE_KEY_ROS_CONNECTION_STATUS)
-        if item is None or item.quality is not DataQuality.VALID or item.value is None:
-            self._ros_connection_value.setText("ROZŁĄCZONY")
-            return
-        self._ros_connection_value.setText(str(item.value))
+        self._ros_connection_value.setText(render_value(item, fallback="ROZŁĄCZONY"))
 
     def _severity_for_quality(self, quality: DataQuality) -> str:
         severity_map: dict[DataQuality, str] = {
