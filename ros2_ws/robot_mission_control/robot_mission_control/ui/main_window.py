@@ -44,6 +44,7 @@ from robot_mission_control.ui.tabs.overview_tab import OverviewTab
 from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
 from robot_mission_control.ui.tabs.telemetry_tab import TelemetryTab
 from robot_mission_control.ui.tabs.video_depth_tab import VideoDepthTab
+from robot_mission_control.ui.operator_alerts import OperatorAlerts
 from robot_mission_control.versioning import VersionMetadata
 
 # [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
@@ -100,6 +101,13 @@ class MainWindow(QMainWindow):
         self._stop_recording = stop_recording or (lambda: None)
         self._start_playback = start_playback or (lambda: None)
         self._stop_playback = stop_playback or (lambda: None)
+        # [AI-CHANGE | 2026-04-23 16:30 UTC | v0.188]
+        # CO ZMIENIONO: Dodano centralny rejestr `OperatorAlerts` utrzymywany przez MainWindow.
+        # DLACZEGO: Wszystkie zakładki mają konsumować identyczny stan alertów i nie dublować logiki.
+        # JAK TO DZIAŁA: MainWindow cyklicznie synchronizuje alerty ze snapshotem StateStore, a zakładki
+        #                pobierają dane przez property `operator_alerts`.
+        # TODO: Dodać trwały storage alertów, aby historia przetrwała restart aplikacji.
+        self._operator_alerts = OperatorAlerts()
         self._connection_label: QLabel | None = None
         self._source_quality_label: QLabel | None = None
         self._status_bar: QStatusBar | None = None
@@ -123,6 +131,11 @@ class MainWindow(QMainWindow):
     def state_store(self) -> StateStore:
         """Eksponuje store dla zakładek odczytujących status operatorski."""
         return self._state_store
+
+    @property
+    def operator_alerts(self) -> OperatorAlerts:
+        """Eksponuje rejestr alertów dla zakładek UI."""
+        return self._operator_alerts
 
     def submit_operator_action_goal(self) -> None:
         """Deleguje start akcji do warstwy bridge."""
@@ -324,6 +337,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_runtime_status(self) -> None:
         """Odświeża widoczne statusy na podstawie aktualnego snapshotu StateStore."""
+        self._operator_alerts.sync_from_snapshot(self._state_store.snapshot())
         playback = self._render_value(self._state_store.get(STATE_KEY_PLAYBACK_STATUS))
         recording = self._render_value(self._state_store.get(STATE_KEY_RECORDING_STATUS))
         connection = self._render_value(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timezone
+
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget
 
@@ -13,6 +15,7 @@ from robot_mission_control.core import (
     DataQuality,
     StateStore,
 )
+from robot_mission_control.ui.operator_alerts import OperatorAlerts
 from .state_rendering import render_quality, render_value
 
 
@@ -32,9 +35,17 @@ from .state_rendering import render_quality, render_value
 class OverviewTab(QWidget):
     """Runtime overview panel with conservative status rendering."""
 
+    # [AI-CHANGE | 2026-04-23 16:30 UTC | v0.188]
+    # CO ZMIENIONO: Dodano podłączenie `OverviewTab` do centralnego rejestru `OperatorAlerts`.
+    # DLACZEGO: Baner zakładki ma prezentować ostatni alert krytyczny z tego samego źródła,
+    #           z którego korzysta DiagnosticsTab, aby uniknąć rozbieżności.
+    # JAK TO DZIAŁA: Zakładka pobiera referencję `operator_alerts` z okna nadrzędnego i używa jej
+    #                podczas odświeżania do renderowania komunikatu krytycznego.
+    # TODO: Dodać lokalny cache komunikatu, aby ograniczyć migotanie banera przy szybkim odświeżaniu.
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._state_store = self._resolve_state_store(parent)
+        self._operator_alerts = self._resolve_operator_alerts(parent)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
@@ -90,6 +101,10 @@ class OverviewTab(QWidget):
         window = parent.window() if parent is not None else None
         return getattr(window, "state_store", None)
 
+    def _resolve_operator_alerts(self, parent: QWidget | None) -> OperatorAlerts | None:
+        window = parent.window() if parent is not None else None
+        return getattr(window, "operator_alerts", None)
+
     # [AI-CHANGE | 2026-04-23 14:15 UTC | v0.187]
     # CO ZMIENIONO: Usunięto lokalny helper fallbacków i podpięto wspólne funkcje
     #               `render_value` / `render_quality` z modułu `state_rendering`.
@@ -105,6 +120,7 @@ class OverviewTab(QWidget):
             self._action_progress_value.setText("BRAK DANYCH")
             self._action_result_value.setText("BRAK DANYCH")
             self._quality_value.setText(DataQuality.UNAVAILABLE.value)
+            self._alarm_banner.setText("ALERT KRYTYCZNY: BRAK POŁĄCZENIA ZE STATESTORE")
             self._alarm_banner.setVisible(True)
             return
 
@@ -123,6 +139,19 @@ class OverviewTab(QWidget):
         representative_item = next((item for item in observed_items if item is not None and item.quality is worst_quality), None)
         self._quality_value.setText(DataQuality.VALID.value if worst_quality is None else render_quality(representative_item))
 
-        connection_uncertain = connection_item is None or connection_item.quality is not DataQuality.VALID
-        data_quality_invalid = worst_quality is not None
-        self._alarm_banner.setVisible(connection_uncertain or data_quality_invalid)
+        # [AI-CHANGE | 2026-04-23 16:30 UTC | v0.188]
+        # CO ZMIENIONO: Baner OverviewTab został podłączony do „ostatniego krytycznego alertu”
+        #               z centralnego rejestru `OperatorAlerts`.
+        # DLACZEGO: Operator ma widzieć konkretny, najnowszy komunikat CRITICAL, a nie ogólny tekst alarmu.
+        # JAK TO DZIAŁA: Widok odczytuje `last_critical_alert()` i renderuje kod + komunikat + timestamp;
+        #                gdy brak alertu krytycznego, baner jest ukrywany.
+        # TODO: Dodać akcję „Przejdź do Diagnostics” po kliknięciu banera krytycznego.
+        critical_alert = self._operator_alerts.last_critical_alert() if self._operator_alerts is not None else None
+        if critical_alert is None:
+            self._alarm_banner.setVisible(False)
+            return
+        timestamp = critical_alert.updated_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        self._alarm_banner.setText(
+            f"ALERT KRYTYCZNY [{critical_alert.code}] {critical_alert.message} | {timestamp}"
+        )
+        self._alarm_banner.setVisible(True)
