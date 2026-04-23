@@ -14,9 +14,10 @@ from robot_mission_control.core import (
     STATE_KEY_ROS_CONNECTION_STATUS,
     DataQuality,
     StateStore,
+    StateValue,
 )
 from robot_mission_control.ui.operator_alerts import OperatorAlerts
-from .state_rendering import render_quality, render_value
+from .state_rendering import is_actionable, render_quality, render_value
 
 
 # [AI-CHANGE | 2026-04-23 12:55 UTC | v0.180]
@@ -56,6 +57,31 @@ class OverviewTab(QWidget):
             "background-color: #b00020; color: white; font-weight: 700; padding: 8px; border-radius: 4px;"
         )
         root.addWidget(self._alarm_banner)
+
+        # [AI-CHANGE | 2026-04-23 20:11 UTC | v0.193]
+        # CO ZMIENIONO: Dodano kartę szybkiej decyzji operatora z polami:
+        #               „Ocena bezpieczeństwa”, „Stan misji” i „Aktywne alarmy krytyczne”.
+        # DLACZEGO: Kryterium ukończenia wymaga, aby operator jednym spojrzeniem ocenił,
+        #           czy może bezpiecznie kontynuować misję.
+        # JAK TO DZIAŁA: Karta renderuje jawny werdykt (`MOŻNA KONTYNUOWAĆ` / `WSTRZYMAJ MISJĘ`)
+        #                oparty o jakość danych, łączność ROS i aktywne alarmy krytyczne.
+        # TODO: Dodać sygnał dźwiękowy przy przejściu z trybu bezpiecznego do krytycznego.
+        safety_card = QFrame(self)
+        safety_layout = QGridLayout(safety_card)
+        safety_layout.setVerticalSpacing(8)
+        safety_layout.setHorizontalSpacing(14)
+        self._safety_value = QLabel("WSTRZYMAJ MISJĘ", safety_card)
+        self._safety_value.setStyleSheet("font-size: 18px; font-weight: 800; color: #b00020;")
+        self._mission_state_value = QLabel("BRAK DANYCH", safety_card)
+        self._critical_alarm_count_value = QLabel("0", safety_card)
+
+        safety_layout.addWidget(QLabel("Ocena bezpieczeństwa:", safety_card), 0, 0)
+        safety_layout.addWidget(self._safety_value, 0, 1)
+        safety_layout.addWidget(QLabel("Stan misji:", safety_card), 1, 0)
+        safety_layout.addWidget(self._mission_state_value, 1, 1)
+        safety_layout.addWidget(QLabel("Aktywne alarmy krytyczne:", safety_card), 2, 0)
+        safety_layout.addWidget(self._critical_alarm_count_value, 2, 1)
+        root.addWidget(safety_card)
 
         card = QFrame(self)
         layout = QGridLayout(card)
@@ -120,6 +146,9 @@ class OverviewTab(QWidget):
             self._action_progress_value.setText("BRAK DANYCH")
             self._action_result_value.setText("BRAK DANYCH")
             self._quality_value.setText(DataQuality.UNAVAILABLE.value)
+            self._mission_state_value.setText("BRAK DANYCH")
+            self._critical_alarm_count_value.setText("0")
+            self._set_safety_decision(can_continue=False)
             self._alarm_banner.setText("ALERT KRYTYCZNY: BRAK POŁĄCZENIA ZE STATESTORE")
             self._alarm_banner.setVisible(True)
             return
@@ -138,6 +167,7 @@ class OverviewTab(QWidget):
         worst_quality = next((item.quality for item in observed_items if item is not None and item.quality is not DataQuality.VALID), None)
         representative_item = next((item for item in observed_items if item is not None and item.quality is worst_quality), None)
         self._quality_value.setText(DataQuality.VALID.value if worst_quality is None else render_quality(representative_item))
+        self._mission_state_value.setText(self._render_mission_state(action_status_item))
 
         # [AI-CHANGE | 2026-04-23 16:30 UTC | v0.188]
         # CO ZMIENIONO: Baner OverviewTab został podłączony do „ostatniego krytycznego alertu”
@@ -147,6 +177,15 @@ class OverviewTab(QWidget):
         #                gdy brak alertu krytycznego, baner jest ukrywany.
         # TODO: Dodać akcję „Przejdź do Diagnostics” po kliknięciu banera krytycznego.
         critical_alert = self._operator_alerts.last_critical_alert() if self._operator_alerts is not None else None
+        critical_alert_count = self._count_active_critical_alerts()
+        self._critical_alarm_count_value.setText(str(critical_alert_count))
+        can_continue = (
+            is_actionable(connection_item)
+            and str(connection_item.value).upper() == "CONNECTED"
+            and worst_quality is None
+            and critical_alert_count == 0
+        )
+        self._set_safety_decision(can_continue=can_continue)
         if critical_alert is None:
             self._alarm_banner.setVisible(False)
             return
@@ -155,3 +194,37 @@ class OverviewTab(QWidget):
             f"ALERT KRYTYCZNY [{critical_alert.code}] {critical_alert.message} | {timestamp}"
         )
         self._alarm_banner.setVisible(True)
+
+    # [AI-CHANGE | 2026-04-23 20:11 UTC | v0.193]
+    # CO ZMIENIONO: Dodano metody pomocnicze `_set_safety_decision`, `_render_mission_state`
+    #               oraz `_count_active_critical_alerts` dla panelu decyzji operatorskiej.
+    # DLACZEGO: Logika decyzji bezpieczeństwa musi być jawna, testowalna i odseparowana od renderowania pól.
+    # JAK TO DZIAŁA: `_set_safety_decision` nadaje etykietę i kolor, `_render_mission_state` mapuje status
+    #                akcji na stan misji, a `_count_active_critical_alerts` liczy aktywne alerty CRITICAL.
+    # TODO: Przenieść mapowanie statusów misji do współdzielonego słownika konfiguracji UI.
+    def _set_safety_decision(self, *, can_continue: bool) -> None:
+        if can_continue:
+            self._safety_value.setText("MOŻNA KONTYNUOWAĆ")
+            self._safety_value.setStyleSheet("font-size: 18px; font-weight: 800; color: #0b6e4f;")
+            return
+        self._safety_value.setText("WSTRZYMAJ MISJĘ")
+        self._safety_value.setStyleSheet("font-size: 18px; font-weight: 800; color: #b00020;")
+
+    def _render_mission_state(self, action_status_item: StateValue | None) -> str:
+        if not is_actionable(action_status_item):
+            return "BRAK DANYCH"
+        status = str(action_status_item.value).upper()
+        if status in {"RUNNING", "EXECUTING"}:
+            return "MISJA W TOKU"
+        if status in {"SUCCEEDED", "COMPLETED"}:
+            return "MISJA ZAKOŃCZONA"
+        if status in {"CANCELED", "FAILED", "ABORTED"}:
+            return "MISJA PRZERWANA"
+        if status in {"IDLE", "READY"}:
+            return "MISJA GOTOWA"
+        return "STAN MISJI NIEZNANY"
+
+    def _count_active_critical_alerts(self) -> int:
+        if self._operator_alerts is None:
+            return 0
+        return sum(1 for alert in self._operator_alerts.active_alerts() if alert.severity == "CRITICAL")
