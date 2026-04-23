@@ -26,7 +26,7 @@ from robot_mission_control.ui.tabs.controls_tab import ControlsTab
 from robot_mission_control.ui.tabs.overview_tab import OverviewTab
 from robot_mission_control.ui.tabs.diagnostics_tab import DiagnosticsTab
 from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
-from robot_mission_control.ui.tabs.state_rendering import render_value
+from robot_mission_control.ui.tabs.state_rendering import is_actionable, render_quality, render_state, render_value
 from robot_mission_control.ui.operator_alerts import OperatorAlerts
 
 
@@ -106,6 +106,102 @@ def test_render_value_uses_fallback_for_non_valid_qualities() -> None:
     assert render_value(unavailable_item) == "BRAK DANYCH"
     assert render_value(stale_item) == "BRAK DANYCH"
     assert render_value(error_item) == "BRAK DANYCH"
+
+
+# [AI-CHANGE | 2026-04-23 21:26 UTC | v0.197]
+# CO ZMIENIONO: Dodano parametryczne testy helperów jakości (`is_actionable`, `render_quality`,
+#               `render_state`) dla pełnego zestawu statusów `VALID/STALE/UNAVAILABLE/ERROR`.
+# DLACZEGO: Kryterium ukończenia wymaga pełnego pokrycia scenariuszy jakości; testy helperów
+#           są bazą bezpieczeństwa dla wszystkich kart korzystających ze wspólnego renderowania.
+# JAK TO DZIAŁA: Test tworzy próbki o każdej jakości i asertywnie sprawdza, że:
+#                - tylko `VALID` jest operacyjne (`is_actionable=True`),
+#                - helpery stanu zwracają dokładny status jakości bez utraty informacji.
+# TODO: Rozszerzyć testy helperów o przypadek lokalizacji napisów (PL/EN) po dodaniu i18n.
+@pytest.mark.parametrize(
+    ("quality", "expected_actionable"),
+    [
+        (DataQuality.VALID, True),
+        (DataQuality.STALE, False),
+        (DataQuality.UNAVAILABLE, False),
+        (DataQuality.ERROR, False),
+    ],
+)
+def test_quality_helpers_cover_all_quality_states(quality: DataQuality, expected_actionable: bool) -> None:
+    _ensure_qapplication()
+    item = StateValue(
+        value="CONNECTED",
+        timestamp=datetime(2026, 4, 23, 21, 26, tzinfo=timezone.utc),
+        source="test",
+        quality=quality,
+        reason_code=None if quality is DataQuality.VALID else "test_reason",
+    )
+
+    assert is_actionable(item) is expected_actionable
+    assert render_quality(item) == quality.value
+    assert render_state(item) == quality.value
+
+
+@pytest.mark.parametrize(
+    ("quality", "expected_value"),
+    [
+        (DataQuality.VALID, "CONNECTED"),
+        (DataQuality.STALE, "BRAK DANYCH"),
+        (DataQuality.UNAVAILABLE, "BRAK DANYCH"),
+        (DataQuality.ERROR, "BRAK DANYCH"),
+    ],
+)
+def test_overview_card_renders_connection_value_per_quality_state(quality: DataQuality, expected_value: str) -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    overview_tab = OverviewTab(window)
+    overview_tab._refresh_timer.stop()
+
+    _set_state(window.state_store, STATE_KEY_ROS_CONNECTION_STATUS, value="CONNECTED", quality=quality)
+    _set_state(window.state_store, STATE_KEY_ACTION_STATUS, value="RUNNING", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ACTION_PROGRESS, value="50%", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ACTION_RESULT, value="pending", quality=DataQuality.VALID)
+
+    overview_tab._refresh_view()
+
+    assert overview_tab._connection_value.text() == expected_value
+    assert overview_tab._quality_value.text() == quality.value
+
+
+@pytest.mark.parametrize(
+    ("quality", "send_enabled", "cancel_enabled", "quick_enabled"),
+    [
+        (DataQuality.VALID, False, True, False),
+        (DataQuality.STALE, False, False, False),
+        (DataQuality.UNAVAILABLE, False, False, False),
+        (DataQuality.ERROR, False, False, False),
+    ],
+)
+def test_controls_tab_button_lock_policy_covers_all_quality_states(
+    quality: DataQuality, send_enabled: bool, cancel_enabled: bool, quick_enabled: bool
+) -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    controls_tab = ControlsTab(window)
+    controls_tab._refresh_timer.stop()
+
+    _set_state(window.state_store, STATE_KEY_ACTION_STATUS, value="RUNNING", quality=quality)
+    _set_state(window.state_store, STATE_KEY_ACTION_GOAL_ID, value="goal-1", quality=quality)
+    _set_state(window.state_store, STATE_KEY_ACTION_PROGRESS, value="42%", quality=quality)
+    _set_state(window.state_store, STATE_KEY_ACTION_RESULT, value="pending", quality=quality)
+    controls_tab._refresh_view()
+
+    assert controls_tab._send_button.isEnabled() is send_enabled
+    assert controls_tab._cancel_button.isEnabled() is cancel_enabled
+    assert controls_tab._quick_buttons["start_patrol"].isEnabled() is quick_enabled
+
+    controls_tab._on_send_goal()
+    controls_tab._on_cancel_goal()
+    controls_tab._on_quick_action("start_patrol")
+
+    expected_cancel_calls = 1 if quality is DataQuality.VALID else 0
+    assert window.send_goal_calls == 0
+    assert window.cancel_goal_calls == expected_cancel_calls
+    assert window.quick_action_calls == []
 
 
 def test_controls_tab_blocks_action_buttons_and_callbacks_when_state_is_unreliable() -> None:
