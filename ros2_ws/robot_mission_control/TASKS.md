@@ -1,9 +1,9 @@
 <!--
-[AI-CHANGE | 2026-04-21 10:52 UTC | v0.172]
-CO ZMIENIONO: Dodano szczegółowy plan dalszych zadań wdrożeniowych dla `robot_mission_control`.
-DLACZEGO: Potrzebna jest bardziej operacyjna rozpiska niż ogólny TODO: z identyfikatorami, zależnościami, estymacją i DoD.
-JAK TO DZIAŁA: Plik grupuje zadania w epiki, definiuje kolejność realizacji i minimalne kryteria akceptacji/testów.
-TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizować status po merge PR.
+[AI-CHANGE | 2026-04-24 12:30 UTC | v0.202]
+CO ZMIENIONO: Rozszerzono backlog o ownera, datę przeglądu i link do PR/ticketu dla każdego zadania oraz dodano cykliczny proces review statusów.
+DLACZEGO: Backlog ma być narzędziem wykonawczym z jednoznaczną odpowiedzialnością i kontrolą realizacji, a nie statyczną listą życzeń.
+JAK TO DZIAŁA: Każde zadanie ma metadane wykonawcze (Owner, Data przeglądu, Link), a sekcja "Cykliczny review statusów" narzuca stały rytm aktualizacji i eskalacji.
+TODO: Zastąpić przykładowe linki do ticketów/PR prawdziwymi adresami z Jira/GitHub oraz zautomatyzować walidację obecności metadanych w CI.
 -->
 
 # TASKS — robot_mission_control
@@ -15,10 +15,24 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 - `BLOCKED` — zadanie zablokowane zależnością.
 - `DONE` — zadanie zakończone i zweryfikowane.
 
+## Cykliczny review statusów
+- Częstotliwość: **co tydzień, wtorek 10:00 UTC**.
+- Wejście: aktualny `Status`, blokery, ryzyka oraz zmiany w `Data przeglądu`.
+- Wyjście:
+  - aktualizacja statusu każdego zadania,
+  - potwierdzenie lub zmiana ownera,
+  - decyzja: kontynuacja / odblokowanie / de-scope / eskalacja.
+- Zasada operacyjna: zadanie bez aktualizacji przez >7 dni automatycznie trafia do flagi `BLOCKED` do czasu review.
+- Moderator review: **Tech Lead Mission Control**.
+- Raport: skrót po review publikowany w `COMMIT_LOG.md` lub w ticketcie epiku.
+
 ## Epic A — Kontrakt i stabilizacja backendu ROS2 Action
 
 ### RMC-ACT-001 — Finalizacja typu Action `MissionStep`
 - Status: `READY`
+- Owner: `@backend_ros`
+- Data przeglądu: `2026-04-28`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/ACT-001`
 - Priorytet: `P0`
 - Estymacja: `2-3 dni`
 - Zależności: brak
@@ -32,6 +46,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 
 ### RMC-ACT-002 — Test serwer-klient Action (end-to-end)
 - Status: `PLANNED`
+- Owner: `@qa_ros`
+- Data przeglądu: `2026-04-28`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/ACT-002`
 - Priorytet: `P0`
 - Estymacja: `2 dni`
 - Zależności: `RMC-ACT-001`
@@ -44,6 +61,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 
 ### RMC-ACT-003 — Walidacja konfiguracji Action backendu
 - Status: `READY`
+- Owner: `@backend_ros`
+- Data przeglądu: `2026-04-29`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/ACT-003`
 - Priorytet: `P1`
 - Estymacja: `1 dzień`
 - Zależności: brak
@@ -59,6 +79,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 
 ### RMC-UI-001 — Mapowanie quality states dla panelu sterowania
 - Status: `READY`
+- Owner: `@ui_ops`
+- Data przeglądu: `2026-04-29`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/UI-001`
 - Priorytet: `P0`
 - Estymacja: `1-2 dni`
 - Zależności: `RMC-ACT-001`
@@ -71,6 +94,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 
 ### RMC-UI-002 — Diagnostyka operatorska reason codes
 - Status: `PLANNED`
+- Owner: `@ui_ops`
+- Data przeglądu: `2026-04-30`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/UI-002`
 - Priorytet: `P1`
 - Estymacja: `1 dzień`
 - Zależności: `RMC-UI-001`
@@ -84,6 +110,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 
 ### RMC-CI-001 — Test launch/install-space
 - Status: `PLANNED`
+- Owner: `@ci_guard`
+- Data przeglądu: `2026-04-30`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/CI-001`
 - Priorytet: `P0`
 - Estymacja: `1 dzień`
 - Zależności: brak
@@ -95,6 +124,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 
 ### RMC-CI-002 — Testy jednostkowe backendu Action (mock rclpy)
 - Status: `READY`
+- Owner: `@qa_ros`
+- Data przeglądu: `2026-05-01`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/CI-002`
 - Priorytet: `P1`
 - Estymacja: `2 dni`
 - Zależności: brak
@@ -108,6 +140,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 
 ### RMC-OPS-001 — Playbook awarii backendu ROS
 - Status: `PLANNED`
+- Owner: `@ops_oncall`
+- Data przeglądu: `2026-05-01`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/OPS-001`
 - Priorytet: `P1`
 - Estymacja: `1 dzień`
 - Zależności: `RMC-UI-002`
@@ -119,6 +154,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 
 ### RMC-OPS-002 — Macierz kompatybilności środowisk
 - Status: `PLANNED`
+- Owner: `@release_mgmt`
+- Data przeglądu: `2026-05-02`
+- Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/OPS-002`
 - Priorytet: `P2`
 - Estymacja: `1 dzień`
 - Zależności: brak
@@ -138,3 +176,9 @@ TODO: Powiązać zadania z realnymi numerami ticketów i automatycznie aktualizo
 7. `RMC-UI-002`
 8. `RMC-OPS-001`
 9. `RMC-OPS-002`
+
+## Definicja skutecznego backlogu (DoD procesu)
+- Każde zadanie ma komplet metadanych: `Status`, `Owner`, `Data przeglądu`, `Link PR/Ticket`.
+- Każdy review tygodniowy kończy się aktualizacją co najmniej jednego z pól wykonawczych (`Status`/`Data przeglądu`/`Owner`).
+- Zadania `DONE` mają podpięty link do merge PR i datę zamknięcia.
+- Backlog służy do sterowania wykonaniem i priorytetyzacją na poziomie sprintu, nie jako pasywna lista pomysłów.
