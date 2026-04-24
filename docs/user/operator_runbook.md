@@ -188,3 +188,63 @@ Każde zgłoszenie incydentu musi zawierać: timestamp, `DataQuality`, `reason_c
 - `Debug`: brak aktywnych flag zaburzających pracę operacyjną.
 
 Jeśli dowolny punkt jest niespełniony, domyślna decyzja to **NO-GO**.
+
+<!--
+[AI-CHANGE | 2026-04-24 12:17 UTC | v0.204]
+CO ZMIENIONO: Dodano gotowe do użycia scenariusze incydentowe z jasną sekwencją: detekcja, reakcja operatora, kryteria eskalacji oraz procedury rollback.
+DLACZEGO: Stanowisko operatorskie wymaga szybkiej, jednoznacznej instrukcji działania pod presją czasu, bez potrzeby interpretacji kilku dokumentów naraz.
+JAK TO DZIAŁA: Operator wybiera scenariusz z tabeli, wykonuje kroki w podanej kolejności i kończy incydent dopiero po spełnieniu kryteriów wyjścia; rollback przywraca stan bezpieczny zamiast wymuszać niepewne detekcje.
+TODO: Dodać identyfikatory zgłoszeń (np. INC-001..INC-00N) zsynchronizowane z systemem ticketowym i automatyczny generator checklisty dla zmiany dyżuru.
+-->
+
+## Scenariusze incydentowe — reakcja, eskalacja, rollback (wersja stanowiskowa)
+
+> **Instrukcja użycia:** znajdź pierwszy pasujący symptom, wykonaj kroki „Reakcja operatora”, a następnie „Eskalacja” i „Rollback”.
+> Jeśli występuje kilka symptomów jednocześnie, realizuj scenariusz o **wyższym ryzyku** (`FAIL_SAFE` > `TIME_DESYNC` > `SENSOR_TIMEOUT` > degradacja jakości).
+
+### Macierz decyzyjna (skrót 60-sekundowy)
+
+| Scenariusz | Symptomy wejściowe | Reakcja operatora (0–2 min) | Eskalacja | Rollback do stanu bezpiecznego | Kryterium zamknięcia |
+|---|---|---|---|---|---|
+| **INC-01: Brak detekcji mimo aktywnych wejść** | Brak nowych wyników, wejścia `RGB/Depth` aktywne, rosnący licznik odrzuceń | 1) Potwierdź `DataQuality` i `reason_code`.<br>2) Jeśli `UNCERTAIN/BAD/MISSING` — utrzymaj blokadę publikacji.<br>3) Zapisz snapshot z `Overview`, `Telemetry`, `Diagnostics`. | Eskaluj do L2 po **10 min** ciągłej niedostępności wyniku lub gdy `reason_code` zmienia się niestabilnie między próbkami. | 1) Przełącz pipeline na tryb bazowy (bez rozszerzeń).<br>2) Restart tylko warstwy percepcji, bez resetu całego stosu.<br>3) Zweryfikuj pierwsze 20 próbek; publikuj tylko `GOOD`. | 20 kolejnych próbek z `DataQuality=GOOD` i stabilna świeżość tematów. |
+| **INC-02: `TIME_DESYNC`** | Alarm desynchronizacji czasu, niespójne znaczniki między sensorami | 1) Natychmiast oznacz system `NO-GO` dla automatyki.<br>2) Wstrzymaj akcje zależne od percepcji.<br>3) Uruchom zapis bag z oknem incydentu. | Eskaluj natychmiast do L2 (infrastruktura czasu); do L3 po **15 min**, jeśli offset nie wraca do progu operacyjnego. | 1) Przywróć źródło czasu referencyjnego (NTP/PTP wg konfiguracji).<br>2) Wznów strumienie i odczekaj okno stabilizacji.<br>3) Zweryfikuj trend odrzuceń przed zdjęciem `NO-GO`. | Brak alarmów `TIME_DESYNC` przez minimum 5 min + brak skoków opóźnień. |
+| **INC-03: `FAIL_SAFE`** | Globalny status `FAIL_SAFE`, odcięcie automatyki, krytyczne błędy | 1) Przejdź na sterowanie ręczne/procedurę awaryjną.<br>2) Zablokuj publikację wszystkich wyników detekcji.<br>3) Zabezpiecz artefakty: logi, metryki, bag. | Eskaluj **natychmiast** do Incident Commander + L2/L3; wymagaj potwierdzenia przyjęcia zgłoszenia. | 1) Przywróć ostatnią znaną stabilną konfigurację (`golden config`).<br>2) Wykonaj kontrolowany restart komponentów wg kolejności zależności.<br>3) Przeprowadź testy sanity przed odblokowaniem automatyki. | Formalny `GO` od dyżuru technicznego + pozytywny sanity check całego pipeline. |
+| **INC-04: `SENSOR_TIMEOUT`** | Brak próbek z jednego sensora, heartbeat niestabilny | 1) Potwierdź, czy problem dotyczy sensora czy transportu.<br>2) Odrzuć próbki zależne od brakującego źródła.<br>3) Oznacz obszar obserwacji jako niepewny. | Eskaluj do L2 po **5 min** timeoutu lub natychmiast, jeśli timeout dotyczy sensora krytycznego dla bezpieczeństwa. | 1) Przełącz na redundancję (jeśli dostępna).<br>2) Restart pojedynczego drivera sensora.<br>3) Powrót do pełnej fuzji dopiero po stabilnym heartbeat. | Stabilny heartbeat i kompletność ramek przez 3 kolejne okna kontrolne. |
+| **INC-05: Degradacja jakości obrazu/głębi** | Artefakty, prześwietlenie, „dziury” w depth, spadek ostrości | 1) Oznacz próbki jako `UNCERTAIN`.<br>2) Wyklucz automatyczne decyzje na tych próbkach.<br>3) Sprawdź czy degradacja lokalna czy globalna. | Eskaluj do L2, gdy degradacja trwa > 10 min lub wpływa na >30% próbek w oknie kontrolnym. | 1) Powrót do zapisanych parametrów kamery/sensora.<br>2) Wyłączenie niestabilnych rozszerzeń obrazu.<br>3) Weryfikacja jakości na referencyjnej planszy/test pattern. | Udział odrzuceń spada poniżej progu operacyjnego i utrzymuje trend malejący. |
+
+### Drabina eskalacji (role i SLA)
+
+1. **L1 Operator (stanowisko):** triage, zabezpieczenie dowodów, uruchomienie rollbacku lokalnego.
+2. **L2 Inżynier dyżurny:** diagnostyka przyczynowa, decyzja o zmianie konfiguracji runtime.
+3. **L3 Owner komponentu/architekt:** zmiany strukturalne, hotfix, decyzja o czasowym ograniczeniu funkcji.
+4. **Incident Commander:** koordynacja komunikacji i decyzja o wznowieniu automatyki po `FAIL_SAFE`.
+
+**SLA potwierdzenia eskalacji:**
+- Krytyczne (`FAIL_SAFE`, bezpieczeństwo): potwierdzenie w ciągu **5 min**.
+- Wysokie (`TIME_DESYNC`, krytyczny timeout): **10 min**.
+- Średnie (degradacja jakości bez ryzyka bezpieczeństwa): **30 min**.
+
+### Standard rollback — checklista wykonawcza
+
+1. Ustaw status operacyjny na `NO-GO`.
+2. Zatrzymaj publikację detekcji (priorytet: brak błędnych danych).
+3. Zabezpiecz artefakty incydentu: logi + metryki + rosbag + znacznik czasu UTC.
+4. Przywróć ostatnią stabilną konfigurację (`golden config` / profil bazowy).
+5. Restartuj tylko wymagane komponenty, od najniższej warstwy zależności.
+6. Uruchom test sanity (wejścia, synchronizacja czasu, status backendu akcji).
+7. Odblokuj publikację dopiero przy spełnionym kryterium zamknięcia scenariusza.
+8. Zaktualizuj wpis incydentu i przekaż status na zmianę/dyżur.
+
+### Minimalny format wpisu incydentu (do dziennika operatora)
+
+- `timestamp_utc`: `YYYY-MM-DD HH:MM:SS`
+- `incident_id`: identyfikator lokalny zmiany
+- `scenario`: `INC-01..INC-05`
+- `data_quality`: `GOOD/UNCERTAIN/BAD/MISSING`
+- `reason_code`: np. `TIME_DESYNC`, `SENSOR_TIMEOUT`
+- `actions_taken`: lista wykonanych kroków
+- `escalation_level`: `L1/L2/L3/IC`
+- `rollback_status`: `NOT_REQUIRED/IN_PROGRESS/DONE`
+- `closure_decision`: `GO/NO-GO`
+
+> **Reguła końcowa:** jeżeli po rollbacku pozostaje niepewność diagnostyczna, utrzymaj `NO-GO` i brak publikacji detekcji do czasu decyzji L2/L3.
