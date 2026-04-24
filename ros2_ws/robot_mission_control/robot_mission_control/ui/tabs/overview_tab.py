@@ -17,7 +17,7 @@ from robot_mission_control.core import (
     StateValue,
 )
 from robot_mission_control.ui.operator_alerts import OperatorAlerts
-from .state_rendering import is_actionable, render_quality, render_value
+from .state_rendering import is_actionable, render_card_value_with_warning, render_quality
 
 
 # [AI-CHANGE | 2026-04-23 12:55 UTC | v0.180]
@@ -140,14 +140,13 @@ class OverviewTab(QWidget):
         window = parent.window() if parent is not None else None
         return getattr(window, "operator_alerts", None)
 
-    # [AI-CHANGE | 2026-04-23 14:15 UTC | v0.187]
-    # CO ZMIENIONO: Usunięto lokalny helper fallbacków i podpięto wspólne funkcje
-    #               `render_value` / `render_quality` z modułu `state_rendering`.
-    # DLACZEGO: Jedno źródło prawdy eliminuje duplikację i wymusza jednolite bramkowanie jakości
-    #           we wszystkich zakładkach operacyjnych.
-    # JAK TO DZIAŁA: Widok renderuje wartości przez wspólny helper, który zwraca fallback dla każdego
-    #                stanu nie-VALID, więc operator nie zobaczy wartości operacyjnej z niepewnej próbki.
-    # TODO: Ujednolicić ranking „worst_quality” przez centralny helper z priorytetami jakości.
+    # [AI-CHANGE | 2026-04-24 10:20 UTC | v0.200]
+    # CO ZMIENIONO: Wprowadzono renderowanie pól kart Overview z jawnym ostrzeżeniem i reason_code
+    #               dla wszystkich próbek, których `quality != VALID`.
+    # DLACZEGO: DoD wymaga braku ścieżki, w której niepewne dane wyglądają jak operacyjne.
+    # JAK TO DZIAŁA: Dla niepewnych próbek helper zwraca `⚠ BRAK DANYCH | reason_code=...`,
+    #                a dla jakości VALID renderuje rzeczywistą wartość bez dodatkowych adnotacji.
+    # TODO: Dodać ikonę ostrzegawczą obok etykiety jakości i tooltip z pełnym kontekstem diagnostycznym.
     def _refresh_view(self) -> None:
         if self._state_store is None:
             self._connection_value.setText("ROZŁĄCZONY")
@@ -167,10 +166,10 @@ class OverviewTab(QWidget):
         action_progress_item = self._state_store.get(STATE_KEY_ACTION_PROGRESS)
         action_result_item = self._state_store.get(STATE_KEY_ACTION_RESULT)
 
-        self._connection_value.setText(render_value(connection_item, fallback="ROZŁĄCZONY"))
-        self._action_status_value.setText(render_value(action_status_item, fallback="BRAK DANYCH"))
-        self._action_progress_value.setText(render_value(action_progress_item, fallback="BRAK DANYCH"))
-        self._action_result_value.setText(render_value(action_result_item, fallback="BRAK DANYCH"))
+        self._connection_value.setText(render_card_value_with_warning(connection_item, fallback="BRAK DANYCH"))
+        self._action_status_value.setText(render_card_value_with_warning(action_status_item, fallback="BRAK DANYCH"))
+        self._action_progress_value.setText(render_card_value_with_warning(action_progress_item, fallback="BRAK DANYCH"))
+        self._action_result_value.setText(render_card_value_with_warning(action_result_item, fallback="BRAK DANYCH"))
 
         observed_items = [connection_item, action_status_item, action_progress_item, action_result_item]
         worst_quality = next((item.quality for item in observed_items if item is not None and item.quality is not DataQuality.VALID), None)
@@ -221,7 +220,7 @@ class OverviewTab(QWidget):
 
     def _render_mission_state(self, action_status_item: StateValue | None) -> str:
         if not is_actionable(action_status_item):
-            return "BRAK DANYCH"
+            return render_card_value_with_warning(action_status_item, fallback="BRAK DANYCH")
         status = str(action_status_item.value).upper()
         if status in {"RUNNING", "EXECUTING"}:
             return "MISJA W TOKU"

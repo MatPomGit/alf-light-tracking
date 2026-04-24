@@ -22,7 +22,7 @@ from robot_mission_control.core import (
     STATE_KEY_ACTION_STATUS,
     StateStore,
 )
-from .state_rendering import is_actionable, render_value
+from .state_rendering import is_actionable, render_card_value_with_warning, render_value
 
 
 # [AI-CHANGE | 2026-04-21 05:21 UTC | v0.163]
@@ -177,28 +177,28 @@ class ControlsTab(QWidget):
             quick_fn(command_key)
         self._refresh_view()
 
-    # [AI-CHANGE | 2026-04-23 17:10 UTC | v0.192]
-    # CO ZMIENIONO: Przełączono lokalne renderowanie wartości ControlsTab na wspólne helpery
-    #               `is_actionable` + `render_value` z modułu `state_rendering`.
-    # DLACZEGO: Dzięki temu karta współdzieli tę samą regułę bezpieczeństwa co pozostałe widoki:
-    #           żadna wartość operacyjna nie pojawia się dla quality różnego od VALID.
-    # JAK TO DZIAŁA: Dla `None` i każdego stanu jakości != VALID funkcja zwraca fallback;
-    #                tylko próbka operacyjna (VALID + value) przechodzi do widoku.
-    # TODO: Rozważyć zwrot rozszerzonej struktury (value + state), żeby łatwiej kolorować statusy.
-    def _render_store_value(self, key: str, *, fallback: str = "BRAK DANYCH") -> str:
+    # [AI-CHANGE | 2026-04-24 10:20 UTC | v0.200]
+    # CO ZMIENIONO: Rozszerzono `_render_store_value` o zwrot krotki `(display_text, actionable)`,
+    #               gdzie tekst dla `quality != VALID` zawiera ostrzeżenie i `reason_code`.
+    # DLACZEGO: Kontrolki i logika przycisków nie mogą opierać się na porównaniu do samego stringa
+    #           `BRAK DANYCH`; wymagamy jawnego sygnału jakości i twardej flagi operacyjności.
+    # JAK TO DZIAŁA: Dla próbki operacyjnej zwracana jest wartość + `True`; dla braku/niepewnej
+    #                próbki zwracany jest tekst `⚠ BRAK DANYCH | reason_code=...` (lub fallback) + `False`.
+    # TODO: Wynieść wynik do dataclass `RenderedState`, aby ujednolicić API pomiędzy wszystkimi kartami.
+    def _render_store_value(self, key: str, *, fallback: str = "BRAK DANYCH") -> tuple[str, bool]:
         if self._state_store is None:
-            return fallback
+            return fallback, False
 
         item = self._state_store.get(key)
         if not is_actionable(item):
-            return fallback
-        return render_value(item, fallback=fallback)
+            return render_card_value_with_warning(item, fallback=fallback), False
+        return render_value(item, fallback=fallback), True
 
     def _refresh_view(self) -> None:
-        status = self._render_store_value(STATE_KEY_ACTION_STATUS)
-        goal_id = self._render_store_value(STATE_KEY_ACTION_GOAL_ID)
-        progress_text = self._render_store_value(STATE_KEY_ACTION_PROGRESS)
-        result = self._render_store_value(STATE_KEY_ACTION_RESULT)
+        status, status_ok = self._render_store_value(STATE_KEY_ACTION_STATUS)
+        goal_id, goal_id_ok = self._render_store_value(STATE_KEY_ACTION_GOAL_ID)
+        progress_text, _progress_ok = self._render_store_value(STATE_KEY_ACTION_PROGRESS)
+        result, _result_ok = self._render_store_value(STATE_KEY_ACTION_RESULT)
 
         self._status_value.setText(status)
         self._goal_id_value.setText(goal_id)
@@ -210,7 +210,7 @@ class ControlsTab(QWidget):
         # JAK TO DZIAŁA: Przycisk anulowania pozostaje aktywny dla faz przejściowych `ACCEPTED`, `RUNNING`
         #                i `CANCEL_REQUESTED`, kiedy goal_id nadal istnieje w StateStore.
         # TODO: Dodać mapowanie kolorów statusu w kontrolce tak, aby operator szybciej odróżniał fazy przejściowe.
-        goal_active = goal_id != "BRAK DANYCH" and status in {
+        goal_active = goal_id_ok and status_ok and status in {
             ActionStatusLabel.ACCEPTED.value,
             ActionStatusLabel.RUNNING.value,
             ActionStatusLabel.CANCEL_REQUESTED.value,
@@ -222,7 +222,7 @@ class ControlsTab(QWidget):
         # JAK TO DZIAŁA: `reliable_state` jest True tylko wtedy, gdy status i goal_id po renderowaniu
         #                nie są fallbackiem; w przeciwnym razie send/cancel/quick actions są disabled.
         # TODO: Wynieść wyliczanie `reliable_state` do wspólnego helpera dla wszystkich paneli akcji.
-        reliable_state = status != "BRAK DANYCH" and goal_id != "BRAK DANYCH"
+        reliable_state = status_ok and goal_id_ok
         self._send_button.setEnabled(reliable_state and not goal_active)
         self._cancel_button.setEnabled(reliable_state and goal_active)
         for button in self._quick_buttons.values():

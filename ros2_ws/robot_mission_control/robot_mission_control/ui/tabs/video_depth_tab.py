@@ -6,7 +6,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QGridLayout, QGroupBox, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from robot_mission_control.core import DataQuality, StateStore, StateValue
-from .state_rendering import render_state
+from .state_rendering import render_card_value_with_warning, render_state
 
 STATE_KEY_VIDEO_STREAM_STATUS = "video_stream_status"
 STATE_KEY_DEPTH_STREAM_STATUS = "depth_stream_status"
@@ -104,14 +104,20 @@ class VideoDepthTab(QWidget):
             return bridged_store
         return None
 
+    # [AI-CHANGE | 2026-04-24 10:20 UTC | v0.200]
+    # CO ZMIENIONO: `_render_stream_status` pokazuje teraz jawne ostrzeżenie i `reason_code`
+    #               dla każdej próbki o jakości różnej od `VALID`.
+    # DLACZEGO: Status strumieni jest kartą operacyjną, więc niepewna próbka nie może wyglądać
+    #           jak normalny stan (`CONNECTED`/`STALE`) bez wyraźnego ostrzeżenia.
+    # JAK TO DZIAŁA: Dla quality != VALID zwracany jest tekst `⚠ BRAK DANYCH | reason_code=...`;
+    #                mapowanie `CONNECTED/STALE` działa wyłącznie dla próbek operacyjnych.
+    # TODO: Dodać dodatkowe pole z wiekiem próbki (age_ms), aby łatwiej diagnozować przeterminowanie.
     def _render_stream_status(self, item: StateValue | None) -> str:
         """Mapuje stan ze Store na bezpieczne wartości operatorskie."""
         if item is None:
             return "BRAK DANYCH"
-        if item.quality is DataQuality.STALE:
-            return "STALE"
         if item.quality is not DataQuality.VALID or item.value is None:
-            return "BRAK DANYCH"
+            return render_card_value_with_warning(item)
 
         normalized = str(item.value).strip().upper()
         if normalized == "CONNECTED":

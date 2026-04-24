@@ -30,6 +30,23 @@ def render_value(item: StateValue | None, fallback: str = "BRAK DANYCH") -> str:
     return str(item.value)
 
 
+# [AI-CHANGE | 2026-04-24 10:20 UTC | v0.200]
+# CO ZMIENIONO: Dodano helper `render_card_value_with_warning`, który dla jakości != VALID
+#               renderuje jednoznaczny komunikat operatorski: ostrzeżenie + `BRAK DANYCH` + `reason_code`.
+# DLACZEGO: Karty UI muszą jawnie sygnalizować niepewną próbkę i nie mogą wyglądać jak stan operacyjny.
+# JAK TO DZIAŁA: Dla próbki `VALID` funkcja zwraca normalną wartość; dla braku próbki zwraca fallback,
+#                a dla jakości różnej od `VALID` buduje tekst `⚠ BRAK DANYCH | reason_code=...`.
+# TODO: Dodać lokalizację poziomów ostrzeżeń i mapowanie `reason_code` na komunikaty operatorskie.
+def render_card_value_with_warning(item: StateValue | None, fallback: str = "BRAK DANYCH") -> str:
+    """Renderuje wartość dla kart z wymuszonym ostrzeżeniem przy jakości != VALID."""
+    if item is None:
+        return fallback
+    if is_actionable(item):
+        return str(item.value)
+    reason_code = item.reason_code or "UNKNOWN_REASON"
+    return f"⚠ {fallback} | reason_code={reason_code}"
+
+
 def render_quality(item: StateValue | None) -> str:
     """Renderuje jakość próbki w postaci etykiety tekstowej."""
     if item is None:
