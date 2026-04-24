@@ -1,0 +1,6 @@
+# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
+# CO ZMIENIONO: Dodano dedykowany zestaw zależności runtime dla warstwy core/ROS.
+# DLACZEGO: Chcemy utrzymać minimalny zestaw bibliotek potrzebny do testów i uruchomień headless.
+# JAK TO DZIAŁA: Plik zawiera wyłącznie komponenty backendowe wymagane przez moduły `core` i `ros`.
+# TODO: Rozdzielić w przyszłości zależności stricte ROS od narzędzi pomocniczych backendu.
+PyYAML>=6.0

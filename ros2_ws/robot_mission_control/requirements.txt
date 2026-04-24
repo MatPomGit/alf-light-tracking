@@ -1,7 +1,6 @@
-# [AI-CHANGE | 2026-04-21 10:19 UTC | v0.168]
-# CO ZMIENIONO: Dodano jawny plik zależności runtime pakietu operatorskiego.
-# DLACZEGO: Operator i CI potrzebują jednej listy bibliotek do instalacji poza mechanizmem ROS2.
-# JAK TO DZIAŁA: `pip install -r requirements.txt` instaluje dokładnie biblioteki wymagane do uruchomienia UI/bridge.
-# TODO: Dodać pinowanie wersji z hashami (`--require-hashes`) dla środowisk produkcyjnych.
-PySide6>=6.7
-PyYAML>=6.0
+# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
+# CO ZMIENIONO: `requirements.txt` ustawiono jako profil headless (core/ROS) bez GUI.
+# DLACZEGO: Backendowe testy CI muszą działać bez PySide6 i bez sztucznych obejść środowiska.
+# JAK TO DZIAŁA: Plik deleguje do `requirements-core.txt`, a GUI instalujemy osobno z `requirements-ui.txt`.
+# TODO: Dodać skrypt bootstrapu, który automatycznie wybiera profil `core` lub `ui` zależnie od roli środowiska.
+-r requirements-core.txt

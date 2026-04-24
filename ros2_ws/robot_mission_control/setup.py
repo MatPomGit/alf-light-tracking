@@ -15,10 +15,15 @@ package_name = "robot_mission_control"
 # DLACZEGO: Jedno źródło prawdy dla zależności minimalizuje ryzyko rozjazdu między pip i instalacją przez ROS2.
 # JAK TO DZIAŁA: Funkcja `_read_requirements` filtruje komentarze/puste linie, a wynik trafia do `install_requires`.
 # TODO: Rozdzielić zależności GUI i headless na extras, aby ułatwić testy bez środowiska graficznego.
-def _read_requirements() -> list[str]:
-    requirements_path = Path(__file__).resolve().parent / "requirements.txt"
+# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
+# CO ZMIENIONO: Uogólniono loader zależności tak, aby czytać osobne pliki dla runtime core oraz extras UI.
+# DLACZEGO: Rozdzielenie pakietów umożliwia uruchamianie testów backendowych bez instalacji PySide6.
+# JAK TO DZIAŁA: Funkcja przyjmuje nazwę pliku, filtruje puste linie/komentarze i zwraca listę do `install_requires` lub `extras_require`.
+# TODO: Dodać walidację wykrywającą cykliczne odwołania `-r` przy przyszłej rozbudowie plików requirements.
+def _read_requirements(filename: str) -> list[str]:
+    requirements_path = Path(__file__).resolve().parent / filename
     if not requirements_path.exists():
-        return ["setuptools"]
+        return []
 
     parsed: list[str] = []
     for line in requirements_path.read_text(encoding="utf-8").splitlines():
@@ -26,7 +31,7 @@ def _read_requirements() -> list[str]:
         if not normalized or normalized.startswith("#"):
             continue
         parsed.append(normalized)
-    return ["setuptools", *parsed]
+    return parsed
 
 
 setup(
@@ -35,11 +40,17 @@ setup(
     packages=find_packages(include=[package_name, package_name + ".*"]),
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
-        ("share/" + package_name, ["package.xml", "README.md", "requirements.txt"]),
+        ("share/" + package_name, ["package.xml", "README.md", "requirements.txt", "requirements-core.txt", "requirements-ui.txt"]),
         ("share/" + package_name + "/launch", ["launch/mission_control.launch.py"]),
         ("share/" + package_name + "/config", ["config/default.yaml", "config/action_backend.yaml"]),
     ],
-    install_requires=_read_requirements(),
+# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
+    # CO ZMIENIONO: Bazowe zależności instalacyjne przeniesiono do `requirements-core.txt` i dodano extra `ui`.
+    # DLACZEGO: Instalacja pod testy core/ROS nie powinna wymagać bibliotek GUI.
+    # JAK TO DZIAŁA: `install_requires` ładuje tylko backend, a `extras_require["ui"]` dodaje PySide6 dla aplikacji desktopowej.
+    # TODO: Dodać extra `ci` agregujące zestaw headless + narzędzia raportowania pokrycia.
+    install_requires=["setuptools", *_read_requirements("requirements-core.txt")],
+    extras_require={"ui": _read_requirements("requirements-ui.txt")},
     # [AI-CHANGE | 2026-04-23 14:44 UTC | v0.189]
     # CO ZMIENIONO: Dodano `package_data` i `include_package_data`, aby dystrybuować asset logo UI.
     # DLACZEGO: Bez jawnego dołączenia plików nie-pythonowych logo nie trafi do instalacji pakietu ROS2.
