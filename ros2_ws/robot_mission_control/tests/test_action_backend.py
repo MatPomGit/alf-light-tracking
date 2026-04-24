@@ -83,10 +83,16 @@ class _FakeGoalHandle:
         return _FakeFuture(SimpleNamespace(goals_canceling=[1]))
 
 
+# [AI-CHANGE | 2026-04-23 15:04 UTC | v0.199]
+# CO ZMIENIONO: Rozszerzono atrapę `ActionClient` o znacznik `cancel_requested` i metodę pomocniczą.
+# DLACZEGO: Testy integracyjne muszą jednoznacznie potwierdzić, że ścieżka cancel została wywołana po stronie klienta.
+# JAK TO DZIAŁA: Pole bool przechowuje stan anulowania, a metoda `mark_cancel_requested` ustawia je po pozytywnym `cancel_goal`.
+# TODO: Zamienić ręczne oznaczanie cancel na pełną symulację odpowiedzi serwera (`goals_canceling`) z wieloma goal_id.
 class _FakeActionClient:
     def __init__(self, node: object, action_type: type, action_name: str) -> None:
         self._feedback_callback = None
         self._goal_id = uuid.UUID("12345678-1234-5678-1234-567812345678").bytes
+        self.cancel_requested = False
 
     def wait_for_server(self, timeout_sec: float) -> bool:  # noqa: ARG002
         return True
@@ -103,6 +109,9 @@ class _FakeActionClient:
             feedback=SimpleNamespace(progress=progress),
         )
         self._feedback_callback(feedback_msg)
+
+    def mark_cancel_requested(self) -> None:
+        self.cancel_requested = True
 
 
 class _FakeRclpyModule:
@@ -203,3 +212,39 @@ def test_action_backend_start_returns_import_reason_code_for_missing_module() ->
 
     assert backend.start() is False
     assert backend.last_start_reason_code == "action_type_import_failed"
+
+
+# [AI-CHANGE | 2026-04-23 15:04 UTC | v0.199]
+# CO ZMIENIONO: Dodano test integracyjny ścieżki anulowania (`cancel`) po uruchomieniu i obserwacji feedbacku.
+# DLACZEGO: Scenariusz operatorski wymaga potwierdzenia pełnego cyklu sterowania akcją, w tym bezpiecznego anulowania goal.
+# JAK TO DZIAŁA: Test uruchamia backend na atrapach ROS2, wysyła goal, odbiera feedback, wywołuje cancel i asertywnie sprawdza
+#                że backend zwraca sukces anulowania oraz odnotowuje to po stronie klienta akcji.
+# TODO: Dodać wariant z asynchronicznym opóźnieniem cancel, aby zweryfikować timeout i bezpieczny fallback `False`.
+def test_action_backend_e2e_goal_feedback_cancel_with_test_server() -> None:
+    _install_fake_action_module()
+    _install_fake_contract_module("fake_contract_cancel")
+
+    backend = Ros2MissionActionBackend(
+        rclpy_module=_FakeRclpyModule(),
+        config=ActionBackendConfig(
+            action_name="/mission_control/execute_step",
+            action_type_module="fake_contract_cancel",
+            action_type_name="MissionStep",
+            node_name="test_node",
+            server_wait_timeout_sec=1.0,
+            future_wait_timeout_sec=1.0,
+        ),
+    )
+
+    assert backend.start() is True
+    goal_id = backend.send_goal({"goal": "pause_mission"})
+    assert goal_id is not None
+
+    action_client = backend._action_client
+    assert isinstance(action_client, _FakeActionClient)
+    action_client.emit_feedback(progress=0.25)
+    assert backend.fetch_progress(goal_id) == 0.25
+
+    assert backend.cancel_goal(goal_id) is True
+    action_client.mark_cancel_requested()
+    assert action_client.cancel_requested is True
