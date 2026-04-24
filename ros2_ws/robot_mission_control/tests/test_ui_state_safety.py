@@ -363,16 +363,54 @@ def test_diagnostics_tab_renders_problem_rows_with_cause_source_and_timestamp() 
 
     diagnostics_tab._refresh_view()
 
+    # [AI-CHANGE | 2026-04-24 12:10 UTC | v0.203]
+    # CO ZMIENIONO: Zaktualizowano asercje kolumn DiagnosticsTab po dodaniu pól „co to znaczy”
+    #               i „co zrobić”, które przesuwają indeks kolumny czasu.
+    # DLACZEGO: Test musi pilnować nowego układu tabeli oraz bezpiecznego fallbacku dla nieznanych kodów.
+    # JAK TO DZIAŁA: Asercje sprawdzają obecność fallbacku podpowiedzi operatorskich oraz timestamp w kolumnie 6.
+    # TODO: Rozszerzyć asercje o walidację kolumny „Klucz”, aby pełniej zabezpieczyć regresję układu tabeli.
     assert diagnostics_tab._issues_table.rowCount() == 2
     assert diagnostics_tab._issues_table.item(0, 0).text() == "CRITICAL"
     assert diagnostics_tab._issues_table.item(0, 1).text() == "ros_bridge"
     assert diagnostics_tab._issues_table.item(0, 2).text() == "transport_failure"
-    assert diagnostics_tab._issues_table.item(0, 4).text() == "2026-04-23 21:08:00 UTC"
+    assert diagnostics_tab._issues_table.item(0, 3).text() == "Kod nie ma jeszcze opisu operatorskiego."
+    assert diagnostics_tab._issues_table.item(0, 4).text().startswith("Wstrzymaj ryzykowne działania")
+    assert diagnostics_tab._issues_table.item(0, 6).text() == "2026-04-23 21:08:00 UTC"
 
     assert diagnostics_tab._issues_table.item(1, 0).text() == "MEDIUM"
     assert diagnostics_tab._issues_table.item(1, 1).text() == "action_client"
     assert diagnostics_tab._issues_table.item(1, 2).text() == "timeout"
-    assert diagnostics_tab._issues_table.item(1, 4).text() == "2026-04-23 21:07:00 UTC"
+    assert diagnostics_tab._issues_table.item(1, 6).text() == "2026-04-23 21:07:00 UTC"
+
+
+# [AI-CHANGE | 2026-04-24 12:10 UTC | v0.203]
+# CO ZMIENIONO: Dodano test mapowania najczęstszego kodu `stale_data` na sekcje „co to znaczy”
+#               oraz „co zrobić” w tabeli DiagnosticsTab.
+# DLACZEGO: To zabezpiecza DoD, że operator dostaje gotową instrukcję działania bez zaglądania do logów.
+# JAK TO DZIAŁA: Test publikuje próbkę ze `stale_data`, odświeża kartę i asertywnie sprawdza oba pola podpowiedzi.
+# TODO: Dodać test parametryczny dla kolejnych kodów (np. heartbeat_missing, reconnect_failed, MC_CFG_001).
+def test_diagnostics_tab_renders_operator_meaning_and_action_for_common_code() -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    diagnostics_tab = DiagnosticsTab(window)
+    diagnostics_tab._refresh_timer.stop()
+
+    window.state_store.set(
+        STATE_KEY_ACTION_STATUS,
+        StateValue(
+            value="RUNNING",
+            timestamp=datetime(2026, 4, 24, 12, 10, tzinfo=timezone.utc),
+            source="action_client",
+            quality=DataQuality.STALE,
+            reason_code="stale_data",
+        ),
+    )
+
+    diagnostics_tab._refresh_view()
+
+    assert diagnostics_tab._issues_table.rowCount() == 1
+    assert "Dane są przeterminowane" in diagnostics_tab._issues_table.item(0, 3).text()
+    assert "Wstrzymaj akcje zależne" in diagnostics_tab._issues_table.item(0, 4).text()
 
 def test_rosbag_tab_blocks_buttons_and_skips_callbacks_for_unreliable_state() -> None:
     _ensure_qapplication()
