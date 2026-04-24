@@ -71,8 +71,8 @@ class _FakeWrappedResult:
 
 
 class _FakeGoalHandle:
-    def __init__(self, goal_id_bytes: bytes, wrapped_result: _FakeWrappedResult) -> None:
-        self.accepted = True
+    def __init__(self, goal_id_bytes: bytes, wrapped_result: _FakeWrappedResult, *, accepted: bool = True) -> None:
+        self.accepted = accepted
         self.goal_id = SimpleNamespace(uuid=goal_id_bytes)
         self._wrapped_result = wrapped_result
 
@@ -128,9 +128,89 @@ class _FakeRclpyModule:
         return
 
 
+# [AI-CHANGE | 2026-04-24 12:03 UTC | v0.202]
+# CO ZMIENIONO: Dodano konfigurowalne atrapy runtime Action do scenariuszy awaryjnych:
+#               brak serwera, timeout future, reject goal, brak feedback i brak result.
+# DLACZEGO: DoD wymaga wysokiej pewności mapowania jakości i reason_code w warunkach awarii,
+#           więc testy muszą symulować każdy krytyczny wariant transportu Action.
+# JAK TO DZIAŁA: `_ScenarioFakeActionClient` steruje zachowaniem przez słownik scenariusza,
+#                a `_ScenarioFakeRclpyModule` może wymusić niedokończenie future; backend ma wtedy
+#                zwracać bezpieczne `None`/`False` zamiast danych mogących wprowadzić operatora w błąd.
+# TODO: Rozszerzyć scenariusze o niespójne typy payloadu result i walidację serializacji pól zagnieżdżonych.
+class _ScenarioFakeActionClient(_FakeActionClient):
+    scenario: dict[str, Any] = {}
+
+    def wait_for_server(self, timeout_sec: float) -> bool:  # noqa: ARG002
+        return bool(self.scenario.get("server_available", True))
+
+    def send_goal_async(self, goal_msg: object, feedback_callback: Any) -> _FakeFuture:  # noqa: ARG002
+        self._feedback_callback = feedback_callback
+        wrapped_result = _FakeWrappedResult(
+            status=int(self.scenario.get("result_status_code", 4)),
+            result=_FakeResultMessage(outcome=str(self.scenario.get("result_outcome", "ok"))),
+        )
+        goal_handle = _FakeGoalHandle(
+            self._goal_id,
+            wrapped_result,
+            accepted=bool(self.scenario.get("goal_accepted", True)),
+        )
+        return _FakeFuture(goal_handle, done=bool(self.scenario.get("goal_future_done", True)))
+
+    def emit_feedback(self, progress: float) -> None:
+        if self.scenario.get("feedback_missing", False):
+            return
+        super().emit_feedback(progress)
+
+
+class _ScenarioFakeGoalHandle(_FakeGoalHandle):
+    scenario: dict[str, Any] = {}
+
+    def get_result_async(self) -> _FakeFuture:
+        wrapped_result = self._wrapped_result if not self.scenario.get("result_missing", False) else None
+        return _FakeFuture(wrapped_result, done=bool(self.scenario.get("result_done", True)))
+
+    def cancel_goal_async(self) -> _FakeFuture:
+        if self.scenario.get("cancel_rejected", False):
+            return _FakeFuture(SimpleNamespace(goals_canceling=[]), done=True)
+        return super().cancel_goal_async()
+
+
+class _ScenarioFakeRclpyModule(_FakeRclpyModule):
+    scenario: dict[str, Any] = {}
+
+    def spin_until_future_complete(self, node: object, future: _FakeFuture, timeout_sec: float) -> None:  # noqa: ARG002
+        if self.scenario.get("force_future_timeout", False):
+            future._done = False
+            return
+        super().spin_until_future_complete(node, future, timeout_sec)
+
+
 def _install_fake_action_module() -> None:
     fake_action_mod = types.ModuleType("rclpy.action")
     fake_action_mod.ActionClient = _FakeActionClient
+    sys.modules["rclpy.action"] = fake_action_mod
+
+
+def _install_scenario_action_module(scenario: dict[str, Any]) -> None:
+    _ScenarioFakeActionClient.scenario = scenario
+    _ScenarioFakeGoalHandle.scenario = scenario
+
+    class _ScenarioClient(_ScenarioFakeActionClient):
+        def send_goal_async(self, goal_msg: object, feedback_callback: Any) -> _FakeFuture:  # noqa: ARG002
+            self._feedback_callback = feedback_callback
+            wrapped_result = _FakeWrappedResult(
+                status=int(self.scenario.get("result_status_code", 4)),
+                result=_FakeResultMessage(outcome=str(self.scenario.get("result_outcome", "ok"))),
+            )
+            goal_handle = _ScenarioFakeGoalHandle(
+                self._goal_id,
+                wrapped_result,
+                accepted=bool(self.scenario.get("goal_accepted", True)),
+            )
+            return _FakeFuture(goal_handle, done=bool(self.scenario.get("goal_future_done", True)))
+
+    fake_action_mod = types.ModuleType("rclpy.action")
+    fake_action_mod.ActionClient = _ScenarioClient
     sys.modules["rclpy.action"] = fake_action_mod
 
 
@@ -248,3 +328,106 @@ def test_action_backend_e2e_goal_feedback_cancel_with_test_server() -> None:
     assert backend.cancel_goal(goal_id) is True
     action_client.mark_cancel_requested()
     assert action_client.cancel_requested is True
+
+
+# [AI-CHANGE | 2026-04-24 12:03 UTC | v0.202]
+# CO ZMIENIONO: Dodano parametryzowany test scenariuszy błędnych Action: brak serwera, timeout future,
+#               reject goal, brak feedback i brak result.
+# DLACZEGO: Pokrywamy krytyczne ścieżki awarii, aby utrzymać konserwatywną politykę jakości
+#           (brak wyniku jest lepszy niż błędny wynik) i jednoznaczność reason_code/statusu.
+# JAK TO DZIAŁA: Każdy scenariusz ustawia zachowanie atrap i weryfikuje, że backend zwraca
+#                bezpieczne fallbacki (`None`) oraz nie emituje mylących wartości progress/result/status.
+# TODO: Dodać asercje logów telemetrycznych, gdy backend zacznie publikować dedykowane metryki reason_code.
+@pytest.mark.parametrize(
+    ("scenario", "expected_goal_id", "expected_progress", "expected_result"),
+    [
+        ({"server_available": False}, None, None, None),
+        ({"force_future_timeout": True}, None, None, None),
+        ({"goal_accepted": False}, None, None, None),
+        ({"feedback_missing": True, "result_missing": True}, "EXPECTED_GOAL", None, None),
+        ({"result_missing": True}, "EXPECTED_GOAL", 0.33, None),
+    ],
+)
+def test_action_backend_failure_paths_return_safe_fallbacks_without_invalid_data(
+    scenario: dict[str, Any],
+    expected_goal_id: str | None,
+    expected_progress: float | None,
+    expected_result: dict[str, Any] | None,
+) -> None:
+    runtime_scenario = dict(scenario)
+    _install_scenario_action_module(runtime_scenario)
+    _install_fake_contract_module("fake_contract_failure_cases")
+    _ScenarioFakeRclpyModule.scenario = runtime_scenario
+
+    backend = Ros2MissionActionBackend(
+        rclpy_module=_ScenarioFakeRclpyModule(),
+        config=ActionBackendConfig(
+            action_name="/mission_control/execute_step",
+            action_type_module="fake_contract_failure_cases",
+            action_type_name="MissionStep",
+            node_name="test_node",
+            server_wait_timeout_sec=1.0,
+            future_wait_timeout_sec=1.0,
+        ),
+    )
+    assert backend.start() is True
+
+    goal_id = backend.send_goal({"goal": "safe_mode"})
+    if expected_goal_id is None:
+        assert goal_id is None
+        return
+
+    assert goal_id is not None
+    action_client = backend._action_client
+    assert isinstance(action_client, _FakeActionClient)
+    if not runtime_scenario.get("feedback_missing", False):
+        action_client.emit_feedback(progress=0.33)
+
+    assert backend.fetch_progress(goal_id) == expected_progress
+    assert backend.fetch_result(goal_id) == expected_result
+
+
+# [AI-CHANGE | 2026-04-24 12:03 UTC | v0.202]
+# CO ZMIENIONO: Dodano test mapowania quality i reason_code po awarii wysyłki goal do warstwy `StateStore`.
+# DLACZEGO: DoD wymaga wysokiej pewności, że w warunkach awarii UI dostaje stan `UNAVAILABLE`
+#           z precyzyjnym `reason_code`, a nie pozornie poprawną wartość.
+# JAK TO DZIAŁA: Symulujemy brak serwera Action i zapisujemy wynik przez `set_with_inference`;
+#                asercje potwierdzają mapowanie `None -> quality=UNAVAILABLE` oraz reason_code awarii.
+# TODO: Dodać wariant dla błędu cancel (`cancel_failed`) mapowanego do analogicznej jakości i reason_code.
+def test_action_backend_failure_reason_code_maps_to_unavailable_quality_in_state_store() -> None:
+    from datetime import datetime, timezone
+
+    from robot_mission_control.core.state_store import DataQuality, StateStore
+
+    scenario = {"server_available": False}
+    _install_scenario_action_module(scenario)
+    _install_fake_contract_module("fake_contract_reason_quality")
+
+    backend = Ros2MissionActionBackend(
+        rclpy_module=_ScenarioFakeRclpyModule(),
+        config=ActionBackendConfig(
+            action_name="/mission_control/execute_step",
+            action_type_module="fake_contract_reason_quality",
+            action_type_name="MissionStep",
+            node_name="test_node",
+            server_wait_timeout_sec=1.0,
+            future_wait_timeout_sec=1.0,
+        ),
+    )
+    assert backend.start() is True
+    reason_code = "action_server_unavailable"
+
+    store = StateStore()
+    goal_id = backend.send_goal({"goal": "should_fail"})
+    store.set_with_inference(
+        key="action_status",
+        value="RUNNING" if goal_id else None,
+        source="action_client",
+        timestamp=datetime(2026, 4, 24, 12, 3, tzinfo=timezone.utc),
+        reason_code=None if goal_id else reason_code,
+    )
+    status_item = store.get("action_status")
+    assert status_item is not None
+    assert status_item.value is None
+    assert status_item.quality is DataQuality.UNAVAILABLE
+    assert status_item.reason_code == reason_code
