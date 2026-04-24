@@ -20,13 +20,32 @@ Aplikacja desktopowa do nadzoru misji robota (PySide6 + most ROS2).
 
 ## Uruchomienie lokalne
 
+<!--
+[AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
+CO ZMIENIONO: Zaktualizowano instrukcję instalacji o dwa profile zależności: headless (core/ROS) i desktop (UI).
+DLACZEGO: Backendowe testy i uruchomienia CI mają działać bez PySide6, a UI ma być instalowane wyłącznie tam, gdzie potrzebne.
+JAK TO DZIAŁA: Operator/deweloper wybiera odpowiedni plik requirements; profil bazowy nie instaluje bibliotek GUI.
+TODO: Dodać w README gotowe komendy CI pokazujące uruchomienie samych testów core/ROS na profilu headless.
+-->
 ```bash
+# Profil headless (core/ROS, testy backendowe)
 pip install -r ros2_ws/robot_mission_control/requirements.txt
+
+# Profil desktop UI (PySide6)
+pip install -r ros2_ws/robot_mission_control/requirements-ui.txt
+
 cd ros2_ws
 colcon build --packages-select robot_mission_control
 source install/setup.bash
 ros2 launch robot_mission_control mission_control.launch.py
 ```
+
+
+## Wydzielenie zależności
+
+- `requirements.txt` / `requirements-core.txt` – tylko backend (core/ROS), bez PySide6.
+- `requirements-ui.txt` – zależności GUI dla aplikacji desktopowej.
+- `pyproject.toml` – extra `ui`, czyli instalacja `pip install .[ui]`.
 
 ## Struktura
 
