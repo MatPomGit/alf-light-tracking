@@ -1,9 +1,9 @@
 <!--
-[AI-CHANGE | 2026-04-24 12:30 UTC | v0.202]
-CO ZMIENIONO: Rozszerzono backlog o ownera, datę przeglądu i link do PR/ticketu dla każdego zadania oraz dodano cykliczny proces review statusów.
-DLACZEGO: Backlog ma być narzędziem wykonawczym z jednoznaczną odpowiedzialnością i kontrolą realizacji, a nie statyczną listą życzeń.
-JAK TO DZIAŁA: Każde zadanie ma metadane wykonawcze (Owner, Data przeglądu, Link), a sekcja "Cykliczny review statusów" narzuca stały rytm aktualizacji i eskalacji.
-TODO: Zastąpić przykładowe linki do ticketów/PR prawdziwymi adresami z Jira/GitHub oraz zautomatyzować walidację obecności metadanych w CI.
+[AI-CHANGE | 2026-04-24 22:07 UTC | v0.202]
+CO ZMIENIONO: Zweryfikowano statusy zadań względem istniejącej implementacji i testów, oznaczono zadania realnie ukończone jako `DONE`, a częściowo wykonane jako `IN_PROGRESS`; zaktualizowano też kolejność realizacji.
+DLACZEGO: Celem jest wiarygodny plan wykonawczy bez fałszywych statusów `READY` dla prac już wdrożonych.
+JAK TO DZIAŁA: Status każdego zadania wynika z dowodów w repozytorium (testy/implementacja); `DONE` stosujemy wyłącznie tam, gdzie DoD ma pokrycie w kodzie, a luki oznaczamy jako `IN_PROGRESS` lub `PLANNED`.
+TODO: Dodać automatyczny skrypt CI, który mapuje zadania z `TASKS.md` na dowody (`tests/`, `setup.py`, `docs/`) i flaguje rozjazdy statusów.
 -->
 
 # TASKS — robot_mission_control
@@ -26,10 +26,17 @@ TODO: Zastąpić przykładowe linki do ticketów/PR prawdziwymi adresami z Jira/
 - Moderator review: **Tech Lead Mission Control**.
 - Raport: skrót po review publikowany w `COMMIT_LOG.md` lub w ticketcie epiku.
 
+## Weryfikacja statusów (na podstawie repozytorium)
+- `RMC-CI-002` -> `DONE`: istnieją testy mockujące `ActionClient`, `goal_handle` i `future`, w tym timeout/odrzucenie/no-feedback/no-result (`tests/test_action_backend.py`).
+- `RMC-UI-001` -> `DONE`: mapowanie `VALID/STALE/UNAVAILABLE/ERROR` i renderowanie `reason_code` jest pokryte implementacją i testami UI (`ui/tabs/*`, `tests/test_ui_state_safety.py`).
+- `RMC-ACT-003` -> `DONE`: walidacja krytycznych pól configu i timeoutów jest zaimplementowana (`ros/action_backend.py`, `core/config_loader.py`) i testowana (`tests/test_config_loader.py`, `tests/test_action_backend.py`).
+- `RMC-ACT-002` -> `IN_PROGRESS`: jest test przepływu goal/feedback/result/cancel na atrapach runtime, ale brak pełnego testu z realnym serwerem ROS2 Action w `launch_testing`.
+- `RMC-CI-001` pozostaje `PLANNED`: brak dedykowanego testu launch/install-space uruchamianego w CI.
+
 ## Epic A — Kontrakt i stabilizacja backendu ROS2 Action
 
 ### RMC-ACT-001 — Finalizacja typu Action `MissionStep`
-- Status: `READY`
+- Status: `PLANNED`
 - Owner: `@backend_ros`
 - Data przeglądu: `2026-04-28`
 - Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/ACT-001`
@@ -45,7 +52,7 @@ TODO: Zastąpić przykładowe linki do ticketów/PR prawdziwymi adresami z Jira/
   - `action_type_module` i `action_type_name` w config są poprawne dla środowiska testowego.
 
 ### RMC-ACT-002 — Test serwer-klient Action (end-to-end)
-- Status: `PLANNED`
+- Status: `IN_PROGRESS`
 - Owner: `@qa_ros`
 - Data przeglądu: `2026-04-28`
 - Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/ACT-002`
@@ -60,7 +67,7 @@ TODO: Zastąpić przykładowe linki do ticketów/PR prawdziwymi adresami z Jira/
   - brak sztucznych danych sukcesu przy niedostępności backendu.
 
 ### RMC-ACT-003 — Walidacja konfiguracji Action backendu
-- Status: `READY`
+- Status: `DONE`
 - Owner: `@backend_ros`
 - Data przeglądu: `2026-04-29`
 - Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/ACT-003`
@@ -78,7 +85,7 @@ TODO: Zastąpić przykładowe linki do ticketów/PR prawdziwymi adresami z Jira/
 ## Epic B — Integracja UI i jakość danych
 
 ### RMC-UI-001 — Mapowanie quality states dla panelu sterowania
-- Status: `READY`
+- Status: `DONE`
 - Owner: `@ui_ops`
 - Data przeglądu: `2026-04-29`
 - Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/UI-001`
@@ -123,7 +130,7 @@ TODO: Zastąpić przykładowe linki do ticketów/PR prawdziwymi adresami z Jira/
   - testy przechodzą w pipeline CI ROS2.
 
 ### RMC-CI-002 — Testy jednostkowe backendu Action (mock rclpy)
-- Status: `READY`
+- Status: `DONE`
 - Owner: `@qa_ros`
 - Data przeglądu: `2026-05-01`
 - Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/CI-002`
@@ -166,16 +173,13 @@ TODO: Zastąpić przykładowe linki do ticketów/PR prawdziwymi adresami z Jira/
 - DoD:
   - checklista instalacyjna bez niejawnych założeń środowiskowych.
 
-## Kolejność realizacji (proponowana)
+## Kolejność realizacji (proponowana, tylko pozycje otwarte)
 1. `RMC-ACT-001`
 2. `RMC-ACT-002`
-3. `RMC-UI-001`
-4. `RMC-CI-001`
-5. `RMC-CI-002`
-6. `RMC-ACT-003`
-7. `RMC-UI-002`
-8. `RMC-OPS-001`
-9. `RMC-OPS-002`
+3. `RMC-CI-001`
+4. `RMC-UI-002`
+5. `RMC-OPS-001`
+6. `RMC-OPS-002`
 
 ## Definicja skutecznego backlogu (DoD procesu)
 - Każde zadanie ma komplet metadanych: `Status`, `Owner`, `Data przeglądu`, `Link PR/Ticket`.
