@@ -25,7 +25,7 @@ from robot_mission_control.core import (
     StateStore,
     utc_now,
 )
-from .state_rendering import is_actionable, render_value
+from .state_rendering import is_actionable, render_card_value_with_warning, render_value
 
 # [AI-CHANGE | 2026-04-23 13:27 UTC | v0.185]
 # CO ZMIENIONO: Zastąpiono placeholder pełnym panelem Rosbag z sekcjami Recording/Playback/Wybrany bag/Integralność,
@@ -120,20 +120,21 @@ class RosbagTab(QWidget):
         window = parent.window() if parent is not None else None
         return getattr(window, "state_store", None)
 
-    # [AI-CHANGE | 2026-04-23 14:15 UTC | v0.187]
-    # CO ZMIENIONO: Zastąpiono lokalną walidację item.quality przez wspólne helpery
-    #               `is_actionable` i `render_value`.
-    # DLACZEGO: Panel rosbag ma współdzielić identyczną semantykę bezpieczeństwa z innymi zakładkami.
-    # JAK TO DZIAŁA: Dla quality != VALID helper zawsze zwraca fallback i znacznik `ok=False`, więc
-    #                przyciski krytyczne zostają zablokowane zanim operator wykona ryzykowną akcję.
-    # TODO: Dodać telemetryczny licznik blokad akcji z rozbiciem po reason_code.
+    # [AI-CHANGE | 2026-04-24 10:20 UTC | v0.200]
+    # CO ZMIENIONO: Rozszerzono renderowanie statusów rosbag o jawny komunikat ostrzegawczy
+    #               `⚠ BRAK DANYCH | reason_code=...` dla jakości różnej od VALID.
+    # DLACZEGO: Operator musi natychmiast widzieć, że dane są niepewne i z jakiego powodu,
+    #           aby nie interpretować fallbacku jako normalnego stanu operacyjnego.
+    # JAK TO DZIAŁA: Funkcja zwraca `(tekst, ok)`; `ok=True` tylko dla próbki operacyjnej,
+    #                a dla pozostałych przypadków dodawany jest `reason_code` i `ok=False`.
+    # TODO: Dodać skrócone mapowanie najczęstszych reason_code do czytelnych etykiet PL.
     def _render_store_value(self, key: str, *, fallback: str = "BRAK DANYCH") -> tuple[str, bool]:
         if self._state_store is None:
             return fallback, False
 
         item = self._state_store.get(key)
         if not is_actionable(item):
-            return fallback, False
+            return render_card_value_with_warning(item, fallback=fallback), False
         return render_value(item, fallback=fallback), True
 
     def _append_event(self, message: str) -> None:
@@ -203,7 +204,7 @@ class RosbagTab(QWidget):
 
         is_recording = recording.upper() == "RECORDING"
         is_playing = playback.upper() == "PLAYING"
-        can_playback = integrity.upper() in {"OK", "VALID", "PASSED"} and selected_bag != "BRAK DANYCH"
+        can_playback = integrity.upper() in {"OK", "VALID", "PASSED"} and selected_bag_ok
 
         self._start_recording_button.setEnabled(not is_recording and not is_playing)
         self._stop_recording_button.setEnabled(is_recording)

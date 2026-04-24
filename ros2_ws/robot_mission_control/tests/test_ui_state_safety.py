@@ -140,14 +140,20 @@ def test_quality_helpers_cover_all_quality_states(quality: DataQuality, expected
     assert render_quality(item) == quality.value
     assert render_state(item) == quality.value
 
-
+# [AI-CHANGE | 2026-04-24 10:20 UTC | v0.200]
+# CO ZMIENIONO: Rozszerzono oczekiwane wartości OverviewTab dla jakości != VALID o pełny komunikat
+#               `⚠ BRAK DANYCH | reason_code=test_reason`.
+# DLACZEGO: Test ma pilnować, że karta nie prezentuje niepewnych danych jako operacyjnych
+#           i zawsze ujawnia przyczynę degradacji.
+# JAK TO DZIAŁA: Parametryzacja dla STALE/UNAVAILABLE/ERROR używa nowego, jednoznacznego formatu.
+# TODO: Dodać osobny test dla fallbacku `UNKNOWN_REASON`, gdy reason_code nie jest ustawiony.
 @pytest.mark.parametrize(
     ("quality", "expected_value"),
     [
         (DataQuality.VALID, "CONNECTED"),
-        (DataQuality.STALE, "BRAK DANYCH"),
-        (DataQuality.UNAVAILABLE, "BRAK DANYCH"),
-        (DataQuality.ERROR, "BRAK DANYCH"),
+        (DataQuality.STALE, "⚠ BRAK DANYCH | reason_code=test_reason"),
+        (DataQuality.UNAVAILABLE, "⚠ BRAK DANYCH | reason_code=test_reason"),
+        (DataQuality.ERROR, "⚠ BRAK DANYCH | reason_code=test_reason"),
     ],
 )
 def test_overview_card_renders_connection_value_per_quality_state(quality: DataQuality, expected_value: str) -> None:
@@ -217,10 +223,17 @@ def test_controls_tab_blocks_action_buttons_and_callbacks_when_state_is_unreliab
 
     controls_tab._refresh_view()
 
-    assert controls_tab._status_value.text() == "BRAK DANYCH"
-    assert controls_tab._goal_id_value.text() == "BRAK DANYCH"
-    assert controls_tab._progress_value.text() == "BRAK DANYCH"
-    assert controls_tab._result_value.text() == "BRAK DANYCH"
+    # [AI-CHANGE | 2026-04-24 10:20 UTC | v0.200]
+    # CO ZMIENIONO: Zaktualizowano asercje kart Controls/Rosbag/Overview pod nowy format
+    #               niepewnego stanu: `⚠ BRAK DANYCH | reason_code=...`.
+    # DLACZEGO: UI ma jednoznacznie sygnalizować ostrzeżenie i przyczynę odrzucenia próbki,
+    #           więc testy muszą pilnować obecności `BRAK DANYCH` oraz `reason_code`.
+    # JAK TO DZIAŁA: Asercje sprawdzają zarówno prefiks ostrzeżenia, jak i konkretny kod przyczyny.
+    # TODO: Dodać wspólny helper testowy `assert_warning_no_data`, aby uprościć powtarzalne asercje.
+    assert controls_tab._status_value.text() == "⚠ BRAK DANYCH | reason_code=test_reason"
+    assert controls_tab._goal_id_value.text() == "⚠ BRAK DANYCH | reason_code=test_reason"
+    assert controls_tab._progress_value.text() == "⚠ BRAK DANYCH | reason_code=test_reason"
+    assert controls_tab._result_value.text() == "⚠ BRAK DANYCH | reason_code=test_reason"
     assert controls_tab._cancel_button.isEnabled() is False
 
     quick_button = controls_tab._quick_buttons["start_patrol"]
@@ -254,7 +267,7 @@ def test_overview_tab_does_not_present_stale_data_as_current() -> None:
 
     overview_tab._refresh_view()
 
-    assert overview_tab._action_status_value.text() == "BRAK DANYCH"
+    assert overview_tab._action_status_value.text() == "⚠ BRAK DANYCH | reason_code=stale_data"
     assert overview_tab._quality_value.text() == DataQuality.STALE.value
 
 
@@ -374,7 +387,7 @@ def test_rosbag_tab_blocks_buttons_and_skips_callbacks_for_unreliable_state() ->
 
     rosbag_tab._refresh_view()
 
-    assert rosbag_tab._recording_value.text() == "BRAK DANYCH"
+    assert rosbag_tab._recording_value.text() == "⚠ BRAK DANYCH | reason_code=test_reason"
     assert rosbag_tab._start_recording_button.isEnabled() is False
     assert rosbag_tab._stop_recording_button.isEnabled() is False
     assert rosbag_tab._start_playback_button.isEnabled() is False

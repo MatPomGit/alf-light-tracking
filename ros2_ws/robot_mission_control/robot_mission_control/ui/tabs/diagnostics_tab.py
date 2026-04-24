@@ -26,7 +26,7 @@ from robot_mission_control.core import (
     StateStore,
     StateValue,
 )
-from .state_rendering import is_actionable, render_quality, render_value
+from .state_rendering import is_actionable, render_card_value_with_warning, render_quality, render_value
 
 
 # [AI-CHANGE | 2026-04-23 21:10 UTC | v0.194]
@@ -241,7 +241,14 @@ class DiagnosticsTab(QWidget):
 
     def _render_ros_connection(self, snapshot: dict[str, StateValue]) -> None:
         item = snapshot.get(STATE_KEY_ROS_CONNECTION_STATUS)
-        self._ros_connection_value.setText(render_value(item, fallback="ROZŁĄCZONY"))
+        # [AI-CHANGE | 2026-04-24 10:20 UTC | v0.200]
+        # CO ZMIENIONO: W karcie diagnostycznej łączność ROS renderuje teraz jawny komunikat
+        #               ostrzegawczy z reason_code dla quality != VALID.
+        # DLACZEGO: Pole łączności jest krytyczne operacyjnie i nie może ukrywać przyczyny odrzucenia próbki.
+        # JAK TO DZIAŁA: Dla próbki nie-VALID wyświetlany jest format `⚠ BRAK DANYCH | reason_code=...`,
+        #                a przy próbce VALID pozostaje bieżąca wartość stanu połączenia.
+        # TODO: Dodać osobny licznik czasu od ostatniej próbki VALID w etykiecie łączności.
+        self._ros_connection_value.setText(render_card_value_with_warning(item, fallback="BRAK DANYCH"))
 
     def _format_timestamp(self, timestamp: datetime) -> str:
         if timestamp.tzinfo is None:
