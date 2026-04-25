@@ -1,0 +1,22 @@
+# [AI-CHANGE | 2026-04-24 23:18 UTC | v0.202]
+# CO ZMIENIONO: Zdefiniowano finalny kontrakt `MissionStep.action` (Goal/Feedback/Result)
+#               zgodny z konfiguracją runtime i mapowaniem UI.
+# DLACZEGO: Dotychczas brak lokalnej definicji typu groził rozjazdem między payloadem goal,
+#           feedbackiem postępu i polami result renderowanymi operatorowi.
+# JAK TO DZIAŁA: Goal niesie komendę i metadane korelacyjne, Feedback publikuje progres 0.0..1.0,
+#                a Result zwraca końcowy outcome/success/reason_code używany przez backend/UI.
+# TODO: Rozważyć zastąpienie `parameters_json` typowanym polem po ustaleniu stabilnego schematu parametrów misji.
+# Goal
+string goal
+string correlation_id
+string parameters_json
+---
+# Feedback
+float32 progress
+string stage
+string detail
+---
+# Result
+string outcome
+bool success
+string reason_code
