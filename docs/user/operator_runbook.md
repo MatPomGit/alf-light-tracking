@@ -248,3 +248,63 @@ TODO: Dodać identyfikatory zgłoszeń (np. INC-001..INC-00N) zsynchronizowane z
 - `closure_decision`: `GO/NO-GO`
 
 > **Reguła końcowa:** jeżeli po rollbacku pozostaje niepewność diagnostyczna, utrzymaj `NO-GO` i brak publikacji detekcji do czasu decyzji L2/L3.
+
+<!--
+[AI-CHANGE | 2026-04-25 11:18 UTC | v0.202]
+CO ZMIENIONO: Dodano sekcję „Runbook incydentów (tryb operacyjny L1→L3)” z twardymi krokami czasowymi, kryteriami eskalacji, warunkami wznowienia i formatem handover między zmianami.
+DLACZEGO: Potrzebny był jednoznaczny, powtarzalny przebieg obsługi incydentu, który skraca czas reakcji i eliminuje decyzje ad-hoc pod presją.
+JAK TO DZIAŁA: Operator wykonuje kolejno fazy T0/T+5/T+15/T+30, a automatyka wraca tylko po spełnieniu kryteriów „exit criteria”; przy niepewności pozostaje NO-GO i brak publikacji detekcji.
+TODO: Dodać gotowe szablony zgłoszeń do Jira/ServiceNow z automatycznym wypełnieniem pól reason_code i metryk SLA.
+-->
+
+## Runbook incydentów (tryb operacyjny L1→L3)
+
+### Cel i zakres
+Ta sekcja definiuje **twardy** przebieg obsługi incydentów dla stanowiska operatorskiego i dyżuru technicznego.
+Zakres: awarie percepcji, desynchronizacja czasu, awarie backendu akcji, degradacja infrastruktury ROS2/UI.
+
+### Zegar incydentu (obowiązkowa oś czasu)
+- **T0 (0–2 min):** detekcja, klasyfikacja, ustawienie statusu `NO-GO`, uruchomienie zabezpieczenia artefaktów.
+- **T+5 min:** potwierdzenie eskalacji wg klasy incydentu i przypisanie właściciela.
+- **T+15 min:** decyzja o rollbacku technicznym lub ograniczeniu funkcjonalnym.
+- **T+30 min:** checkpoint managerski: kontynuacja prac naprawczych albo formalne zatrzymanie automatyki do końca zmiany.
+
+> Reguła bezwzględna: brak kompletnej diagnozy = brak wznowienia publikacji detekcji.
+
+### Klasy incydentów i SLO reakcji
+
+| Klasa | Definicja | Przykłady | Maks. czas do reakcji L1 | Maks. czas do potwierdzenia L2/L3 |
+|---|---|---|---|---|
+| `SEV-1` | Ryzyko bezpieczeństwa lub aktywny `FAIL_SAFE` | Utrata sterowania automatycznego, krytyczne błędy backendu | 2 min | 5 min |
+| `SEV-2` | Utrata kluczowej funkcji bez bezpośredniego ryzyka bezpieczeństwa | `TIME_DESYNC`, długotrwały `SENSOR_TIMEOUT` | 5 min | 10 min |
+| `SEV-3` | Degradacja jakości z obejściem operacyjnym | wzrost odrzuceń, niestabilna jakość obrazu | 10 min | 30 min |
+
+### Procedura wykonawcza (checklista twarda)
+1. **Zatrzymanie ryzyka:** ustaw `NO-GO`, zablokuj publikację detekcji, potwierdź status w `Overview`.
+2. **Zabezpieczenie danych:** uruchom/utrzymaj `rosbag`, zachowaj logi i metryki z okna `T-5..T+10` min.
+3. **Korelacja przyczyny:** sprawdź `reason_code`, `DataQuality`, alarmy `Diagnostics`, świeżość `Telemetry`.
+4. **Decyzja o ścieżce:**
+   - ścieżka A: rollback konfiguracji (`golden config`),
+   - ścieżka B: izolacja komponentu (driver/extension),
+   - ścieżka C: pełne utrzymanie `NO-GO` do zakończenia zmiany.
+5. **Walidacja po akcji:** min. 20 kolejnych próbek `DataQuality=GOOD` i brak alarmów krytycznych.
+6. **Zamknięcie incydentu:** wpis do dziennika + handover (jeżeli zmiana się kończy).
+
+### Kryteria wznowienia automatyki (exit criteria)
+Automatyka może zostać wznowiona wyłącznie, gdy **wszystkie** warunki są spełnione:
+1. Brak aktywnego `FAIL_SAFE` i brak alarmu `TIME_DESYNC`.
+2. Stabilna świeżość krytycznych topiców (bez timeoutów w oknie kontrolnym).
+3. Trend odrzuceń malejący i poniżej progu operacyjnego.
+4. Potwierdzenie L2 dla `SEV-1/SEV-2` (pisemne w dzienniku incydentu).
+
+Jeżeli choć jeden warunek jest niespełniony, decyzja pozostaje **NO-GO**.
+
+### Handover między zmianami (przekazanie dyżuru)
+Minimalny pakiet przekazania:
+- numer incydentu i klasa (`SEV-1/2/3`),
+- ostatni stabilny timestamp UTC,
+- aktualny status (`NO-GO` / ograniczony GO),
+- wykonane kroki rollbacku i ich wynik,
+- lista ryzyk otwartych + właściciele L2/L3.
+
+Brak pełnego handoveru oznacza automatyczne utrzymanie `NO-GO` na kolejnej zmianie.
