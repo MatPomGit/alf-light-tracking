@@ -67,6 +67,13 @@ setup(
     entry_points={
         "console_scripts": [
             "robot_mission_control = robot_mission_control.app.entrypoint:main",
+            # [AI-CHANGE | 2026-04-25 08:51 UTC | v0.202]
+            # CO ZMIENIONO: Dodano entrypoint serwera testowego Action do uruchomień E2E przez `ros2 run`.
+            # DLACZEGO: Test runtime ma obejmować realny przepływ goal/feedback/result/cancel bez mockowania klienta.
+            # JAK TO DZIAŁA: `ros2 run robot_mission_control mission_step_action_test_server` startuje lokalny ActionServer
+            #                obsługujący kontrakt `MissionStep` na endpointcie `/mission_control/execute_step`.
+            # TODO: Dodać drugi entrypoint scenariusza awaryjnego (forced abort), aby walidować ścieżki błędów UI.
+            "mission_step_action_test_server = robot_mission_control.e2e.mission_step_action_test_server:main",
         ],
     },
 )
