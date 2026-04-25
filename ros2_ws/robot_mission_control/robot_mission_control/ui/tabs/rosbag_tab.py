@@ -25,6 +25,7 @@ from robot_mission_control.core import (
     StateStore,
     utc_now,
 )
+from .operator_guidance import resolve_operator_guidance
 from .state_rendering import is_actionable, render_card_value_with_warning, render_value
 
 # [AI-CHANGE | 2026-04-23 13:27 UTC | v0.185]
@@ -59,6 +60,8 @@ class RosbagTab(QWidget):
         self._playback_value = QLabel("BRAK DANYCH", status_box)
         self._selected_bag_value = QLabel("BRAK DANYCH", status_box)
         self._integrity_value = QLabel("BRAK DANYCH", status_box)
+        self._what_happened_value = QLabel("BRAK DANYCH", status_box)
+        self._what_to_do_value = QLabel("Wstrzymaj akcje do czasu potwierdzenia wiarygodnych danych.", status_box)
 
         status_grid.addWidget(QLabel("Recording:", status_box), 0, 0)
         status_grid.addWidget(self._recording_value, 0, 1)
@@ -68,6 +71,17 @@ class RosbagTab(QWidget):
         status_grid.addWidget(self._selected_bag_value, 2, 1)
         status_grid.addWidget(QLabel("Integralność:", status_box), 3, 0)
         status_grid.addWidget(self._integrity_value, 3, 1)
+        # [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
+        # CO ZMIENIONO: Dodano w RosbagTab sekcję „Co się stało” i „Co zrobić”
+        #               opartą na współdzielonym mapowaniu guidance operatorskiego.
+        # DLACZEGO: Operator nie powinien przełączać kart, by zrozumieć stan rosbag i kolejne kroki.
+        # JAK TO DZIAŁA: Przy odświeżeniu wybieramy pierwszą krytyczną próbkę nie-VALID lub status recording
+        #                i mapujemy ją przez `resolve_operator_guidance` na opis + zalecane działanie.
+        # TODO: Dodać priorytetyzację źródeł guidance na podstawie wpływu (integrity > recording > playback).
+        status_grid.addWidget(QLabel("Co się stało:", status_box), 4, 0)
+        status_grid.addWidget(self._what_happened_value, 4, 1)
+        status_grid.addWidget(QLabel("Co zrobić:", status_box), 5, 0)
+        status_grid.addWidget(self._what_to_do_value, 5, 1)
 
         actions_box = QGroupBox("Akcje", card)
         actions_layout = QHBoxLayout(actions_box)
@@ -183,6 +197,13 @@ class RosbagTab(QWidget):
         self._invoke_window_callback("stop_rosbag_playback", "stop playback")
 
     def _refresh_view(self) -> None:
+        # [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
+        # CO ZMIENIONO: Rozszerzono `_refresh_view` o wyliczanie guidance operatorskiego
+        #               dla stanu rosbag (co się stało + co zrobić).
+        # DLACZEGO: To domyka wymaganie operacyjne, aby zawsze była widoczna interpretacja i instrukcja.
+        # JAK TO DZIAŁA: Funkcja wybiera reprezentatywny `reason_code/status` z krytycznych pól i mapuje
+        #                je w `resolve_operator_guidance`; w stanie poprawnym guidance opisuje aktualną fazę.
+        # TODO: Dodać korelację guidance z lokalnym logiem zdarzeń i numerem aktywnej sesji bag.
         recording, recording_ok = self._render_store_value(STATE_KEY_RECORDING_STATUS)
         playback, playback_ok = self._render_store_value(STATE_KEY_PLAYBACK_STATUS)
         selected_bag, selected_bag_ok = self._render_store_value(STATE_KEY_SELECTED_BAG)
@@ -192,6 +213,28 @@ class RosbagTab(QWidget):
         self._playback_value.setText(playback)
         self._selected_bag_value.setText(selected_bag)
         self._integrity_value.setText(integrity)
+        representative_key = None
+        for key, is_ok in (
+            (STATE_KEY_BAG_INTEGRITY_STATUS, integrity_ok),
+            (STATE_KEY_RECORDING_STATUS, recording_ok),
+            (STATE_KEY_PLAYBACK_STATUS, playback_ok),
+            (STATE_KEY_SELECTED_BAG, selected_bag_ok),
+        ):
+            if not is_ok:
+                representative_key = key
+                break
+        representative_item = self._state_store.get(representative_key) if (self._state_store is not None and representative_key) else None
+        recording_item = self._state_store.get(STATE_KEY_RECORDING_STATUS) if self._state_store is not None else None
+        guidance = resolve_operator_guidance(
+            reason_code=(
+                representative_item.reason_code
+                if representative_item is not None
+                else (recording_item.reason_code if recording_item is not None else None)
+            ),
+            status=str(recording_item.value) if recording_item is not None else recording,
+        )
+        self._what_happened_value.setText(guidance.meaning)
+        self._what_to_do_value.setText(guidance.action)
 
         critical_state_ok = recording_ok and playback_ok and selected_bag_ok and integrity_ok
 

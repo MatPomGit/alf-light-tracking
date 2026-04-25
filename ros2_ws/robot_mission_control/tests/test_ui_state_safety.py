@@ -294,9 +294,16 @@ def test_overview_tab_allows_safe_continue_when_ros_and_action_are_valid() -> No
 
     overview_tab._refresh_view()
 
+    # [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
+    # CO ZMIENIONO: Rozszerzono asercje OverviewTab o pola „co się stało” i „co zrobić”.
+    # DLACZEGO: Test ma pilnować wymogu operatorskiego: sam status to za mało, potrzebna jest instrukcja.
+    # JAK TO DZIAŁA: Asercje weryfikują tekst guidance pochodzący ze współdzielonego mapowania statusów.
+    # TODO: Dodać test dla ścieżki fallback guidance przy nieznanym statusie akcji.
     assert overview_tab._safety_value.text() == "MOŻNA KONTYNUOWAĆ"
     assert overview_tab._mission_state_value.text() == "MISJA W TOKU"
     assert overview_tab._critical_alarm_count_value.text() == "0"
+    assert "Misja jest wykonywana" in overview_tab._what_happened_value.text()
+    assert "Monitoruj postęp" in overview_tab._what_to_do_value.text()
 
 
 def test_overview_tab_blocks_continue_when_critical_alert_is_active() -> None:
@@ -375,7 +382,7 @@ def test_diagnostics_tab_renders_problem_rows_with_cause_source_and_timestamp() 
     assert diagnostics_tab._issues_table.item(0, 0).text() == "CRITICAL"
     assert diagnostics_tab._issues_table.item(0, 1).text() == "ros_bridge"
     assert diagnostics_tab._issues_table.item(0, 2).text() == "transport_failure"
-    assert diagnostics_tab._issues_table.item(0, 3).text() == "Kod nie ma jeszcze opisu operatorskiego."
+    assert diagnostics_tab._issues_table.item(0, 3).text() == "Kod lub status nie ma jeszcze opisu operatorskiego."
     assert diagnostics_tab._issues_table.item(0, 4).text().startswith("Wstrzymaj ryzykowne działania")
     assert diagnostics_tab._issues_table.item(0, 6).text() == "2026-04-23 21:08:00 UTC"
 
@@ -508,7 +515,14 @@ def test_rosbag_tab_blocks_buttons_and_skips_callbacks_for_unreliable_state() ->
 
     rosbag_tab._refresh_view()
 
+    # [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
+    # CO ZMIENIONO: Dodano asercje guidance operatorskiego w RosbagTab dla stanu niepewnego.
+    # DLACZEGO: Musimy mieć regresję gwarantującą, że operator zobaczy zarówno diagnozę, jak i zalecenie.
+    # JAK TO DZIAŁA: Test sprawdza fallback „co się stało/co zrobić” przy jakości różnej od VALID.
+    # TODO: Dodać test mapowania reason_code znanego (np. stale_data) dla RosbagTab.
     assert rosbag_tab._recording_value.text() == "⚠ BRAK DANYCH | reason_code=test_reason"
+    assert "Kod lub status" in rosbag_tab._what_happened_value.text()
+    assert "Wstrzymaj ryzykowne działania" in rosbag_tab._what_to_do_value.text()
     assert rosbag_tab._start_recording_button.isEnabled() is False
     assert rosbag_tab._stop_recording_button.isEnabled() is False
     assert rosbag_tab._start_playback_button.isEnabled() is False
