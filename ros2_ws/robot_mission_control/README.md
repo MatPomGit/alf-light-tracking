@@ -40,6 +40,29 @@ source install/setup.bash
 ros2 launch robot_mission_control mission_control.launch.py
 ```
 
+<!--
+[AI-CHANGE | 2026-04-25 08:51 UTC | v0.202]
+CO ZMIENIONO: Dodano sekcję ręcznego testu E2E z realnym flow ROS2 Action (launch + ros2 run + goal/feedback/result/cancel).
+DLACZEGO: Backlog wymaga potwierdzenia działania poza mockami, a operator potrzebuje jednoznacznej procedury uruchomienia.
+JAK TO DZIAŁA: Skrypt `scripts/run_e2e_real_flow.sh` buduje workspace, uruchamia aplikację i serwer testowy, następnie wykonuje scenariusze success i cancel.
+TODO: Dodać automatyczne asercje logów i wynik w formacie CI (JUnit) do tej procedury.
+-->
+## Test E2E (realny flow ROS2 Action, bez mocków klienta)
+
+```bash
+cd ros2_ws/robot_mission_control
+./scripts/run_e2e_real_flow.sh
+```
+
+Skrypt wykonuje:
+- `colcon build` pakietów `robot_mission_control` i `robot_mission_control_interfaces`,
+- `ros2 run robot_mission_control mission_step_action_test_server`,
+- `ros2 launch robot_mission_control mission_control.launch.py`,
+- `ros2 action send_goal --feedback` (scenariusz sukcesu),
+- `ros2 action send_goal --feedback` + `ros2 action cancel` (scenariusz anulowania).
+
+Logi są zapisywane do katalogu `logs/e2e_real_flow/`.
+
 
 ## Wydzielenie zależności
 
