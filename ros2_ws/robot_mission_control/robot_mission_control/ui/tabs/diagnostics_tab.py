@@ -6,10 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHeaderView,
+    QCheckBox,
     QLabel,
     QPushButton,
     QAbstractItemView,
@@ -28,7 +30,15 @@ from robot_mission_control.core import (
 )
 from robot_mission_control.ui.operator_alerts import OperatorAlerts
 from .operator_guidance import resolve_operator_guidance
-from .state_rendering import is_actionable, render_card_value_with_warning, render_quality, render_value
+from .state_rendering import (
+    is_actionable,
+    quality_color_hex,
+    render_card_value_with_warning,
+    render_quality,
+    render_quality_with_icon,
+    render_value,
+    severity_from_quality,
+)
 
 # [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
 # CO ZMIENIONO: DiagnosticsTab importuje teraz współdzielony resolver guidance operatorskiego.
@@ -49,6 +59,9 @@ from .state_rendering import is_actionable, render_card_value_with_warning, rend
 class ProblemRow:
     state_key: str
     severity: str
+    quality_label: str
+    quality_color: str
+    is_problem: bool
     source: str
     cause: str
     meaning: str
@@ -68,6 +81,7 @@ class ProblemRow:
 # TODO: Dodać filtrowanie po source/severity oraz eksport aktywnych problemów do pliku diagnostycznego CSV.
 class DiagnosticsTab(QWidget):
     """Panel diagnostyczny oparty o aktualny stan StateStore."""
+    _SEVERITY_PRIORITY: dict[str, int] = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
 
     # [AI-CHANGE | 2026-04-23 21:10 UTC | v0.194]
     # CO ZMIENIONO: Dostosowano inicjalizację tabeli diagnostycznej do widoku problemów opartych
@@ -94,6 +108,19 @@ class DiagnosticsTab(QWidget):
         controls_layout.setContentsMargins(0, 0, 0, 0)
         self._refresh_button = QPushButton("Odśwież teraz", controls)
         self._refresh_button.clicked.connect(self._refresh_view)
+        # [AI-CHANGE | 2026-04-25 16:20 UTC | v0.201]
+        # CO ZMIENIONO: Dodano filtry operatorskie „Tylko krytyczne” i „Tylko problemy”
+        #               bezpośrednio w panelu Diagnostics.
+        # DLACZEGO: Operator powinien jednym kliknięciem zawęzić listę do incydentów pilnych,
+        #           aby skrócić czas reakcji podczas eskalacji.
+        # JAK TO DZIAŁA: `Tylko problemy` ukrywa wiersze z próbkami VALID, a `Tylko krytyczne`
+        #                pozostawia wyłącznie rekordy o severity CRITICAL.
+        # TODO: Zapamiętywać stan filtrów per operator (profil dyżurny).
+        self._critical_only_checkbox = QCheckBox("Tylko krytyczne", controls)
+        self._critical_only_checkbox.toggled.connect(self._refresh_view)
+        self._problems_only_checkbox = QCheckBox("Tylko problemy", controls)
+        self._problems_only_checkbox.setChecked(True)
+        self._problems_only_checkbox.toggled.connect(self._refresh_view)
         # [AI-CHANGE | 2026-04-25 08:57 UTC | v0.202]
         # CO ZMIENIONO: Przycisk ACK został uruchomiony i podpięty do potwierdzania aktywnych alertów
         #               z rejestru `OperatorAlerts` zamiast pozostawienia martwej kontrolki.
@@ -106,8 +133,10 @@ class DiagnosticsTab(QWidget):
         self._ack_button.clicked.connect(self._ack_selected_or_latest_alert)
         self._last_refresh_value = QLabel("Ostatnie odświeżenie: -", controls)
         controls_layout.addWidget(self._refresh_button, 0, 0)
-        controls_layout.addWidget(self._ack_button, 0, 1)
-        controls_layout.addWidget(self._last_refresh_value, 0, 2)
+        controls_layout.addWidget(self._critical_only_checkbox, 0, 1)
+        controls_layout.addWidget(self._problems_only_checkbox, 0, 2)
+        controls_layout.addWidget(self._ack_button, 0, 3)
+        controls_layout.addWidget(self._last_refresh_value, 0, 4)
         root.addWidget(controls)
 
         # [AI-CHANGE | 2026-04-24 12:10 UTC | v0.203]
@@ -242,19 +271,21 @@ class DiagnosticsTab(QWidget):
         self._sync_ack_button_state()
 
     # [AI-CHANGE | 2026-04-23 21:10 UTC | v0.194]
-    # CO ZMIENIONO: Tabela problemów jest teraz budowana bezpośrednio ze snapshotu StateStore
-    #               z kolumnami: severity, source, przyczyna, klucz i timestamp UTC.
+    # CO ZMIENIONO: Tabela diagnostyczna jest filtrowana (`tylko problemy`/`tylko krytyczne`)
+    #               i renderuje severity wraz z kolorami/ikonami quality.
     # DLACZEGO: Zapewnia to pełną transparentność: każdy wpis problemu ma widoczną przyczynę
-    #           i czas wystąpienia, co spełnia kryterium ukończenia zadania.
-    # JAK TO DZIAŁA: `_build_problem_rows` filtruje rekordy quality != VALID i mapuje je
-    #                do `ProblemRow`; render tabeli nie zależy od historii/ACK alertów.
-    # TODO: Dodać sortowanie po severity i czasie wraz z filtrem „tylko krytyczne”.
+    #           i czas wystąpienia, a operator szybciej odróżnia incydenty krytyczne od informacyjnych.
+    # JAK TO DZIAŁA: `_build_problem_rows` zwraca pełną listę wpisów, następnie `_apply_row_filters`
+    #                ogranicza ją wg checkboxów, a `_apply_row_visual_style` koduje kolor i ikonę.
+    # TODO: Dodać tryb filtrowania po subsystemie (vision/control/navigation).
     def _render_issues_table(self, snapshot: dict[str, StateValue]) -> None:
-        problem_rows = self._build_problem_rows(snapshot)
-        self._issues_table.setRowCount(len(problem_rows))
+        all_rows = self._build_problem_rows(snapshot)
+        filtered_rows = self._apply_row_filters(all_rows)
+        self._issues_table.setRowCount(len(filtered_rows))
 
-        for row_index, problem in enumerate(problem_rows):
+        for row_index, problem in enumerate(filtered_rows):
             severity_item = QTableWidgetItem(problem.severity)
+            self._apply_row_visual_style(severity_item, problem.quality_label, problem.quality_color)
             self._issues_table.setItem(row_index, 0, severity_item)
             self._issues_table.setItem(row_index, 1, QTableWidgetItem(problem.source))
             self._issues_table.setItem(row_index, 2, QTableWidgetItem(problem.cause))
@@ -273,20 +304,16 @@ class DiagnosticsTab(QWidget):
     # TODO: Dodać telemetrykę pokrycia mapowania (ile kodów trafia na fallback w produkcji).
     def _build_problem_rows(self, snapshot: dict[str, StateValue]) -> list[ProblemRow]:
         rows: list[ProblemRow] = []
-        severity_by_quality = {
-            DataQuality.ERROR: "CRITICAL",
-            DataQuality.UNAVAILABLE: "HIGH",
-            DataQuality.STALE: "MEDIUM",
-        }
         for state_key, item in snapshot.items():
-            if item.quality is DataQuality.VALID:
-                continue
             cause_code = item.reason_code or item.quality.value
             guidance = resolve_operator_guidance(reason_code=cause_code, status=str(item.value))
             rows.append(
                 ProblemRow(
                     state_key=state_key,
-                    severity=severity_by_quality.get(item.quality, "LOW"),
+                    severity=severity_from_quality(item),
+                    quality_label=render_quality_with_icon(item),
+                    quality_color=quality_color_hex(item),
+                    is_problem=item.quality is not DataQuality.VALID,
                     source=item.source or "unknown",
                     cause=cause_code,
                     meaning=guidance.meaning,
@@ -294,7 +321,40 @@ class DiagnosticsTab(QWidget):
                     timestamp=item.timestamp,
                 )
             )
-        return sorted(rows, key=lambda row: row.timestamp, reverse=True)
+        return sorted(
+            rows,
+            key=lambda row: (
+                self._SEVERITY_PRIORITY.get(row.severity, 99),
+                -row.timestamp.timestamp(),
+                row.state_key,
+            ),
+        )
+
+    # [AI-CHANGE | 2026-04-25 16:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano etap filtrowania rekordów po wyborach operatora.
+    # DLACZEGO: Jedna tabela ma obsłużyć zarówno przegląd pełny, jak i tryb alarmowy „tylko krytyczne”.
+    # JAK TO DZIAŁA: Metoda respektuje dwa niezależne checkboxy i nigdy nie dopuszcza
+    #                promocji wpisu niekrytycznego do widoku „tylko krytyczne”.
+    # TODO: Dodać licznik wyników po filtracji (np. „8/42 rekordów”).
+    def _apply_row_filters(self, rows: list[ProblemRow]) -> list[ProblemRow]:
+        critical_only = self._critical_only_checkbox.isChecked()
+        problems_only = self._problems_only_checkbox.isChecked()
+        filtered_rows = rows
+        if problems_only:
+            filtered_rows = [row for row in filtered_rows if row.is_problem]
+        if critical_only:
+            filtered_rows = [row for row in filtered_rows if row.severity == "CRITICAL"]
+        return filtered_rows
+
+    # [AI-CHANGE | 2026-04-25 16:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano stylowanie komórki severity na bazie mapowania quality -> kolor.
+    # DLACZEGO: Kolor skraca czas rozpoznania priorytetu incydentu bez czytania pełnej treści.
+    # JAK TO DZIAŁA: Komórka dostaje kolor foreground zgodny z `quality_color_hex`,
+    #                a dodatkowo dopisywana jest ikona quality dla natychmiastowej orientacji.
+    # TODO: Rozważyć też kolor tła całego wiersza dla rekordów CRITICAL.
+    def _apply_row_visual_style(self, severity_item: QTableWidgetItem, quality_label: str, quality_color: str) -> None:
+        severity_item.setForeground(QColor(quality_color))
+        severity_item.setText(f"{severity_item.text()} | {quality_label}")
 
     def _render_dependency_status(self, snapshot: dict[str, StateValue]) -> None:
         item = snapshot.get(STATE_KEY_DEPENDENCY_STATUS)

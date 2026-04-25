@@ -54,6 +54,55 @@ def render_quality(item: StateValue | None) -> str:
     return item.quality.value
 
 
+# [AI-CHANGE | 2026-04-25 16:20 UTC | v0.201]
+# CO ZMIENIONO: Dodano spójne mapowanie `quality -> (ikona, kolor, severity)` oraz helpery
+#               `render_quality_with_icon`, `quality_color_hex` i `severity_from_quality`.
+# DLACZEGO: Widoki operatorskie muszą błyskawicznie sygnalizować ryzyko pod presją czasu;
+#           sama etykieta tekstowa jakości była zbyt wolna poznawczo.
+# JAK TO DZIAŁA: Każda wartość `DataQuality` jest mapowana do jawnego pakietu wizualnego.
+#                `render_quality_with_icon` zwraca tekst z ikoną, `quality_color_hex` zwraca
+#                kolor do stylizacji komórek, a `severity_from_quality` zapewnia spójne
+#                priorytety dla sortowania i filtrów w tabelach diagnostycznych.
+# TODO: Rozszerzyć mapowanie o wariant wysokiego kontrastu dla operatorów w trybie nocnym.
+_QUALITY_ICON_BY_LEVEL: dict[DataQuality, str] = {
+    DataQuality.VALID: "✅",
+    DataQuality.STALE: "⚠",
+    DataQuality.UNAVAILABLE: "⚠",
+    DataQuality.ERROR: "⛔",
+}
+_QUALITY_COLOR_BY_LEVEL: dict[DataQuality, str] = {
+    DataQuality.VALID: "#0b6e4f",
+    DataQuality.STALE: "#b7791f",
+    DataQuality.UNAVAILABLE: "#b7791f",
+    DataQuality.ERROR: "#b00020",
+}
+_SEVERITY_BY_QUALITY: dict[DataQuality, str] = {
+    DataQuality.VALID: "INFO",
+    DataQuality.STALE: "MEDIUM",
+    DataQuality.UNAVAILABLE: "HIGH",
+    DataQuality.ERROR: "CRITICAL",
+}
+
+
+def render_quality_with_icon(item: StateValue | None) -> str:
+    """Renderuje jakość z ikoną priorytetu operatorskiego."""
+    quality = DataQuality.UNAVAILABLE if item is None else item.quality
+    icon = _QUALITY_ICON_BY_LEVEL.get(quality, "⚠")
+    return f"{icon} {quality.value}"
+
+
+def quality_color_hex(item: StateValue | None) -> str:
+    """Zwraca kolor UI przypisany do jakości próbki."""
+    quality = DataQuality.UNAVAILABLE if item is None else item.quality
+    return _QUALITY_COLOR_BY_LEVEL.get(quality, "#6b7280")
+
+
+def severity_from_quality(item: StateValue | None) -> str:
+    """Mapuje jakość próbki na poziom severity do filtrowania/sortowania."""
+    quality = DataQuality.UNAVAILABLE if item is None else item.quality
+    return _SEVERITY_BY_QUALITY.get(quality, "LOW")
+
+
 # [AI-CHANGE | 2026-04-23 17:10 UTC | v0.192]
 # CO ZMIENIONO: Dodano jawny alias `render_state` dla statusów jakości
 #               (`VALID/STALE/UNAVAILABLE/ERROR`) wykorzystywanych przez karty UI.
