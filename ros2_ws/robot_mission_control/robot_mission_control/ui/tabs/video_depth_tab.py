@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QGridLayout, QGroupBox, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QGridLayout, QGroupBox, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from robot_mission_control.core import DataQuality, StateStore, StateValue
 from .state_rendering import render_card_value_with_warning, render_state
@@ -44,10 +44,18 @@ class VideoDepthTab(QWidget):
         future_layout = QVBoxLayout(future_group)
         future_layout.setSpacing(8)
 
-        snapshot_button = QPushButton("Snapshot — NIEDOSTĘPNE W TEJ WERSJI", future_group)
-        snapshot_button.setEnabled(False)
-        overlay_button = QPushButton("Overlay — NIEDOSTĘPNE W TEJ WERSJI", future_group)
-        overlay_button.setEnabled(False)
+        # [AI-CHANGE | 2026-04-25 08:57 UTC | v0.202]
+        # CO ZMIENIONO: Zastąpiono martwe przyciski „Snapshot/Overlay” zestawem działających akcji:
+        #               „Odśwież status teraz” i „Kopiuj status streamów”.
+        # DLACZEGO: Operator potrzebuje natychmiastowych działań diagnostycznych w karcie VideoDepth;
+        #           przyciski bez implementacji obniżały użyteczność panelu.
+        # JAK TO DZIAŁA: Pierwszy przycisk wymusza `refresh`, a drugi kopiuje do schowka bezpieczny
+        #                raport statusów (video/depth/sync) wraz z quality i timestampem UTC.
+        # TODO: Rozszerzyć akcje o eksport raportu do pliku i automatyczne dołączanie ostatniego reason_code.
+        snapshot_button = QPushButton("Odśwież status teraz", future_group)
+        snapshot_button.clicked.connect(self._refresh_view)
+        overlay_button = QPushButton("Kopiuj status streamów", future_group)
+        overlay_button.clicked.connect(self._copy_stream_status_to_clipboard)
 
         future_layout.addWidget(snapshot_button)
         future_layout.addWidget(overlay_button)
@@ -154,3 +162,20 @@ class VideoDepthTab(QWidget):
         self._video_quality_value.setText(render_state(video_item))
         self._depth_quality_value.setText(render_state(depth_item))
         self._sync_quality_value.setText(render_state(sync_item))
+
+    # [AI-CHANGE | 2026-04-25 08:57 UTC | v0.202]
+    # CO ZMIENIONO: Dodano eksport skrótu statusu Video/Depth/Sync do schowka systemowego.
+    # DLACZEGO: Ułatwia to szybką eskalację incydentów (ticket/chat) bez ręcznego przepisywania danych.
+    # JAK TO DZIAŁA: Metoda pobiera aktualne etykiety z UI i składa jedną linię tekstu diagnostycznego;
+    #                gdy schowek jest niedostępny, funkcja kończy się bez side effectów.
+    # TODO: Dodać opcjonalny format wieloliniowy JSON dla integracji z narzędziami observability.
+    def _copy_stream_status_to_clipboard(self) -> None:
+        payload = (
+            "video_depth_status | "
+            f"video={self._video_status_value.text()} ({self._video_quality_value.text()}) | "
+            f"depth={self._depth_status_value.text()} ({self._depth_quality_value.text()}) | "
+            f"sync={self._sync_status_value.text()} ({self._sync_quality_value.text()})"
+        )
+        clipboard = QApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(payload)

@@ -25,7 +25,9 @@ from robot_mission_control.core import (
 from robot_mission_control.ui.tabs.controls_tab import ControlsTab
 from robot_mission_control.ui.tabs.overview_tab import OverviewTab
 from robot_mission_control.ui.tabs.diagnostics_tab import DiagnosticsTab
+from robot_mission_control.ui.tabs.extensions_tab import ExtensionsTab
 from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
+from robot_mission_control.ui.tabs.video_depth_tab import VideoDepthTab
 from robot_mission_control.ui.tabs.state_rendering import is_actionable, render_quality, render_state, render_value
 from robot_mission_control.ui.operator_alerts import OperatorAlerts
 
@@ -411,6 +413,87 @@ def test_diagnostics_tab_renders_operator_meaning_and_action_for_common_code() -
     assert diagnostics_tab._issues_table.rowCount() == 1
     assert "Dane są przeterminowane" in diagnostics_tab._issues_table.item(0, 3).text()
     assert "Wstrzymaj akcje zależne" in diagnostics_tab._issues_table.item(0, 4).text()
+
+
+# [AI-CHANGE | 2026-04-25 08:57 UTC | v0.202]
+# CO ZMIENIONO: Dodano test ACK w DiagnosticsTab i testy nowych akcji operatorskich w kartach
+#               Extensions/VideoDepth (kopiowanie danych do schowka + aktywacja przycisków).
+# DLACZEGO: Zabezpiecza to priorytet zadania: mniej martwych przycisków oraz realna użyteczność
+#           paneli operatorskich bez konieczności ręcznego przepisywania diagnostyki.
+# JAK TO DZIAŁA: Testy uruchamiają zakładki na atrapach danych, wykonują kliknięcia i weryfikują
+#                skutki w `OperatorAlerts` oraz treści schowka Qt.
+# TODO: Dodać testy integracyjne na pełnym MainWindow z przełączaniem zakładek i pollingiem timerów.
+def test_diagnostics_tab_acknowledges_selected_active_alert() -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    diagnostics_tab = DiagnosticsTab(window)
+    diagnostics_tab._refresh_timer.stop()
+
+    ts = datetime(2026, 4, 25, 8, 57, tzinfo=timezone.utc)
+    window.state_store.set(
+        STATE_KEY_ROS_CONNECTION_STATUS,
+        StateValue(
+            value=None,
+            timestamp=ts,
+            source="ros_bridge",
+            quality=DataQuality.ERROR,
+            reason_code="transport_failure",
+        ),
+    )
+    window.operator_alerts.publish_alert(
+        state_key=STATE_KEY_ROS_CONNECTION_STATUS,
+        severity="CRITICAL",
+        code="transport_failure",
+        message="ROS bridge niedostępny",
+        timestamp=ts,
+    )
+
+    diagnostics_tab._refresh_view()
+    diagnostics_tab._issues_table.selectRow(0)
+    diagnostics_tab._ack_button.click()
+
+    active_alerts = window.operator_alerts.active_alerts()
+    assert len(active_alerts) == 1
+    assert active_alerts[0].acknowledged is True
+    assert diagnostics_tab._ack_button.text() == "ACK (0)"
+    assert diagnostics_tab._ack_button.isEnabled() is False
+
+
+def test_extensions_tab_copies_selected_plugin_details_to_clipboard() -> None:
+    app = _ensure_qapplication()
+    window = _DummyWindow()
+    extensions_tab = ExtensionsTab(window)
+    extensions_tab._refresh_timer.stop()
+
+    _set_state(window.state_store, "plugin.demo.active", value=True, quality=DataQuality.VALID)
+    extensions_tab._plugin_names = ("demo",)
+    extensions_tab._refresh_plugin_table()
+    extensions_tab._plugins_table.selectRow(0)
+    extensions_tab._copy_selected_plugin_button.click()
+
+    clipboard_text = app.clipboard().text()
+    assert "plugin=demo" in clipboard_text
+    assert "activation=AKTYWNE" in clipboard_text
+    assert "quality=VALID" in clipboard_text
+
+
+def test_video_depth_tab_copies_stream_status_to_clipboard() -> None:
+    app = _ensure_qapplication()
+    window = _DummyWindow()
+    video_depth_tab = VideoDepthTab(window)
+    video_depth_tab._refresh_timer.stop()
+
+    _set_state(window.state_store, "video_stream_status", value="CONNECTED", quality=DataQuality.VALID)
+    _set_state(window.state_store, "depth_stream_status", value="STALE", quality=DataQuality.STALE)
+    _set_state(window.state_store, "time_sync_status", value="CONNECTED", quality=DataQuality.VALID)
+    video_depth_tab._refresh_view()
+    video_depth_tab._copy_stream_status_to_clipboard()
+
+    clipboard_text = app.clipboard().text()
+    assert "video_depth_status" in clipboard_text
+    assert "video=CONNECTED (VALID)" in clipboard_text
+    assert "depth=⚠ BRAK DANYCH | reason_code=test_reason (STALE)" in clipboard_text
+    assert "sync=CONNECTED (VALID)" in clipboard_text
 
 def test_rosbag_tab_blocks_buttons_and_skips_callbacks_for_unreliable_state() -> None:
     _ensure_qapplication()
