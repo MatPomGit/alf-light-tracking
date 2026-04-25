@@ -27,7 +27,14 @@ from robot_mission_control.core import (
     StateValue,
 )
 from robot_mission_control.ui.operator_alerts import OperatorAlerts
+from .operator_guidance import resolve_operator_guidance
 from .state_rendering import is_actionable, render_card_value_with_warning, render_quality, render_value
+
+# [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
+# CO ZMIENIONO: DiagnosticsTab importuje teraz współdzielony resolver guidance operatorskiego.
+# DLACZEGO: Dzięki temu wszystkie zakładki używają jednej mapy „co się stało/co zrobić”.
+# JAK TO DZIAŁA: `resolve_operator_guidance` zastępuje lokalne słowniki mapowań i fallbacki.
+# TODO: Dodać test kontraktowy pilnujący, że wszystkie karty używają tego samego resolvera.
 
 
 # [AI-CHANGE | 2026-04-23 21:10 UTC | v0.194]
@@ -47,78 +54,6 @@ class ProblemRow:
     meaning: str
     action: str
     timestamp: datetime
-
-
-# [AI-CHANGE | 2026-04-24 12:10 UTC | v0.203]
-# CO ZMIENIONO: Dodano słownik podpowiedzi operatorskich dla najczęstszych kodów `reason_code`
-#               i kodów błędów `MC_*`, z dwoma polami: „co to znaczy” oraz „co zrobić”.
-# DLACZEGO: Operator ma podejmować poprawną decyzję bez analizy logów developerskich, więc UI
-#           musi tłumaczyć kod na znaczenie operacyjne i rekomendowane działanie.
-# JAK TO DZIAŁA: `COMMON_CODE_HINTS` mapuje znane kody na krotkę `(meaning, action)`, a brak wpisu
-#                obsługiwany jest bezpiecznym fallbackiem „eskaluj i nie kontynuuj ryzykownej operacji”.
-# TODO: Uzupełnić mapę o statystycznie najczęstsze kody z telemetrii produkcyjnej i przypisać priorytety SOP.
-COMMON_CODE_HINTS: dict[str, tuple[str, str]] = {
-    "stale_data": (
-        "Dane są przeterminowane i nie odzwierciedlają bieżącego stanu robota.",
-        "Wstrzymaj akcje zależne od tej telemetrii i sprawdź opóźnienia źródła danych.",
-    ),
-    "missing_data": (
-        "Brakuje wymaganej próbki telemetrycznej.",
-        "Zweryfikuj, czy publisher działa; jeśli brak próbki się utrzymuje, uruchom reconnect.",
-    ),
-    "heartbeat_missing": (
-        "Brak heartbeat z warstwy ROS bridge.",
-        "Sprawdź procesy ROS2 i połączenie sieciowe; nie uruchamiaj nowych komend ruchu do czasu odzyskania heartbeat.",
-    ),
-    "heartbeat_stale": (
-        "Heartbeat dociera zbyt rzadko i stan może być nieaktualny.",
-        "Ogranicz operacje do trybu bezpiecznego i sprawdź obciążenie CPU/sieci po stronie ROS.",
-    ),
-    "ros_unavailable": (
-        "Warstwa ROS jest niedostępna dla aplikacji operatorskiej.",
-        "Sprawdź uruchomienie ROS_DOMAIN_ID i node managera; po naprawie użyj „Odśwież teraz”.",
-    ),
-    "reconnect_failed": (
-        "Automatyczna próba ponownego połączenia zakończyła się niepowodzeniem.",
-        "Wykonaj kontrolowany restart bridge ROS i potwierdź powrót statusu CONNECTED.",
-    ),
-    "node_not_initialized": (
-        "Node manager nie został poprawnie zainicjalizowany.",
-        "Sprawdź konfigurację startową i ponownie uruchom Mission Control.",
-    ),
-    "dependency_report_empty": (
-        "Raport zależności nie zawiera żadnych pozycji i stan środowiska jest niepewny.",
-        "Zweryfikuj źródło raportu dependency audit; traktuj system jako niegotowy operacyjnie.",
-    ),
-    "action_contract_missing": (
-        "Brakuje definicji kontraktu Action wymaganej do sterowania misją.",
-        "Uzupełnij/napraw konfigurację backendu Action i uruchom aplikację ponownie.",
-    ),
-    "action_backend_unavailable": (
-        "Backend akcji jest niedostępny, więc komendy operatorskie nie zostaną wysłane.",
-        "Nie rozpoczynaj nowej misji; sprawdź log startu backendu i przywróć kanał Action.",
-    ),
-    "MC_CFG_001": (
-        "Brakuje wymaganego pola w konfiguracji.",
-        "Uzupełnij brakujący klucz w pliku konfiguracyjnym zgodnie z dokumentacją wdrożeniową.",
-    ),
-    "MC_CFG_002": (
-        "Pole konfiguracji ma nieprawidłowy typ.",
-        "Popraw typ wartości w YAML/JSON i uruchom walidację konfiguracji.",
-    ),
-    "MC_CFG_003": (
-        "Pole konfiguracji ma nieprawidłową wartość.",
-        "Przywróć wartość z dozwolonego zakresu; nie uruchamiaj misji na niezweryfikowanej konfiguracji.",
-    ),
-    "MC_CFG_004": (
-        "Plik konfiguracji nie daje się sparsować.",
-        "Sprawdź składnię pliku (wcięcia, znaki specjalne) i ponów start aplikacji.",
-    ),
-    "MC_UI_001": (
-        "Operacja UI została zatrzymana przez mechanizm bezpieczeństwa.",
-        "Traktuj komendę jako niewykonaną; popraw przyczynę błędu i dopiero wtedy powtórz akcję.",
-    ),
-}
 
 
 # [AI-CHANGE | 2026-04-23 13:22 UTC | v0.184]
@@ -328,13 +263,14 @@ class DiagnosticsTab(QWidget):
             self._issues_table.setItem(row_index, 5, QTableWidgetItem(problem.state_key))
             self._issues_table.setItem(row_index, 6, QTableWidgetItem(self._format_timestamp(problem.timestamp)))
 
-    # [AI-CHANGE | 2026-04-24 12:10 UTC | v0.203]
-    # CO ZMIENIONO: Rozszerzono budowanie `ProblemRow` o mapowanie kodu przyczyny na opis znaczenia
-    #               i rekomendowane działanie operatorskie widoczne bezpośrednio w tabeli diagnostycznej.
-    # DLACZEGO: DoD wymaga, aby operator mógł wykonać poprawny krok naprawczy bez czytania kodu ani logów.
-    # JAK TO DZIAŁA: Dla każdego rekordu nie-VALID wyliczany jest `cause_code`, następnie `_resolve_code_hint`
-    #                zwraca parę tekstów PL (`meaning`, `action`) z fallbackiem bezpiecznym dla nieznanych kodów.
-    # TODO: Wyodrębnić mapowanie hintów do osobnego modułu współdzielonego przez Overview/Controls/Diagnostics.
+    # [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
+    # CO ZMIENIONO: DiagnosticsTab korzysta ze współdzielonego modułu `operator_guidance`
+    #               zamiast lokalnego słownika `COMMON_CODE_HINTS`.
+    # DLACZEGO: Ujednolicamy komunikaty „co się stało/co zrobić” między Diagnostics/Overview/Controls/Rosbag,
+    #           aby operator dostawał tę samą instrukcję niezależnie od miejsca obserwacji problemu.
+    # JAK TO DZIAŁA: Dla każdego rekordu nie-VALID wyliczamy `cause_code` i wywołujemy
+    #                `resolve_operator_guidance`, a następnie zapisujemy `meaning/action` do `ProblemRow`.
+    # TODO: Dodać telemetrykę pokrycia mapowania (ile kodów trafia na fallback w produkcji).
     def _build_problem_rows(self, snapshot: dict[str, StateValue]) -> list[ProblemRow]:
         rows: list[ProblemRow] = []
         severity_by_quality = {
@@ -346,26 +282,19 @@ class DiagnosticsTab(QWidget):
             if item.quality is DataQuality.VALID:
                 continue
             cause_code = item.reason_code or item.quality.value
-            meaning, action = self._resolve_code_hint(cause_code)
+            guidance = resolve_operator_guidance(reason_code=cause_code, status=str(item.value))
             rows.append(
                 ProblemRow(
                     state_key=state_key,
                     severity=severity_by_quality.get(item.quality, "LOW"),
                     source=item.source or "unknown",
                     cause=cause_code,
-                    meaning=meaning,
-                    action=action,
+                    meaning=guidance.meaning,
+                    action=guidance.action,
                     timestamp=item.timestamp,
                 )
             )
         return sorted(rows, key=lambda row: row.timestamp, reverse=True)
-
-    def _resolve_code_hint(self, code: str) -> tuple[str, str]:
-        fallback = (
-            "Kod nie ma jeszcze opisu operatorskiego.",
-            "Wstrzymaj ryzykowne działania, zapisz kod i eskaluj do wsparcia technicznego.",
-        )
-        return COMMON_CODE_HINTS.get(code, fallback)
 
     def _render_dependency_status(self, snapshot: dict[str, StateValue]) -> None:
         item = snapshot.get(STATE_KEY_DEPENDENCY_STATUS)

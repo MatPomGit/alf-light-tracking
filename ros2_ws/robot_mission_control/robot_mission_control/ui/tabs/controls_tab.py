@@ -22,6 +22,7 @@ from robot_mission_control.core import (
     STATE_KEY_ACTION_STATUS,
     StateStore,
 )
+from .operator_guidance import resolve_operator_guidance
 from .state_rendering import is_actionable, render_card_value_with_warning, render_value
 
 
@@ -85,10 +86,20 @@ class ControlsTab(QWidget):
             quick_actions_layout.addWidget(button, row, col)
             self._quick_buttons[command_key] = button
 
+        # [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
+        # CO ZMIENIONO: Dodano do ControlsTab pola „Co się stało” i „Co zrobić”
+        #               oraz podłączono je do współdzielonego mapowania guidance operatorskiego.
+        # DLACZEGO: Operator ma otrzymać natychmiastowy kontekst błędu/stanu i zalecane działanie
+        #           bez przechodzenia do innych zakładek.
+        # JAK TO DZIAŁA: Przy każdym odświeżeniu status akcji + reason_code są mapowane funkcją
+        #                `resolve_operator_guidance`, a wynik trafia do dwóch dedykowanych etykiet.
+        # TODO: Dodać mechanizm kopiowania „co się stało/co zrobić” do schowka z timestampem.
         self._status_value = QLabel("BRAK DANYCH", card)
         self._goal_id_value = QLabel("BRAK DANYCH", card)
         self._progress_value = QLabel("BRAK DANYCH", card)
         self._result_value = QLabel("BRAK DANYCH", card)
+        self._what_happened_value = QLabel("BRAK DANYCH", card)
+        self._what_to_do_value = QLabel("Wstrzymaj działania do czasu odzyskania wiarygodnych danych.", card)
 
         grid = QGridLayout()
         grid.addWidget(QLabel("Status:", card), 0, 0)
@@ -99,6 +110,10 @@ class ControlsTab(QWidget):
         grid.addWidget(self._progress_value, 2, 1)
         grid.addWidget(QLabel("Wynik końcowy:", card), 3, 0)
         grid.addWidget(self._result_value, 3, 1)
+        grid.addWidget(QLabel("Co się stało:", card), 4, 0)
+        grid.addWidget(self._what_happened_value, 4, 1)
+        grid.addWidget(QLabel("Co zrobić:", card), 5, 0)
+        grid.addWidget(self._what_to_do_value, 5, 1)
 
         layout.addWidget(title)
         layout.addLayout(buttons)
@@ -204,6 +219,18 @@ class ControlsTab(QWidget):
         self._goal_id_value.setText(goal_id)
         self._progress_value.setText(progress_text)
         self._result_value.setText(result)
+        # [AI-CHANGE | 2026-04-25 12:40 UTC | v0.201]
+        # CO ZMIENIONO: Dodano dynamiczne wyliczanie sekcji „Co się stało / Co zrobić” w ControlsTab.
+        # DLACZEGO: Operator musi wiedzieć, jaki stan akcji obserwuje i jaki powinien być kolejny krok.
+        # JAK TO DZIAŁA: Guidance wylicza się z `reason_code` lub statusu akcji przez wspólny resolver.
+        # TODO: Dodać logikę podświetlenia guidance dla stanów terminalnych FAILED/ABORTED.
+        action_status_item = self._state_store.get(STATE_KEY_ACTION_STATUS) if self._state_store is not None else None
+        guidance = resolve_operator_guidance(
+            reason_code=action_status_item.reason_code if action_status_item is not None else None,
+            status=str(action_status_item.value) if action_status_item is not None else status,
+        )
+        self._what_happened_value.setText(guidance.meaning)
+        self._what_to_do_value.setText(guidance.action)
         # [AI-CHANGE | 2026-04-21 17:42 UTC | v0.178]
         # CO ZMIENIONO: Przełączono warunek aktywności goal na wspólny enum statusów domenowych.
         # DLACZEGO: UI ma korzystać z jednej semantyki statusów i nie opierać się na rozsianych literałach string.
