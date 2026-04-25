@@ -26,6 +26,7 @@ from robot_mission_control.core import (
     StateStore,
     StateValue,
 )
+from robot_mission_control.ui.operator_alerts import OperatorAlerts
 from .state_rendering import is_actionable, render_card_value_with_warning, render_quality, render_value
 
 
@@ -143,6 +144,7 @@ class DiagnosticsTab(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._state_store = self._resolve_state_store(parent)
+        self._operator_alerts = self._resolve_operator_alerts(parent)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
@@ -157,8 +159,16 @@ class DiagnosticsTab(QWidget):
         controls_layout.setContentsMargins(0, 0, 0, 0)
         self._refresh_button = QPushButton("Odśwież teraz", controls)
         self._refresh_button.clicked.connect(self._refresh_view)
-        self._ack_button = QPushButton("ACK — NIEDOSTĘPNE W TEJ WERSJI", controls)
-        self._ack_button.setEnabled(False)
+        # [AI-CHANGE | 2026-04-25 08:57 UTC | v0.202]
+        # CO ZMIENIONO: Przycisk ACK został uruchomiony i podpięty do potwierdzania aktywnych alertów
+        #               z rejestru `OperatorAlerts` zamiast pozostawienia martwej kontrolki.
+        # DLACZEGO: Priorytet operatorski wymaga szybkiego potwierdzania incydentów bez opuszczania
+        #           zakładki Diagnostics; martwy przycisk utrudniał pracę dyżurną.
+        # JAK TO DZIAŁA: Kliknięcie ACK potwierdza alert dla zaznaczonego wiersza (po `state_key`),
+        #                a gdy brak selekcji, potwierdzany jest najnowszy niepotwierdzony alert aktywny.
+        # TODO: Dodać dialog wyboru operatora i powód ACK (np. "analiza w toku", "eskalowano L2").
+        self._ack_button = QPushButton("ACK (0)", controls)
+        self._ack_button.clicked.connect(self._ack_selected_or_latest_alert)
         self._last_refresh_value = QLabel("Ostatnie odświeżenie: -", controls)
         controls_layout.addWidget(self._refresh_button, 0, 0)
         controls_layout.addWidget(self._ack_button, 0, 1)
@@ -181,6 +191,7 @@ class DiagnosticsTab(QWidget):
         self._issues_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._issues_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._issues_table.setAlternatingRowColors(True)
+        self._issues_table.itemSelectionChanged.connect(self._sync_ack_button_state)
         issues_header = self._issues_table.horizontalHeader()
         issues_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         issues_header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -223,6 +234,11 @@ class DiagnosticsTab(QWidget):
         window = parent.window() if parent is not None else None
         return getattr(window, "state_store", None)
 
+    def _resolve_operator_alerts(self, parent: QWidget | None) -> OperatorAlerts | None:
+        window = parent.window() if parent is not None else None
+        candidate = getattr(window, "operator_alerts", None)
+        return candidate if isinstance(candidate, OperatorAlerts) else None
+
     # [AI-CHANGE | 2026-04-23 21:10 UTC | v0.194]
     # CO ZMIENIONO: Odświeżanie widoku przełączono na jedno źródło prawdy: bieżący `snapshot()`
     #               przekazywany bezpośrednio do renderowania tabeli problemów.
@@ -235,8 +251,60 @@ class DiagnosticsTab(QWidget):
         self._render_issues_table(snapshot)
         self._render_dependency_status(snapshot)
         self._render_ros_connection(snapshot)
+        self._sync_ack_button_state()
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         self._last_refresh_value.setText(f"Ostatnie odświeżenie: {now}")
+
+    # [AI-CHANGE | 2026-04-25 08:57 UTC | v0.202]
+    # CO ZMIENIONO: Dodano logikę aktualizacji i obsługi ACK: mapowanie zaznaczonego problemu na alert,
+    #               fallback do najnowszego alertu oraz automatyczne odświeżanie etykiety przycisku.
+    # DLACZEGO: Operator powinien widzieć, czy ACK jest możliwe i ile alertów nadal wymaga potwierdzenia,
+    #           aby szybko zamknąć pętlę reakcji bez ryzyka ACK "w ciemno".
+    # JAK TO DZIAŁA: `_sync_ack_button_state` liczy niepotwierdzone alerty aktywne i blokuje ACK,
+    #                gdy brak kandydatów; `_ack_selected_or_latest_alert` wykonuje ACK tylko przy
+    #                jednoznacznym dopasowaniu do alertu aktywnego.
+    # TODO: Dodać licznik ACK per zmiana operatorska i telemetrykę czasu od otwarcia alertu do ACK.
+    def _sync_ack_button_state(self) -> None:
+        if self._operator_alerts is None:
+            self._ack_button.setText("ACK — NIEDOSTĘPNE W TEJ WERSJI")
+            self._ack_button.setEnabled(False)
+            return
+
+        pending_alerts = [alert for alert in self._operator_alerts.active_alerts() if not alert.acknowledged]
+        self._ack_button.setText(f"ACK ({len(pending_alerts)})")
+        selected_key = self._selected_state_key()
+        if selected_key is None:
+            self._ack_button.setEnabled(bool(pending_alerts))
+            return
+        self._ack_button.setEnabled(any(alert.state_key == selected_key for alert in pending_alerts))
+
+    def _selected_state_key(self) -> str | None:
+        selected_items = self._issues_table.selectedItems()
+        if not selected_items:
+            return None
+        selected_row = selected_items[0].row()
+        key_item = self._issues_table.item(selected_row, 5)
+        if key_item is None:
+            return None
+        state_key = key_item.text().strip()
+        return state_key or None
+
+    def _ack_selected_or_latest_alert(self) -> None:
+        if self._operator_alerts is None:
+            return
+        active_alerts = self._operator_alerts.active_alerts()
+        pending_alerts = [alert for alert in active_alerts if not alert.acknowledged]
+        if not pending_alerts:
+            self._sync_ack_button_state()
+            return
+
+        selected_key = self._selected_state_key()
+        target_alert = next((alert for alert in pending_alerts if alert.state_key == selected_key), None)
+        if target_alert is None:
+            target_alert = pending_alerts[0]
+
+        self._operator_alerts.ack_alert(alert_id=target_alert.alert_id, operator_id="diagnostics_ui")
+        self._sync_ack_button_state()
 
     # [AI-CHANGE | 2026-04-23 21:10 UTC | v0.194]
     # CO ZMIENIONO: Tabela problemów jest teraz budowana bezpośrednio ze snapshotu StateStore
