@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QCheckBox, QHeaderView, QLabel, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 
 from robot_mission_control.core import (
@@ -16,7 +17,7 @@ from robot_mission_control.core import (
     StateStore,
     StateValue,
 )
-from .state_rendering import render_quality, render_value
+from .state_rendering import quality_color_hex, render_quality_with_icon, render_value
 
 
 # [AI-CHANGE | 2026-04-23 16:20 UTC | v0.181]
@@ -111,17 +112,19 @@ class TelemetryTab(QWidget):
                 continue
             rows.append((key, item))
 
-        # [AI-CHANGE | 2026-04-23 14:15 UTC | v0.187]
-        # CO ZMIENIONO: Przełączono renderowanie kolumn value/quality na wspólne helpery.
-        # DLACZEGO: Eliminujemy duplikację logiki fallbacków i utrzymujemy jednolite bramkowanie jakości.
-        # JAK TO DZIAŁA: `render_value` zwraca wyłącznie bezpieczny fallback dla quality != VALID, a
-        #                `render_quality` spójnie mapuje brak próbki na UNAVAILABLE.
-        # TODO: Dodać kolorystykę per quality bezpośrednio na komórkach tabeli.
+        # [AI-CHANGE | 2026-04-25 16:20 UTC | v0.201]
+        # CO ZMIENIONO: Kolumna Quality używa teraz mapowania quality -> ikona/kolor.
+        # DLACZEGO: Operator szybciej rozpoznaje stan danych przy wysokim obciążeniu poznawczym.
+        # JAK TO DZIAŁA: `render_quality_with_icon` buduje etykietę z ikoną, a `quality_color_hex`
+        #                koloruje tekst komórki jakości zgodnie z poziomem ryzyka.
+        # TODO: Dodać legendę kolorów Quality bezpośrednio pod tabelą telemetryczną.
         self._table.setRowCount(len(rows))
         for row_index, (key, item) in enumerate(rows):
             self._table.setItem(row_index, 0, QTableWidgetItem(key))
             self._table.setItem(row_index, 1, QTableWidgetItem(render_value(item)))
-            self._table.setItem(row_index, 2, QTableWidgetItem(render_quality(item)))
+            quality_item = QTableWidgetItem(render_quality_with_icon(item))
+            quality_item.setForeground(QColor(quality_color_hex(item)))
+            self._table.setItem(row_index, 2, quality_item)
             self._table.setItem(row_index, 3, QTableWidgetItem(self._render_reason_code(item)))
             self._table.setItem(row_index, 4, QTableWidgetItem(self._render_timestamp(item)))
             self._table.setItem(row_index, 5, QTableWidgetItem(self._render_warning_label(item)))
