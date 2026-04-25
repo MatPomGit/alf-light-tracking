@@ -161,6 +161,81 @@ class RosBridgeService:
             return local_path
         return Path(__file__).resolve().parent.parent / "config" / "action_backend.yaml"
 
+    # [AI-CHANGE | 2026-04-24 23:18 UTC | v0.202]
+    # CO ZMIENIONO: Dodano walidację zgodności kontraktu `MissionStep.action` z konfiguracją runtime i mapowaniem UI.
+    # DLACZEGO: Celem jest eliminacja rozjazdu typu Action vs backend vs UI zanim backend przejdzie do aktywnego trybu.
+    # JAK TO DZIAŁA: Loader odczytuje lokalny plik `.action` (jeśli dostępny), parsuje pola Goal/Feedback/Result
+    #                i wymusza zgodność: payload quick-akcji musi trafiać w pola Goal, feedback musi mieć `progress`,
+    #                a `result.display_fields` musi wskazywać istniejące pola Result; przy niepewności zwracamy `False`.
+    # TODO: Dodać równoległą walidację przez introspekcję wygenerowanego typu ROS2 w install-space.
+    def _resolve_local_action_contract_path(self, config: ActionBackendConfig) -> Path | None:
+        """Zwraca ścieżkę do lokalnego pliku `.action` zgodnego z aktualnym configiem."""
+        if config.action_type_name.strip() != "MissionStep":
+            return None
+        if config.action_type_module.strip() != "robot_mission_control_interfaces.action":
+            return None
+
+        workspace_candidate = (
+            Path(__file__).resolve().parent.parent.parent / "robot_mission_control_interfaces" / "action" / "MissionStep.action"
+        )
+        if workspace_candidate.exists():
+            return workspace_candidate
+        return None
+
+    def _parse_action_contract_fields(self, action_text: str) -> tuple[set[str], set[str], set[str]] | None:
+        """Parsuje pola Goal/Feedback/Result z treści pliku `.action`."""
+        sections = action_text.split("---")
+        if len(sections) != 3:
+            return None
+
+        parsed_sections: list[set[str]] = []
+        for section in sections:
+            section_fields: set[str] = set()
+            for raw_line in section.splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                tokens = line.split()
+                if len(tokens) < 2:
+                    continue
+                field_name = tokens[1].strip()
+                if field_name:
+                    section_fields.add(field_name)
+            parsed_sections.append(section_fields)
+
+        return parsed_sections[0], parsed_sections[1], parsed_sections[2]
+
+    def _is_action_contract_runtime_compatible(self, config: ActionBackendConfig) -> bool:
+        """Weryfikuje zgodność kontraktu Action z konfiguracją backendu i UI."""
+        contract_path = self._resolve_local_action_contract_path(config)
+        if contract_path is None:
+            return True
+
+        try:
+            parsed = self._parse_action_contract_fields(contract_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return False
+
+        if parsed is None:
+            return False
+
+        goal_fields, feedback_fields, result_fields = parsed
+        if "goal" not in goal_fields:
+            return False
+        if "progress" not in feedback_fields:
+            return False
+
+        for payload in self._quick_command_map.values():
+            for payload_key in payload.keys():
+                if payload_key not in goal_fields:
+                    return False
+
+        for field_name in self._action_result_display_fields:
+            if field_name not in result_fields:
+                return False
+
+        return True
+
     # [AI-CHANGE | 2026-04-21 18:06 UTC | v0.179]
     # CO ZMIENIONO: Dodano walidację startową konfiguracji backendu Action z precyzyjnym `reason_code`.
     # DLACZEGO: Przy błędnym kontrakcie mamy raportować konkretną przyczynę (`action_contract_missing`),
@@ -250,6 +325,9 @@ class RosBridgeService:
                         if isinstance(field_name, str) and field_name.strip():
                             parsed_display_fields.append(field_name.strip())
                 self._action_result_display_fields = parsed_display_fields
+            if not self._is_action_contract_runtime_compatible(config):
+                self._action_backend_unavailable_reason_code = "action_contract_missing"
+                return None
             self._action_backend_unavailable_reason_code = "action_backend_unavailable"
             return config
         except Exception:  # noqa: BLE001

@@ -32,13 +32,22 @@ TODO: Dodać automatyczny skrypt CI, który mapuje zadania z `TASKS.md` na dowod
 - `RMC-ACT-003` -> `DONE`: walidacja krytycznych pól configu i timeoutów jest zaimplementowana (`ros/action_backend.py`, `core/config_loader.py`) i testowana (`tests/test_config_loader.py`, `tests/test_action_backend.py`).
 - `RMC-ACT-002` -> `IN_PROGRESS`: jest test przepływu goal/feedback/result/cancel na atrapach runtime, ale brak pełnego testu z realnym serwerem ROS2 Action w `launch_testing`.
 - `RMC-CI-001` pozostaje `PLANNED`: brak dedykowanego testu launch/install-space uruchamianego w CI.
+<!--
+[AI-CHANGE | 2026-04-24 23:18 UTC | v0.202]
+CO ZMIENIONO: Dodano dowód realizacji zadania RMC-ACT-001 (finalny kontrakt Action + walidacja runtime).
+DLACZEGO: Po dodaniu pakietu `robot_mission_control_interfaces` i testów zgodności kontraktu zadanie spełnia DoD.
+JAK TO DZIAŁA: W backlogu oznaczamy status `DONE` oraz wskazujemy artefakty: `MissionStep.action`, walidacja w `app.py`,
+               test zgodności `tests/test_action_contract_runtime_alignment.py`.
+TODO: Uzupełnić o link do PR merge i datę zamknięcia po scaleniu do gałęzi głównej.
+-->
+- `RMC-ACT-001` -> `DONE`: kontrakt `MissionStep.action` jest dostarczony lokalnie (`robot_mission_control_interfaces/action/MissionStep.action`), a zgodność backend/UI potwierdzają walidacja runtime (`robot_mission_control/app.py`) i testy (`tests/test_action_contract_runtime_alignment.py`).
 
 ## Epic A — Kontrakt i stabilizacja backendu ROS2 Action
 
 ### RMC-ACT-001 — Finalizacja typu Action `MissionStep`
-- Status: `PLANNED`
+- Status: `DONE`
 - Owner: `@backend_ros`
-- Data przeglądu: `2026-04-28`
+- Data przeglądu: `2026-04-24`
 - Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/ACT-001`
 - Priorytet: `P0`
 - Estymacja: `2-3 dni`
