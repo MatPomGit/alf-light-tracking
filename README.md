@@ -59,6 +59,16 @@ TODO: Dodać osobny diagram przepływu danych między `g1_light_tracking`, `robo
 - `docs/reference-links/` – uporządkowane linki pomocnicze (RT, tf2, tracing, bag recording).
 - `ros2_ws/robot_mission_control/` – desktopowy pakiet operatorski ROS2 do monitorowania stanu robota.
 
+<!--
+[AI-CHANGE | 2026-04-25 16:38 UTC | v0.202]
+CO ZMIENIONO: Dodano odnośniki do nowego runbooka incydentów oraz twardej macierzy środowisk w sekcji mapowania dokumentacji.
+DLACZEGO: Operator i release manager mają szybciej trafiać do krytycznych procedur skracających czas reakcji i stabilizujących wdrożenia.
+JAK TO DZIAŁA: README wskazuje dwa dokumenty operacyjne jako źródło procedur awaryjnych i reguł ALLOW/BLOCK przed deploymentem.
+TODO: Dodać sekcję „On-call quick links” agregującą runbook, troubleshooting i checkliste zmiany dyżuru.
+-->
+- `docs/operator/incident_runbook.md` – stanowiskowy runbook incydentów (triage, eskalacja, rollback, zamknięcie).
+- `docs/spec/hard_environment_matrix.md` – twarda macierz środowisk i bramki ALLOW/BLOCK dla release.
+
 ---
 
 ## Wymagania
