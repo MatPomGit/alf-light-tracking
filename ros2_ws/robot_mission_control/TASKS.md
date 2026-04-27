@@ -8,14 +8,6 @@ TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE]
 
 # TASKS — robot_mission_control
 
-
-<!--
-[AI-CHANGE | 2026-04-27 12:03 UTC | v0.203]
-CO ZMIENIONO: Dodano sekcję granic odpowiedzialności TASKS.md względem DEPLOYMENT_PLAN.md, CHANGELOG.md i COMMIT_LOG.md.
-DLACZEGO: Użytkownik wymaga, aby ten sam fakt nie był równolegle utrzymywany w wielu plikach.
-JAK TO DZIAŁA: TASKS.md pozostaje jedynym miejscem na statusy, ownerów, daty przeglądu i DoD zadań; pozostałe dokumenty są tylko referencjami.
-TODO: Dodać automatyczny test markdown sprawdzający, czy sekcja "Granice dokumentu" istnieje i nie została osłabiona.
--->
 ## Granice dokumentu (single source of truth)
 - Tylko tutaj utrzymujemy backlog wykonawczy: `Status`, `Owner`, `Data przeglądu`, `DoD`.
 - `DEPLOYMENT_PLAN.md` opisuje wyłącznie rollout/rollback i nie duplikuje statusów zadań.
@@ -54,14 +46,6 @@ TODO: Dodać automatyczny test markdown sprawdzający, czy sekcja "Granice dokum
 - `RMC-CI-001` pozostaje `PLANNED`: brak dedykowanego testu launch/install-space uruchamianego w CI.
 - `RMC-OPS-001` -> `DONE`: runbook operacyjny istnieje i jest oznaczony jako zatwierdzony (`docs/operator/incident_runbook.md`), co domyka DoD playbooku.
 - `RMC-OPS-002` -> `DONE`: twarda macierz środowisk istnieje i jest oznaczona jako zatwierdzona (`docs/spec/hard_environment_matrix.md`), co domyka DoD kompatybilności środowisk.
-<!--
-[AI-CHANGE | 2026-04-24 23:18 UTC | v0.202]
-CO ZMIENIONO: Dodano dowód realizacji zadania RMC-ACT-001 (finalny kontrakt Action + walidacja runtime).
-DLACZEGO: Po dodaniu pakietu `robot_mission_control_interfaces` i testów zgodności kontraktu zadanie spełnia DoD.
-JAK TO DZIAŁA: W backlogu oznaczamy status `DONE` oraz wskazujemy artefakty: `MissionStep.action`, walidacja w `app.py`,
-               test zgodności `tests/test_action_contract_runtime_alignment.py`.
-TODO: Uzupełnić o link do PR merge i datę zamknięcia po scaleniu do gałęzi głównej.
--->
 - `RMC-ACT-001` -> `DONE`: kontrakt `MissionStep.action` jest dostarczony lokalnie (`robot_mission_control_interfaces/action/MissionStep.action`), a zgodność backend/UI potwierdzają walidacja runtime (`robot_mission_control/app.py`) i testy (`tests/test_action_contract_runtime_alignment.py`).
 
 ## Epic A — Kontrakt i stabilizacja backendu ROS2 Action

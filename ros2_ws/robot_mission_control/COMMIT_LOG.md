@@ -49,6 +49,25 @@ TODO: Ustandaryzować format sekcji archiwum meta-zmian i walidować go automaty
 
 ## Archiwum meta-zmian przeniesionych z TASKS.md
 
+<!--
+[AI-CHANGE | 2026-04-27 13:11 UTC | v0.202]
+CO ZMIENIONO: Rozszerzono archiwum o dwa dosłownie przeniesione bloki meta-zmian z TASKS.md (drugi blok nagłówkowy i blok historyczny ze środka dokumentu).
+DLACZEGO: Utrzymujemy tylko jeden aktualny blok meta w TASKS.md, a starsze opisy zmian przechowujemy wyłącznie w COMMIT_LOG.md.
+JAK TO DZIAŁA: Poniższe sekcje kopiują techniczną treść przeniesionych bloków bez mieszania jej z aktywnym backlogiem.
+TODO: Dodać walidator CI, który wykrywa bloki [AI-CHANGE] poza pierwszym blokiem nagłówkowym TASKS.md.
+-->
+### 2026-04-27 12:03 UTC | v0.203
+- CO ZMIENIONO: Dodano sekcję granic odpowiedzialności TASKS.md względem DEPLOYMENT_PLAN.md, CHANGELOG.md i COMMIT_LOG.md.
+- DLACZEGO: Użytkownik wymaga, aby ten sam fakt nie był równolegle utrzymywany w wielu plikach.
+- JAK TO DZIAŁA: TASKS.md pozostaje jedynym miejscem na statusy, ownerów, daty przeglądu i DoD zadań; pozostałe dokumenty są tylko referencjami.
+- TODO: Dodać automatyczny test markdown sprawdzający, czy sekcja "Granice dokumentu" istnieje i nie została osłabiona.
+
+### 2026-04-24 23:18 UTC | v0.202
+- CO ZMIENIONO: Dodano dowód realizacji zadania RMC-ACT-001 (finalny kontrakt Action + walidacja runtime).
+- DLACZEGO: Po dodaniu pakietu `robot_mission_control_interfaces` i testów zgodności kontraktu zadanie spełnia DoD.
+- JAK TO DZIAŁA: W backlogu oznaczamy status `DONE` oraz wskazujemy artefakty: `MissionStep.action`, walidacja w `app.py`, test zgodności `tests/test_action_contract_runtime_alignment.py`.
+- TODO: Uzupełnić o link do PR merge i datę zamknięcia po scaleniu do gałęzi głównej.
+
 ### 2026-04-27 12:20 UTC | v0.203
 - CO ZMIENIONO: Dodano jawne wskazanie, że TASKS.md jest jedynym aktywnym backlogiem wykonawczym.
 - DLACZEGO: Ujednolicenie źródła prawdy dla statusów, ownerów, review i DoD.
