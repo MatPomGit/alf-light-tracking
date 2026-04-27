@@ -23,6 +23,16 @@
   <exec_depend>robot_mission_control_interfaces</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>python3-pyside6</exec_depend>
+  <!-- [AI-CHANGE | 2026-04-27 06:40 UTC | v0.202] -->
+  <!-- CO ZMIENIONO: Dodano zależności testowe `launch_testing` i `launch_testing_ros` dla E2E Action na realnym runtime ROS2. -->
+  <!-- DLACZEGO: Test `launch_testing` wymaga pakietów orkiestrujących procesy launch i asercje runtime, -->
+  <!--           aby zastąpić dotychczasowe podejście oparte o skrypty/logi i mocki klienta. -->
+  <!-- JAK TO DZIAŁA: `test_depend` zapewnia dostęp do infrastruktury testowej podczas uruchamiania `colcon test` -->
+  <!--                i pozwala wykonywać scenariusze accept/feedback/result/cancel/reject z prawdziwym ActionServer. -->
+  <!-- TODO: Dodać `test_depend` dla eksportu raportu JUnit z dedykowanym parserem logów diagnostycznych Action. -->
+  <test_depend>launch_testing</test_depend>
+  <test_depend>launch_testing_ros</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
   <export>
     <build_type>ament_python</build_type>
