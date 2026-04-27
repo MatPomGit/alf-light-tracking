@@ -192,13 +192,17 @@ TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE]
 - DoD:
   - checklista instalacyjna bez niejawnych założeń środowiskowych.
 
-## Kolejność realizacji (proponowana, tylko pozycje otwarte)
-1. `RMC-ACT-001`
-2. `RMC-ACT-002`
-3. `RMC-CI-001`
-4. `RMC-UI-002`
-5. `RMC-OPS-001`
-6. `RMC-OPS-002`
+## Kolejność realizacji (proponowana, tylko statusy: `IN_PROGRESS`/`PLANNED`/`BLOCKED`)
+<!--
+[AI-CHANGE | 2026-04-27 13:39 UTC | v0.201]
+CO ZMIENIONO: Ograniczono listę kolejności realizacji wyłącznie do zadań o statusach `IN_PROGRESS`, `PLANNED` i `BLOCKED`; usunięto pozycje ze statusem `DONE`.
+DLACZEGO: Sekcja ma wspierać planowanie pracy operacyjnej, więc nie powinna zawierać zamkniętych zadań, które nie wymagają dalszej realizacji.
+JAK TO DZIAŁA: Lista poniżej zawiera tylko aktywne lub oczekujące elementy backlogu; zadania zamknięte pozostają w swoich sekcjach szczegółowych, ale nie są już priorytetyzowane w tej kolejności.
+TODO: Dodać automatyczną walidację markdown w CI, która blokuje obecność zadań `DONE` w sekcji kolejności realizacji.
+-->
+1. `RMC-ACT-002`
+2. `RMC-CI-001`
+3. `RMC-UI-002`
 
 ## Definicja skutecznego backlogu (DoD procesu)
 - Każde zadanie ma komplet metadanych: `Status`, `Owner`, `Data przeglądu`, `Link PR/Ticket`.
