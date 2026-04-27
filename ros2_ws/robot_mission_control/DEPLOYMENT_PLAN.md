@@ -8,6 +8,20 @@ TODO: Po pierwszym pilotażu uzupełnić plan o rzeczywiste czasy MTTR i listę 
 
 # DEPLOYMENT PLAN — robot_mission_control
 
+
+<!--
+[AI-CHANGE | 2026-04-27 12:03 UTC | v0.203]
+CO ZMIENIONO: Doprecyzowano granice dokumentu wdrożeniowego, aby nie powielał backlogu, changelogu ani logu commitów.
+DLACZEGO: Rozdzielenie odpowiedzialności dokumentów eliminuje ryzyko niespójności i rozjazdów audytowych.
+JAK TO DZIAŁA: Plan wdrożeniowy zawiera tylko procedury rollout/rollback, a metadane wykonawcze i historia zmian pozostają w dedykowanych plikach.
+TODO: Dodać checklistę release managera, która przed publikacją wymusza weryfikację braku duplikatów między dokumentami.
+-->
+## Granice dokumentu (single source of truth)
+- Ten plik opisuje tylko rollout, gate'y GO/NO-GO, monitoring i rollback.
+- Statusy zadań, ownerzy i DoD są utrzymywane wyłącznie w `TASKS.md`.
+- Historia wersji/release jest utrzymywana wyłącznie w `CHANGELOG.md`.
+- Historia commitów/PR jest utrzymywana wyłącznie w `COMMIT_LOG.md`.
+
 ## 1) Cel wdrożenia
 Wdrożyć `robot_mission_control` jako stabilny pakiet operatorski ROS2 w `ros2_ws/` z aktywnym backendem Action,
 bez prezentowania danych fikcyjnych (priorytet: `UNAVAILABLE` zamiast błędnego wyniku).
