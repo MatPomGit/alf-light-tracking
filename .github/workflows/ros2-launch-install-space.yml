@@ -1,0 +1,69 @@
+# [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
+# CO ZMIENIONO: Dodano workflow CI z osobnym jobem `launch-install-space` walidującym `ros2 launch`, pliki `config` w `share/` i entrypoint `ros2 run`.
+# DLACZEGO: DoD wymaga niezależnego, blokującego joba instalacyjno-launchowego przed mergem.
+# JAK TO DZIAŁA: Job buduje workspace przez `colcon`, źródłuje `install/setup.bash` i wykonuje zestaw testów kontraktowych install-space.
+# TODO: Rozszerzyć walidację o uruchomienie pełnych testów `launch_testing` z asercjami runtime dla wszystkich pakietów.
+name: ROS2 launch/install-space checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  launch-install-space:
+    name: launch-install-space (required)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup ROS 2 Jazzy
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: jazzy
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep
+
+      - name: Build workspace
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build --base-paths ros2_ws --event-handlers console_direct+
+
+      - name: Validate launch/install-space/runtime entrypoints
+        run: |
+          set -euo pipefail
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+
+          # [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
+          # CO ZMIENIONO: Dodano test rozwiązywania launch file przez `ros2 launch --show-args`.
+          # DLACZEGO: To najtańsza kontrola CI, że launch jest poprawnie zainstalowany i możliwy do uruchomienia.
+          # JAK TO DZIAŁA: Komenda kończy się błędem, jeśli launch nie istnieje lub nie daje się sparsować.
+          # TODO: Dodać osobny krok z `timeout` i asercją logów dla rzeczywistego procesu launch.
+          ros2 launch robot_mission_control mission_control.launch.py --show-args >/tmp/mission_control_launch_args.txt
+
+          # [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
+          # CO ZMIENIONO: Dodano twardą walidację obecności plików konfiguracyjnych w install-space (`share/.../config`).
+          # DLACZEGO: Brak configu po instalacji może dać błędny runtime; lepiej przerwać pipeline niż dopuścić niepewną detekcję/sterylną konfigurację.
+          # JAK TO DZIAŁA: Każdy `test -f` failuje job, gdy artefakt instalacyjny nie został poprawnie zapakowany.
+          # TODO: Uogólnić listę plików do auto-odkrywania na podstawie `setup.py`/`package.xml`.
+          test -f "install/robot_mission_control/share/robot_mission_control/config/default.yaml"
+          test -f "install/robot_mission_control/share/robot_mission_control/config/action_backend.yaml"
+          test -f "install/robot_emergency_stop/share/robot_emergency_stop/config/emergency_stop.yaml"
+          test -f "install/g1_light_tracking/share/g1_light_tracking/config/perception.yaml"
+          test -f "install/g1_light_tracking/share/g1_light_tracking/config/control.yaml"
+          test -f "install/g1_light_tracking/share/g1_light_tracking/config/bridge.yaml"
+
+          # [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
+          # CO ZMIENIONO: Dodano walidację entrypointa pakietu przez `ros2 run` i listę executable.
+          # DLACZEGO: Chcemy wcześnie wykrywać brak rejestracji `console_scripts`, zanim trafi to do merge.
+          # JAK TO DZIAŁA: Najpierw sprawdzamy obecność executable, potem uruchamiamy `ros2 run ... --help` jako szybki smoke test.
+          # TODO: Rozszerzyć krok o walidację wszystkich entrypointów publikowanych przez pakiety ROS2 w repozytorium.
+          ros2 pkg executables robot_mission_control | grep -E '^robot_mission_control mission_control_node$'
+          ros2 run robot_mission_control mission_control_node --help >/tmp/mission_control_help.txt
