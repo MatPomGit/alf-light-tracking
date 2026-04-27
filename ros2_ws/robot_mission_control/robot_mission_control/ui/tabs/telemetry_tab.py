@@ -6,7 +6,18 @@ from datetime import datetime, timezone
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QCheckBox, QHeaderView, QLabel, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QHeaderView,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from robot_mission_control.core import (
     GLOBAL_STATE_KEYS,
@@ -17,7 +28,7 @@ from robot_mission_control.core import (
     StateStore,
     StateValue,
 )
-from .state_rendering import quality_color_hex, render_quality_with_icon, render_value
+from .state_rendering import quality_color_hex, render_quality_with_icon, render_value, severity_rank_from_quality
 
 
 # [AI-CHANGE | 2026-04-23 16:20 UTC | v0.181]
@@ -45,6 +56,7 @@ class TelemetryTab(QWidget):
         super().__init__(parent)
         self._state_store = self._resolve_state_store(parent)
         self._telemetry_keys = self._build_telemetry_keys()
+        self._severity_filters: tuple[str, ...] = ("ALL", "CRITICAL", "HIGH", "MEDIUM", "INFO")
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
@@ -54,9 +66,29 @@ class TelemetryTab(QWidget):
         self._title.setStyleSheet("font-size: 16px; font-weight: 600;")
         root.addWidget(self._title)
 
+        # [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+        # CO ZMIENIONO: Dodano pasek filtrów telemetryki: checkbox „Tylko problemy”, filtr severity
+        #               oraz filtr tekstowy po nazwie klucza.
+        # DLACZEGO: Operator musi szybciej zawężać widok do krytycznych rekordów przy dużej liczbie kluczy.
+        # JAK TO DZIAŁA: Każda zmiana filtra uruchamia `_refresh_table`; rekord przechodzi dalej tylko gdy
+        #                spełnia wszystkie warunki (problem/severity/nazwa klucza).
+        # TODO: Dodać preset filtrów per rola operatora (L1/L2/serwis).
+        filters_layout = QHBoxLayout()
         self._problems_only_checkbox = QCheckBox("Tylko problemy", self)
         self._problems_only_checkbox.toggled.connect(self._refresh_table)
-        root.addWidget(self._problems_only_checkbox)
+        filters_layout.addWidget(self._problems_only_checkbox)
+
+        self._severity_filter = QComboBox(self)
+        self._severity_filter.addItems(self._severity_filters)
+        self._severity_filter.currentIndexChanged.connect(self._refresh_table)
+        filters_layout.addWidget(QLabel("Severity ≥", self))
+        filters_layout.addWidget(self._severity_filter)
+
+        self._key_filter_edit = QLineEdit(self)
+        self._key_filter_edit.setPlaceholderText("Filtr klucza (np. action_)")
+        self._key_filter_edit.textChanged.connect(self._refresh_table)
+        filters_layout.addWidget(self._key_filter_edit, stretch=1)
+        root.addLayout(filters_layout)
 
         self._table = QTableWidget(self)
         self._table.setColumnCount(6)
@@ -73,6 +105,17 @@ class TelemetryTab(QWidget):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         root.addWidget(self._table)
+        # [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+        # CO ZMIENIONO: Dodano legendę kolorów quality bezpośrednio pod tabelą telemetryczną.
+        # DLACZEGO: Kolory quality są skuteczne tylko wtedy, gdy operator zna ich znaczenie bez zgadywania.
+        # JAK TO DZIAŁA: Etykieta legendy odwzorowuje mapę `VALID/STALE/UNAVAILABLE/ERROR` używaną
+        #                przez helpery renderowania i działa jako stały kontekst dla odczytu tabeli.
+        # TODO: Dodać wariant legendy z wysokim kontrastem (tryb nocny i projektor).
+        self._quality_legend = QLabel(
+            "Legenda quality: ✅ VALID (zielony) | ⚠ STALE/UNAVAILABLE (amber) | ⛔ ERROR (czerwony)",
+            self,
+        )
+        root.addWidget(self._quality_legend)
 
         self._refresh_timer = QTimer(self)
         # [AI-CHANGE | 2026-04-23 18:29 UTC | v0.195]
@@ -103,14 +146,30 @@ class TelemetryTab(QWidget):
 
     def _refresh_table(self) -> None:
         problems_only = self._problems_only_checkbox.isChecked()
+        key_filter = self._key_filter_edit.text().strip().lower()
+        min_severity = self._severity_filter.currentText()
         snapshot = self._state_store.snapshot() if self._state_store is not None else {}
 
         rows: list[tuple[str, StateValue | None]] = []
+        min_rank = self._severity_filters.index(min_severity) - 1 if min_severity in self._severity_filters else -1
         for key in self._telemetry_keys:
             item = snapshot.get(key)
             if problems_only and item is not None and item.quality is DataQuality.VALID:
                 continue
+            if key_filter and key_filter not in key.lower():
+                continue
+            if min_rank >= 0:
+                row_rank = severity_rank_from_quality(item)
+                if row_rank > min_rank:
+                    continue
             rows.append((key, item))
+        rows.sort(
+            key=lambda row: (
+                severity_rank_from_quality(row[1]),
+                0 if row[1] is None else -int(row[1].timestamp.timestamp()),
+                row[0],
+            )
+        )
 
         # [AI-CHANGE | 2026-04-25 16:20 UTC | v0.201]
         # CO ZMIENIONO: Kolumna Quality używa teraz mapowania quality -> ikona/kolor.

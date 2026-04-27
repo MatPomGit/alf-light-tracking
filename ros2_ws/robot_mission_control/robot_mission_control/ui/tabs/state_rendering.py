@@ -82,6 +82,13 @@ _SEVERITY_BY_QUALITY: dict[DataQuality, str] = {
     DataQuality.UNAVAILABLE: "HIGH",
     DataQuality.ERROR: "CRITICAL",
 }
+_SEVERITY_RANK: dict[str, int] = {
+    "CRITICAL": 0,
+    "HIGH": 1,
+    "MEDIUM": 2,
+    "INFO": 3,
+    "LOW": 4,
+}
 
 
 def render_quality_with_icon(item: StateValue | None) -> str:
@@ -101,6 +108,20 @@ def severity_from_quality(item: StateValue | None) -> str:
     """Mapuje jakość próbki na poziom severity do filtrowania/sortowania."""
     quality = DataQuality.UNAVAILABLE if item is None else item.quality
     return _SEVERITY_BY_QUALITY.get(quality, "LOW")
+
+
+# [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+# CO ZMIENIONO: Dodano helper `severity_rank_from_quality`, który zwraca numeryczny priorytet
+#               severities używany do stabilnego sortowania rekordów telemetrycznych.
+# DLACZEGO: Sam tekst severity utrudnia deterministyczne sortowanie (np. CRITICAL przed HIGH),
+#           a operator potrzebuje stałej kolejności od najwyższego ryzyka.
+# JAK TO DZIAŁA: Funkcja korzysta z `severity_from_quality`, a następnie mapuje wynik na rangę
+#                liczbową; mniejsza liczba oznacza wyższy priorytet i pojawia się wyżej w tabeli.
+# TODO: Dodać możliwość konfiguracji rankingu severity z pliku policy runtime.
+def severity_rank_from_quality(item: StateValue | None) -> int:
+    """Zwraca rangę liczbową severity dla stabilnego sortowania tabel."""
+    severity = severity_from_quality(item)
+    return _SEVERITY_RANK.get(severity, _SEVERITY_RANK["LOW"])
 
 
 # [AI-CHANGE | 2026-04-23 17:10 UTC | v0.192]
