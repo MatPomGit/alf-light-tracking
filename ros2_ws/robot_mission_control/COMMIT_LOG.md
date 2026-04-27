@@ -6,6 +6,33 @@
 
 # Commit log — robot_mission_control
 
+
+<!--
+[AI-CHANGE | 2026-04-27 12:03 UTC | v0.203]
+CO ZMIENIONO: Dodano sekcję zakresu COMMIT_LOG.md, która formalizuje rozdział odpowiedzialności między dokumentami.
+DLACZEGO: Dzięki temu historia commitów/PR nie dubluje backlogu, planu wdrożenia ani changelogu releasowego.
+JAK TO DZIAŁA: Wpisy w tym pliku opisują wyłącznie techniczne zmiany commitowe i referują do innych dokumentów zamiast kopiować ich treść.
+TODO: Wprowadzić szablon PR wymagający jawnego wskazania, czy zmiana powinna trafić do CHANGELOG.md.
+-->
+## Zakres dokumentu
+- Ten plik zawiera wyłącznie historię commitów i PR (techniczny dziennik zmian).
+- Fakty releasowe publikujemy wyłącznie w `CHANGELOG.md`.
+- Fakty backlogowe (`Status`, `Owner`, `Data przeglądu`, `DoD`) publikujemy wyłącznie w `TASKS.md`.
+- Procedury rollout/rollback publikujemy wyłącznie w `DEPLOYMENT_PLAN.md`.
+
+<!--
+[AI-CHANGE | 2026-04-27 12:03 UTC | v0.203]
+CO ZMIENIONO: Dodano wpis commitowy dokumentujący rozdzielenie odpowiedzialności między TASKS.md, DEPLOYMENT_PLAN.md, CHANGELOG.md i COMMIT_LOG.md.
+DLACZEGO: Potrzebujemy jawnego śladu technicznego dla reguły "jeden fakt = jedno źródło prawdy".
+JAK TO DZIAŁA: Sekcja poniżej rejestruje commit porządkujący granice dokumentów i wskazuje zakres modyfikacji.
+TODO: Dodać automatyczne generowanie wpisu COMMIT_LOG.md z diffu plików dokumentacyjnych.
+-->
+## 2026-04-27 | v0.203 | (pending commit)
+
+- Dodano sekcje "Granice dokumentu" w `TASKS.md`, `DEPLOYMENT_PLAN.md`, `CHANGELOG.md` i `COMMIT_LOG.md`.
+- Ustalono formalny podział odpowiedzialności: backlog (`TASKS.md`), rollout/rollback (`DEPLOYMENT_PLAN.md`), release (`CHANGELOG.md`), historia commitów/PR (`COMMIT_LOG.md`).
+- Uproszczono wpis release `0.1.0` w `CHANGELOG.md`, aby nie dublować szczegółów technicznych z `COMMIT_LOG.md`.
+
 <!--
 [AI-CHANGE | 2026-04-27 13:05 UTC | v0.203]
 CO ZMIENIONO: Dodano wpis commitowy dokumentujący porządkowanie nagłówków meta-zmian w TASKS.md oraz archiwum przeniesionych wpisów.

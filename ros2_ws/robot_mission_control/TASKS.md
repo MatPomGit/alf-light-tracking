@@ -8,6 +8,20 @@ TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE]
 
 # TASKS — robot_mission_control
 
+
+<!--
+[AI-CHANGE | 2026-04-27 12:03 UTC | v0.203]
+CO ZMIENIONO: Dodano sekcję granic odpowiedzialności TASKS.md względem DEPLOYMENT_PLAN.md, CHANGELOG.md i COMMIT_LOG.md.
+DLACZEGO: Użytkownik wymaga, aby ten sam fakt nie był równolegle utrzymywany w wielu plikach.
+JAK TO DZIAŁA: TASKS.md pozostaje jedynym miejscem na statusy, ownerów, daty przeglądu i DoD zadań; pozostałe dokumenty są tylko referencjami.
+TODO: Dodać automatyczny test markdown sprawdzający, czy sekcja "Granice dokumentu" istnieje i nie została osłabiona.
+-->
+## Granice dokumentu (single source of truth)
+- Tylko tutaj utrzymujemy backlog wykonawczy: `Status`, `Owner`, `Data przeglądu`, `DoD`.
+- `DEPLOYMENT_PLAN.md` opisuje wyłącznie rollout/rollback i nie duplikuje statusów zadań.
+- `CHANGELOG.md` opisuje wyłącznie historię wersji/release i nie duplikuje rekordów commitowych.
+- `COMMIT_LOG.md` opisuje wyłącznie historię commitów/PR i nie duplikuje backlogu.
+
 ## Polityka backlogu wykonawczego
 - `TASKS.md` jest **jedynym** aktywnym backlogiem wykonawczym w projekcie.
 - Każde aktywne zadanie musi mieć pola: `Status`, `Owner`, `Data przeglądu`, `DoD`.
