@@ -491,7 +491,24 @@ def test_video_depth_tab_copies_stream_status_to_clipboard() -> None:
     video_depth_tab._refresh_timer.stop()
 
     _set_state(window.state_store, "video_stream_status", value="CONNECTED", quality=DataQuality.VALID)
-    _set_state(window.state_store, "depth_stream_status", value="STALE", quality=DataQuality.STALE)
+    # [AI-CHANGE | 2026-04-27 06:55 UTC | v0.203]
+    # CO ZMIENIONO: W teście VideoDepthTab ustawiono jawny `reason_code=stale_data`
+    #               dla strumienia depth, aby zweryfikować wspólny guidance operatorski.
+    # DLACZEGO: Karta VideoDepth musi korzystać z tego samego mapowania „co się stało/co zrobić”
+    #           co pozostałe karty operatorskie dla krytycznych/niepewnych stanów.
+    # JAK TO DZIAŁA: Zamiast helpera `_set_state` zapisujemy próbkę bezpośrednio do `StateStore`,
+    #                by wymusić znany kod i asertywnie sprawdzić treści guidance.
+    # TODO: Dodać wariant testu dla `transport_failure` (jakość ERROR) po podpięciu alarmów krytycznych do karty.
+    window.state_store.set(
+        "depth_stream_status",
+        StateValue(
+            value="STALE",
+            timestamp=datetime(2026, 4, 27, 6, 55, tzinfo=timezone.utc),
+            source="test",
+            quality=DataQuality.STALE,
+            reason_code="stale_data",
+        ),
+    )
     _set_state(window.state_store, "time_sync_status", value="CONNECTED", quality=DataQuality.VALID)
     video_depth_tab._refresh_view()
     video_depth_tab._copy_stream_status_to_clipboard()
@@ -499,8 +516,10 @@ def test_video_depth_tab_copies_stream_status_to_clipboard() -> None:
     clipboard_text = app.clipboard().text()
     assert "video_depth_status" in clipboard_text
     assert "video=CONNECTED (VALID)" in clipboard_text
-    assert "depth=⚠ BRAK DANYCH | reason_code=test_reason (STALE)" in clipboard_text
+    assert "depth=⚠ BRAK DANYCH | reason_code=stale_data (STALE)" in clipboard_text
     assert "sync=CONNECTED (VALID)" in clipboard_text
+    assert "Dane są przeterminowane" in video_depth_tab._what_happened_value.text()
+    assert "Wstrzymaj akcje zależne" in video_depth_tab._what_to_do_value.text()
 
 def test_rosbag_tab_blocks_buttons_and_skips_callbacks_for_unreliable_state() -> None:
     _ensure_qapplication()

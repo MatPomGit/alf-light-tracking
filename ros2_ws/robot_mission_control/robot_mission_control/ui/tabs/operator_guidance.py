@@ -135,6 +135,72 @@ STATUS_GUIDANCE_MAP: dict[str, OperatorGuidance] = {
     ),
 }
 
+# [AI-CHANGE | 2026-04-27 06:55 UTC | v0.203]
+# CO ZMIENIONO: Dodano wspólną mapę krytycznych `reason_code` używanych przez aplikację,
+#               aby wszystkie karty operatorskie (Overview/Diagnostics/Controls/Rosbag/VideoDepth)
+#               renderowały identyczne komunikaty „co się stało / co zrobić”.
+# DLACZEGO: DoD wymaga pełnej spójności instrukcji operatorskich dla kodów krytycznych;
+#           fallback był bezpieczny, ale zbyt ogólny dla incydentów o znanej przyczynie.
+# JAK TO DZIAŁA: `CRITICAL_REASON_CODE_GUIDANCE_MAP` jest scalana do `CODE_GUIDANCE_MAP`,
+#                więc istniejące wywołania `resolve_operator_guidance(...)` automatycznie
+#                korzystają z rozszerzonego słownika bez zmian interfejsu publicznego.
+# TODO: Dodać walidator CI, który wykryje nowy `reason_code` bez wpisu w mapie operatorskiej.
+CRITICAL_REASON_CODE_GUIDANCE_MAP: dict[str, OperatorGuidance] = {
+    "transport_failure": OperatorGuidance(
+        meaning="Transport danych przerwał się i stan systemu jest niewiarygodny.",
+        action="Wstrzymaj sterowanie ruchem, sprawdź łącze i wznowienie transmisji przed kontynuacją.",
+    ),
+    "timeout": OperatorGuidance(
+        meaning="Przekroczono limit czasu odpowiedzi komponentu krytycznego.",
+        action="Nie ponawiaj komendy w pętli; zweryfikuj obciążenie i dostępność zależności.",
+    ),
+    "bridge_error": OperatorGuidance(
+        meaning="Most komunikacyjny zgłosił błąd wykonania.",
+        action="Przejdź do diagnostyki bridge, potwierdź stabilność i dopiero wtedy ponów akcję.",
+    ),
+    "node_manager_unavailable": OperatorGuidance(
+        meaning="Menedżer węzłów ROS jest niedostępny.",
+        action="Uruchom lub napraw node manager i potwierdź status CONNECTED przed kolejną komendą.",
+    ),
+    "waiting_for_topics": OperatorGuidance(
+        meaning="System czeka na wymagane topiki ROS i nie ma pełnej gotowości.",
+        action="Poczekaj na komplet topiców; jeśli stan trwa zbyt długo, sprawdź publishery i namespace.",
+    ),
+    "app_shutdown": OperatorGuidance(
+        meaning="Aplikacja przechodzi procedurę zamknięcia.",
+        action="Nie inicjuj nowych akcji; poczekaj na pełne zatrzymanie i uruchom ponownie, jeśli to konieczne.",
+    ),
+    "shutdown_failed": OperatorGuidance(
+        meaning="Procedura zamknięcia komponentu zakończyła się błędem.",
+        action="Wykonaj kontrolowany restart procesu i sprawdź logi zamykania przed wznowieniem pracy.",
+    ),
+    "node_shutdown": OperatorGuidance(
+        meaning="Węzeł ROS został wyłączony.",
+        action="Zweryfikuj, czy wyłączenie było planowane; przywróć węzeł przed wznowieniem misji.",
+    ),
+    "goal_already_running": OperatorGuidance(
+        meaning="Nowa akcja została odrzucona, bo inny goal jest już aktywny.",
+        action="Zakończ albo anuluj bieżący goal i dopiero potem uruchom kolejną akcję.",
+    ),
+    "unknown_quick_command": OperatorGuidance(
+        meaning="Otrzymano nieobsługiwaną komendę szybkiej akcji.",
+        action="Nie kontynuuj z nieznanym poleceniem; sprawdź mapowanie komend i konfigurację UI.",
+    ),
+    "no_active_goal": OperatorGuidance(
+        meaning="Nie można wykonać operacji, bo brak aktywnego goalu.",
+        action="Zweryfikuj status akcji; uruchom nowy goal tylko gdy dane i łączność są wiarygodne.",
+    ),
+    "goal_finished": OperatorGuidance(
+        meaning="Goal został zakończony i nie jest już aktywny.",
+        action="Potwierdź wynik końcowy i zdecyduj, czy uruchomić następny krok planu misji.",
+    ),
+    "not_initialized": OperatorGuidance(
+        meaning="Komponent nie został poprawnie zainicjalizowany.",
+        action="Przerwij operację, sprawdź sekwencję startową i inicjalizację zależności.",
+    ),
+}
+CODE_GUIDANCE_MAP.update(CRITICAL_REASON_CODE_GUIDANCE_MAP)
+
 MISSION_STATE_MAP: dict[str, str] = {
     "RUNNING": "MISJA W TOKU",
     "EXECUTING": "MISJA W TOKU",

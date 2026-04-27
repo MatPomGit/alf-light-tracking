@@ -6,6 +6,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QGridLayout, QGroupBox, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from robot_mission_control.core import DataQuality, StateStore, StateValue
+from .operator_guidance import resolve_operator_guidance
 from .state_rendering import render_card_value_with_warning, render_state
 
 STATE_KEY_VIDEO_STREAM_STATUS = "video_stream_status"
@@ -39,6 +40,23 @@ class VideoDepthTab(QWidget):
         self._video_status_value, self._video_quality_value = self._build_status_block(root, "Video stream status")
         self._depth_status_value, self._depth_quality_value = self._build_status_block(root, "Depth stream status")
         self._sync_status_value, self._sync_quality_value = self._build_status_block(root, "Synchronizacja czasowa")
+        # [AI-CHANGE | 2026-04-27 06:55 UTC | v0.203]
+        # CO ZMIENIONO: Dodano do VideoDepthTab sekcję „Co się stało / Co zrobić”
+        #               opartą o wspólny resolver `operator_guidance`.
+        # DLACZEGO: Ta karta była ostatnią bez pełnego guidance operatorskiego, co tworzyło
+        #           niespójność względem Overview/Diagnostics/Controls/Rosbag.
+        # JAK TO DZIAŁA: Sekcja otrzymuje komunikat z `resolve_operator_guidance` wyliczony
+        #                z reprezentatywnego `reason_code` (lub statusu) dla video/depth/sync.
+        # TODO: Dodać wyróżnienie wizualne (kolor/ikona) zależne od krytyczności guidance.
+        guidance_group = QGroupBox("Guidance operatora", self)
+        guidance_layout = QGridLayout(guidance_group)
+        self._what_happened_value = QLabel("BRAK DANYCH", guidance_group)
+        self._what_to_do_value = QLabel("Wstrzymaj działania do czasu odzyskania wiarygodnych danych.", guidance_group)
+        guidance_layout.addWidget(QLabel("Co się stało:", guidance_group), 0, 0)
+        guidance_layout.addWidget(self._what_happened_value, 0, 1)
+        guidance_layout.addWidget(QLabel("Co zrobić:", guidance_group), 1, 0)
+        guidance_layout.addWidget(self._what_to_do_value, 1, 1)
+        root.addWidget(guidance_group)
 
         future_group = QGroupBox("Funkcje przyszłe", self)
         future_layout = QVBoxLayout(future_group)
@@ -143,6 +161,9 @@ class VideoDepthTab(QWidget):
             self._video_quality_value.setText("UNAVAILABLE")
             self._depth_quality_value.setText("UNAVAILABLE")
             self._sync_quality_value.setText("UNAVAILABLE")
+            fallback_guidance = resolve_operator_guidance(reason_code="missing_data")
+            self._what_happened_value.setText(fallback_guidance.meaning)
+            self._what_to_do_value.setText(fallback_guidance.action)
             return
         # [AI-CHANGE | 2026-04-23 17:10 UTC | v0.192]
         # CO ZMIENIONO: Podpięto VideoDepthTab do wspólnego helpera `render_state`
@@ -162,6 +183,27 @@ class VideoDepthTab(QWidget):
         self._video_quality_value.setText(render_state(video_item))
         self._depth_quality_value.setText(render_state(depth_item))
         self._sync_quality_value.setText(render_state(sync_item))
+        # [AI-CHANGE | 2026-04-27 06:55 UTC | v0.203]
+        # CO ZMIENIONO: VideoDepthTab wylicza guidance z tych samych reguł co pozostałe karty operatorskie.
+        # DLACZEGO: Ujednolicenie eliminuje ryzyko, że operator dostanie sprzeczne zalecenia
+        #           dla tego samego incydentu zależnie od aktywnej zakładki.
+        # JAK TO DZIAŁA: Funkcja wybiera pierwszą nie-VALID próbkę (video > depth > sync);
+        #                jeżeli wszystkie są VALID, fallbackowo używa statusu video.
+        # TODO: Rozszerzyć selekcję o priorytet severity po integracji z centralnym rejestrem alertów.
+        representative_item = next(
+            (
+                item
+                for item in (video_item, depth_item, sync_item)
+                if item is not None and (item.quality is not DataQuality.VALID or item.value is None)
+            ),
+            None,
+        )
+        guidance = resolve_operator_guidance(
+            reason_code=representative_item.reason_code if representative_item is not None else None,
+            status=str(video_item.value) if video_item is not None and video_item.value is not None else None,
+        )
+        self._what_happened_value.setText(guidance.meaning)
+        self._what_to_do_value.setText(guidance.action)
 
     # [AI-CHANGE | 2026-04-25 08:57 UTC | v0.202]
     # CO ZMIENIONO: Dodano eksport skrótu statusu Video/Depth/Sync do schowka systemowego.
