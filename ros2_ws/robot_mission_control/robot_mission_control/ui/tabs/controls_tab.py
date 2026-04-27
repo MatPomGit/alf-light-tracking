@@ -41,6 +41,12 @@ class ControlsTab(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._state_store = self._resolve_state_store(parent)
+        self._blocked_action_counters: dict[str, int] = {
+            "send_goal": 0,
+            "cancel_goal": 0,
+            "quick_action": 0,
+        }
+        self._blocked_action_reason_counters: dict[str, int] = {}
 
         root = QVBoxLayout(self)
         card = QFrame(self)
@@ -100,6 +106,14 @@ class ControlsTab(QWidget):
         self._result_value = QLabel("BRAK DANYCH", card)
         self._what_happened_value = QLabel("BRAK DANYCH", card)
         self._what_to_do_value = QLabel("Wstrzymaj działania do czasu odzyskania wiarygodnych danych.", card)
+        # [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+        # CO ZMIENIONO: Dodano panel telemetryki blokad akcji z licznikami odrzuceń i agregacją reason_code.
+        # DLACZEGO: Operator i dyżurny L2 muszą widzieć skalę blokad fail-safe oraz dominującą przyczynę.
+        # JAK TO DZIAŁA: Przy każdej zablokowanej próbie akcji inkrementowane są liczniki globalne i per-przyczyna,
+        #                a etykieta diagnostyczna pokazuje skrócony raport w czasie rzeczywistym.
+        # TODO: Dodać publikację liczników blokad do centralnej telemetrii runtime (topic/metryki).
+        self._blocked_summary_value = QLabel("Blokady: send=0 | cancel=0 | quick=0", card)
+        self._blocked_reason_value = QLabel("Powody blokad: brak", card)
 
         grid = QGridLayout()
         grid.addWidget(QLabel("Status:", card), 0, 0)
@@ -114,6 +128,10 @@ class ControlsTab(QWidget):
         grid.addWidget(self._what_happened_value, 4, 1)
         grid.addWidget(QLabel("Co zrobić:", card), 5, 0)
         grid.addWidget(self._what_to_do_value, 5, 1)
+        grid.addWidget(QLabel("Telemetryka blokad:", card), 6, 0)
+        grid.addWidget(self._blocked_summary_value, 6, 1)
+        grid.addWidget(QLabel("Najczęstsze powody:", card), 7, 0)
+        grid.addWidget(self._blocked_reason_value, 7, 1)
 
         layout.addWidget(title)
         layout.addLayout(buttons)
@@ -141,6 +159,12 @@ class ControlsTab(QWidget):
         return getattr(window, "state_store", None)
 
     def _on_send_goal(self) -> None:
+        # [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+        # CO ZMIENIONO: Każda zablokowana próba akcji (`send/cancel/quick`) rejestruje licznik blokad.
+        # DLACZEGO: Potrzebujemy telemetryki odrzuconych prób, aby diagnozować częstotliwość i przyczyny.
+        # JAK TO DZIAŁA: Gdy przycisk jest disabled, handler wywołuje `_register_blocked_action`,
+        #                po czym odświeża UI bez wykonywania callbacku (fail-safe).
+        # TODO: Dodać eksport histogramu blokad do panelu debug i raportu incydentu.
         # [AI-CHANGE | 2026-04-23 19:05 UTC | v0.189]
         # CO ZMIENIONO: Dodano twardą bramkę bezpieczeństwa przed wywołaniem callbacku wysyłki goala.
         # DLACZEGO: Kliknięcie (lub programowe wywołanie) nie może inicjować akcji, gdy UI pokazuje
@@ -149,6 +173,7 @@ class ControlsTab(QWidget):
         #                bez side effectów i jedynie odświeża widok fallbacków.
         # TODO: Dodać reason_code blokady do osobnego logu audytowego operatora.
         if not self._send_button.isEnabled():
+            self._register_blocked_action("send_goal")
             self._refresh_view()
             return
         window = self.window()
@@ -166,6 +191,7 @@ class ControlsTab(QWidget):
         #                zsynchronizowany z bezpiecznym fallbackiem.
         # TODO: Rozszerzyć blokadę o potwierdzenie operatora dla anulowania w stanie RUNNING.
         if not self._cancel_button.isEnabled():
+            self._register_blocked_action("cancel_goal")
             self._refresh_view()
             return
         window = self.window()
@@ -184,6 +210,7 @@ class ControlsTab(QWidget):
         # TODO: Dodać telemetrykę odrzuconych prób szybkich akcji z rozróżnieniem przyczyny.
         button = self._quick_buttons.get(command_key)
         if button is None or not button.isEnabled():
+            self._register_blocked_action("quick_action")
             self._refresh_view()
             return
         window = self.window()
@@ -254,3 +281,38 @@ class ControlsTab(QWidget):
         self._cancel_button.setEnabled(reliable_state and goal_active)
         for button in self._quick_buttons.values():
             button.setEnabled(reliable_state and not goal_active)
+        self._refresh_blocked_counters()
+
+    # [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+    # CO ZMIENIONO: Dodano metody `_register_blocked_action` i `_refresh_blocked_counters` do agregacji
+    #               liczników blokad wraz z rankingiem najczęstszych `reason_code`.
+    # DLACZEGO: Sam disabled button nie daje informacji diagnostycznej; potrzebny jest liczbowy ślad operacyjny.
+    # JAK TO DZIAŁA: Rejestrator zwiększa licznik typu akcji i przyczyny, a refresher buduje skrócony raport
+    #                prezentowany operatorowi w dwóch etykietach panelu Controls.
+    # TODO: Dodać okno „reset liczników” z audytowym potwierdzeniem operatora.
+    def _register_blocked_action(self, action_key: str) -> None:
+        self._blocked_action_counters[action_key] = self._blocked_action_counters.get(action_key, 0) + 1
+        reason_code = "unknown_reason"
+        if self._state_store is not None:
+            status_item = self._state_store.get(STATE_KEY_ACTION_STATUS)
+            goal_item = self._state_store.get(STATE_KEY_ACTION_GOAL_ID)
+            reason_code = (
+                (status_item.reason_code if status_item is not None else None)
+                or (goal_item.reason_code if goal_item is not None else None)
+                or reason_code
+            )
+        self._blocked_action_reason_counters[reason_code] = self._blocked_action_reason_counters.get(reason_code, 0) + 1
+
+    def _refresh_blocked_counters(self) -> None:
+        summary = (
+            f"Blokady: send={self._blocked_action_counters.get('send_goal', 0)}"
+            f" | cancel={self._blocked_action_counters.get('cancel_goal', 0)}"
+            f" | quick={self._blocked_action_counters.get('quick_action', 0)}"
+        )
+        self._blocked_summary_value.setText(summary)
+        if not self._blocked_action_reason_counters:
+            self._blocked_reason_value.setText("Powody blokad: brak")
+            return
+        top_reasons = sorted(self._blocked_action_reason_counters.items(), key=lambda item: (-item[1], item[0]))[:3]
+        reasons_text = ", ".join(f"{reason}={count}" for reason, count in top_reasons)
+        self._blocked_reason_value.setText(f"Powody blokad: {reasons_text}")

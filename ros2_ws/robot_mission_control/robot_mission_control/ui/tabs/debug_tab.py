@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QLabel, QPushButton, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QFileDialog, QLabel, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
-from robot_mission_control.core import StateStore, StateValue
+from robot_mission_control.core import DataQuality, StateStore, StateValue
 from .state_rendering import render_state, render_value
 
 
@@ -53,6 +53,18 @@ class DebugTab(QWidget):
         self._copy_button = QPushButton("Kopiuj diagnostykę do schowka", self)
         self._copy_button.clicked.connect(self._copy_diagnostics_to_clipboard)
         root.addWidget(self._copy_button)
+        # [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+        # CO ZMIENIONO: Dodano przełącznik filtrowania oraz eksport snapshotu diagnostycznego do pliku.
+        # DLACZEGO: Debug potrzebuje szybkiego zawężenia do danych problemowych i trwałego artefaktu do incydentu.
+        # JAK TO DZIAŁA: Checkbox ogranicza listę do `quality != VALID`; przycisk eksportu zapisuje
+        #                ostatni wyrenderowany payload do pliku `.log` wskazanego przez operatora.
+        # TODO: Dodać eksport JSONL z metadanymi sesji i hosta dla automatycznej analizy post-mortem.
+        self._non_valid_only_checkbox = QCheckBox("Tylko rekordy quality != VALID", self)
+        self._non_valid_only_checkbox.toggled.connect(self._refresh_snapshot_view)
+        root.addWidget(self._non_valid_only_checkbox)
+        self._export_file_button = QPushButton("Eksport diagnostyki do pliku .log", self)
+        self._export_file_button.clicked.connect(self._export_diagnostics_to_file)
+        root.addWidget(self._export_file_button)
 
         self._copy_status = QLabel("Schowek: brak eksportu", self)
         root.addWidget(self._copy_status)
@@ -84,6 +96,8 @@ class DebugTab(QWidget):
 
         for key in sorted(snapshot.keys()):
             item = snapshot[key]
+            if self._non_valid_only_checkbox.isChecked() and item.quality is DataQuality.VALID:
+                continue
             lines.append(self._render_snapshot_line(key, item))
 
         if not snapshot:
@@ -116,3 +130,14 @@ class DebugTab(QWidget):
         clipboard.setText(self._last_export_payload)
         exported_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         self._copy_status.setText(f"Schowek: skopiowano ({exported_at})")
+
+    def _export_diagnostics_to_file(self) -> None:
+        default_name = datetime.now(timezone.utc).strftime("diagnostics_%Y%m%d_%H%M%S.log")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Eksport diagnostyki", default_name, "Pliki log (*.log)")
+        if not file_path:
+            return
+        with open(file_path, "w", encoding="utf-8") as handle:
+            handle.write(self._last_export_payload)
+            handle.write("\n")
+        exported_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        self._copy_status.setText(f"Eksport: zapisano plik ({exported_at})")

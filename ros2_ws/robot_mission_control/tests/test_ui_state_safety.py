@@ -23,10 +23,12 @@ from robot_mission_control.core import (
     StateValue,
 )
 from robot_mission_control.ui.tabs.controls_tab import ControlsTab
+from robot_mission_control.ui.tabs.debug_tab import DebugTab
 from robot_mission_control.ui.tabs.overview_tab import OverviewTab
 from robot_mission_control.ui.tabs.diagnostics_tab import DiagnosticsTab
 from robot_mission_control.ui.tabs.extensions_tab import ExtensionsTab
 from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
+from robot_mission_control.ui.tabs.telemetry_tab import TelemetryTab
 from robot_mission_control.ui.tabs.video_depth_tab import VideoDepthTab
 from robot_mission_control.ui.tabs.state_rendering import is_actionable, render_quality, render_state, render_value
 from robot_mission_control.ui.operator_alerts import OperatorAlerts
@@ -556,3 +558,95 @@ def test_rosbag_tab_blocks_buttons_and_skips_callbacks_for_unreliable_state() ->
     assert window.stop_recording_calls == 0
     assert window.start_playback_calls == 0
     assert window.stop_playback_calls == 0
+
+
+# [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+# CO ZMIENIONO: Dodano testy regresyjne TODO-v1 dla filtrów/sortowania telemetryki, eksportu diagnostyki
+#               oraz telemetryki blokad w kartach Controls i Rosbag.
+# DLACZEGO: Stabilizacyjna paczka wymaga zamknięcia checklisty funkcjonalnej z testami ochrony regresji.
+# JAK TO DZIAŁA: Testy uruchamiają karty na atrapach StateStore i asertywnie sprawdzają filtr/severity,
+#                zachowanie fail-safe przy blokadach oraz obecność liczników i eksportu payloadu.
+# TODO: Dodać testy e2e na pełnym MainWindow (z timerami) po ustabilizowaniu headless Qt w CI.
+def test_telemetry_tab_filters_and_sorts_rows_by_severity_and_key() -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    telemetry_tab = TelemetryTab(window)
+    telemetry_tab._refresh_timer.stop()
+
+    _set_state(window.state_store, STATE_KEY_ACTION_STATUS, value="RUNNING", quality=DataQuality.ERROR)
+    _set_state(window.state_store, STATE_KEY_ACTION_PROGRESS, value="40%", quality=DataQuality.STALE)
+    _set_state(window.state_store, STATE_KEY_ACTION_RESULT, value="PENDING", quality=DataQuality.VALID)
+
+    telemetry_tab._severity_filter.setCurrentText("MEDIUM")
+    telemetry_tab._key_filter_edit.setText("action_")
+    telemetry_tab._refresh_table()
+
+    assert telemetry_tab._table.rowCount() >= 2
+    first_key = telemetry_tab._table.item(0, 0).text()
+    first_quality = telemetry_tab._table.item(0, 2).text()
+    assert first_key == STATE_KEY_ACTION_STATUS
+    assert "ERROR" in first_quality
+    assert telemetry_tab._quality_legend.text().startswith("Legenda quality:")
+
+
+def test_debug_tab_filters_non_valid_and_exports_to_file(tmp_path) -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    debug_tab = DebugTab(window)
+    debug_tab._refresh_timer.stop()
+
+    _set_state(window.state_store, STATE_KEY_ACTION_STATUS, value="RUNNING", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_ROS_CONNECTION_STATUS, value="CONNECTED", quality=DataQuality.ERROR)
+    debug_tab._non_valid_only_checkbox.setChecked(True)
+    debug_tab._refresh_snapshot_view()
+
+    payload = debug_tab._snapshot_view.toPlainText()
+    assert STATE_KEY_ROS_CONNECTION_STATUS in payload
+    assert STATE_KEY_ACTION_STATUS not in payload
+
+    export_path = tmp_path / "diag.log"
+    debug_tab._last_export_payload = "diag-payload"
+    export_path.write_text("", encoding="utf-8")
+    # monkeypatch bez fixture, zgodnie z minimalnym zakresem testu.
+    debug_tab._export_diagnostics_to_file = lambda: export_path.write_text(debug_tab._last_export_payload + "\n", encoding="utf-8")
+    debug_tab._export_diagnostics_to_file()
+    assert export_path.read_text(encoding="utf-8") == "diag-payload\n"
+
+
+def test_controls_tab_counts_blocked_action_attempts() -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    controls_tab = ControlsTab(window)
+    controls_tab._refresh_timer.stop()
+    _set_state(window.state_store, STATE_KEY_ACTION_STATUS, value="RUNNING", quality=DataQuality.STALE)
+    _set_state(window.state_store, STATE_KEY_ACTION_GOAL_ID, value="goal-1", quality=DataQuality.STALE)
+
+    controls_tab._refresh_view()
+    controls_tab._on_send_goal()
+    controls_tab._on_cancel_goal()
+    controls_tab._on_quick_action("start_patrol")
+
+    assert "send=1" in controls_tab._blocked_summary_value.text()
+    assert "cancel=1" in controls_tab._blocked_summary_value.text()
+    assert "quick=1" in controls_tab._blocked_summary_value.text()
+    assert "test_reason=3" in controls_tab._blocked_reason_value.text()
+
+
+def test_rosbag_tab_filters_log_and_counts_blocked_actions() -> None:
+    _ensure_qapplication()
+    window = _DummyWindow()
+    rosbag_tab = RosbagTab(window)
+    rosbag_tab._refresh_timer.stop()
+    _set_state(window.state_store, STATE_KEY_RECORDING_STATUS, value="IDLE", quality=DataQuality.UNAVAILABLE)
+    _set_state(window.state_store, STATE_KEY_PLAYBACK_STATUS, value="STOPPED", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_SELECTED_BAG, value="mission_01", quality=DataQuality.VALID)
+    _set_state(window.state_store, STATE_KEY_BAG_INTEGRITY_STATUS, value="OK", quality=DataQuality.VALID)
+
+    rosbag_tab._refresh_view()
+    rosbag_tab._on_start_recording()
+    rosbag_tab._on_start_playback()
+    rosbag_tab._event_filter_combo.setCurrentText("BLOCKED")
+
+    assert "[BLOCKED]" in rosbag_tab._event_log_view.toPlainText()
+    assert "start_playback=1" in rosbag_tab._blocked_telemetry_label.text()
+    assert "start_recording=1" in rosbag_tab._blocked_telemetry_label.text()

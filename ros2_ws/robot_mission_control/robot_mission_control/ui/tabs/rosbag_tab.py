@@ -6,6 +6,7 @@ from collections import deque
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -26,7 +27,7 @@ from robot_mission_control.core import (
     utc_now,
 )
 from .operator_guidance import resolve_operator_guidance
-from .state_rendering import is_actionable, render_card_value_with_warning, render_value
+from .state_rendering import is_actionable, render_card_value_with_warning, render_value, severity_from_quality
 
 # [AI-CHANGE | 2026-04-23 13:27 UTC | v0.185]
 # CO ZMIENIONO: Zastąpiono placeholder pełnym panelem Rosbag z sekcjami Recording/Playback/Wybrany bag/Integralność,
@@ -45,6 +46,14 @@ class RosbagTab(QWidget):
         super().__init__(parent)
         self._state_store = self._resolve_state_store(parent)
         self._event_log: deque[str] = deque(maxlen=12)
+        self._event_kind_filter = "ALL"
+        self._blocked_action_counters: dict[str, int] = {
+            "start_recording": 0,
+            "stop_recording": 0,
+            "start_playback": 0,
+            "stop_playback": 0,
+        }
+        self._blocked_reason_counters: dict[str, int] = {}
 
         root = QVBoxLayout(self)
         card = QFrame(self)
@@ -105,7 +114,21 @@ class RosbagTab(QWidget):
         self._event_log_view = QTextEdit(log_box)
         self._event_log_view.setReadOnly(True)
         self._event_log_view.setMinimumHeight(120)
+        # [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+        # CO ZMIENIONO: Dodano filtr typu zdarzeń logu oraz telemetrykę blokad akcji w RosbagTab.
+        # DLACZEGO: Operator musi móc oddzielić zdarzenia wykonane od zablokowanych i zobaczyć skalę blokad.
+        # JAK TO DZIAŁA: Combo filtruje render logu po tagach (`ALL/EXECUTED/SKIPPED/BLOCKED`), a etykieta
+        #                pod tabelą pokazuje liczniki blokad i najczęstsze `reason_code`.
+        # TODO: Dodać eksport logu przefiltrowanego do pliku incident bundle.
+        self._event_filter_combo = QComboBox(log_box)
+        self._event_filter_combo.addItems(("ALL", "EXECUTED", "SKIPPED", "BLOCKED"))
+        self._event_filter_combo.currentTextChanged.connect(self._on_event_filter_changed)
+        self._blocked_telemetry_label = QLabel("Blokady akcji: brak", log_box)
+        self._blocked_reason_label = QLabel("Powody blokad: brak", log_box)
+        log_layout.addWidget(self._event_filter_combo)
         log_layout.addWidget(self._event_log_view)
+        log_layout.addWidget(self._blocked_telemetry_label)
+        log_layout.addWidget(self._blocked_reason_label)
 
         layout.addWidget(title)
         layout.addWidget(status_box)
@@ -154,7 +177,7 @@ class RosbagTab(QWidget):
     def _append_event(self, message: str) -> None:
         timestamp = utc_now().strftime("%H:%M:%S")
         self._event_log.appendleft(f"[{timestamp}] {message}")
-        self._event_log_view.setPlainText("\n".join(self._event_log))
+        self._refresh_event_log_view()
 
     def _invoke_window_callback(self, callback_name: str, event_name: str) -> None:
         # [AI-CHANGE | 2026-04-23 19:05 UTC | v0.189]
@@ -171,7 +194,8 @@ class RosbagTab(QWidget):
         }
         mapped_button = callback_to_button.get(callback_name)
         if mapped_button is not None and not mapped_button.isEnabled():
-            self._append_event(f"Pominięto: {event_name} (stan niewiarygodny).")
+            self._register_blocked_action(callback_name)
+            self._append_event(f"[BLOCKED] Pominięto: {event_name} (stan niewiarygodny).")
             self._refresh_view()
             return
 
@@ -179,9 +203,9 @@ class RosbagTab(QWidget):
         callback = getattr(window, callback_name, None)
         if callable(callback):
             callback()
-            self._append_event(f"Wykonano: {event_name}.")
+            self._append_event(f"[EXECUTED] Wykonano: {event_name}.")
         else:
-            self._append_event(f"Pominięto: {event_name} (callback niedostępny).")
+            self._append_event(f"[SKIPPED] Pominięto: {event_name} (callback niedostępny).")
         self._refresh_view()
 
     def _on_start_recording(self) -> None:
@@ -213,6 +237,10 @@ class RosbagTab(QWidget):
         self._playback_value.setText(playback)
         self._selected_bag_value.setText(selected_bag)
         self._integrity_value.setText(integrity)
+        self._apply_quality_color(self._recording_value, STATE_KEY_RECORDING_STATUS)
+        self._apply_quality_color(self._playback_value, STATE_KEY_PLAYBACK_STATUS)
+        self._apply_quality_color(self._selected_bag_value, STATE_KEY_SELECTED_BAG)
+        self._apply_quality_color(self._integrity_value, STATE_KEY_BAG_INTEGRITY_STATUS)
         representative_key = None
         for key, is_ok in (
             (STATE_KEY_BAG_INTEGRITY_STATUS, integrity_ok),
@@ -253,3 +281,64 @@ class RosbagTab(QWidget):
         self._stop_recording_button.setEnabled(is_recording)
         self._start_playback_button.setEnabled(can_playback and not is_recording and not is_playing)
         self._stop_playback_button.setEnabled(is_playing)
+        self._refresh_blocked_telemetry()
+
+    # [AI-CHANGE | 2026-04-27 08:25 UTC | v0.203]
+    # CO ZMIENIONO: Dodano pomocnicze metody dla filtra logu, kolorów statusów quality i telemetryki blokad.
+    # DLACZEGO: Domyka to TODO-v1 dla rosbag: filtr/sortowanie logu, kolory jakości i diagnostykę blokad.
+    # JAK TO DZIAŁA: Filtr logu wybiera wpisy po prefiksie tagu, kolor statusu mapuje severity na kolor,
+    #                a telemetryka pokazuje sumy blokad i top reason_code.
+    # TODO: Rozszerzyć klasyfikację logów o kategorię `WARNING` dla degradacji bez pełnej blokady.
+    def _on_event_filter_changed(self, value: str) -> None:
+        self._event_kind_filter = value
+        self._refresh_event_log_view()
+
+    def _refresh_event_log_view(self) -> None:
+        if self._event_kind_filter == "ALL":
+            lines = list(self._event_log)
+        else:
+            marker = f"[{self._event_kind_filter}]"
+            lines = [line for line in self._event_log if marker in line]
+        self._event_log_view.setPlainText("\n".join(lines))
+
+    def _apply_quality_color(self, label: QLabel, state_key: str) -> None:
+        item = self._state_store.get(state_key) if self._state_store is not None else None
+        severity = severity_from_quality(item)
+        color_by_severity = {
+            "CRITICAL": "#b00020",
+            "HIGH": "#b7791f",
+            "MEDIUM": "#b7791f",
+            "INFO": "#0b6e4f",
+        }
+        color = color_by_severity.get(severity, "#6b7280")
+        label.setStyleSheet(f"color: {color}; font-weight: 600;")
+
+    def _register_blocked_action(self, callback_name: str) -> None:
+        key = callback_name.replace("start_rosbag_", "start_").replace("stop_rosbag_", "stop_")
+        self._blocked_action_counters[key] = self._blocked_action_counters.get(key, 0) + 1
+        reason_code = "unknown_reason"
+        if self._state_store is not None:
+            for state_key in (
+                STATE_KEY_BAG_INTEGRITY_STATUS,
+                STATE_KEY_RECORDING_STATUS,
+                STATE_KEY_PLAYBACK_STATUS,
+                STATE_KEY_SELECTED_BAG,
+            ):
+                item = self._state_store.get(state_key)
+                if item is not None and item.reason_code:
+                    reason_code = item.reason_code
+                    break
+        self._blocked_reason_counters[reason_code] = self._blocked_reason_counters.get(reason_code, 0) + 1
+        self._refresh_blocked_telemetry()
+
+    def _refresh_blocked_telemetry(self) -> None:
+        total_blocked = sum(self._blocked_action_counters.values())
+        if total_blocked == 0:
+            self._blocked_telemetry_label.setText("Blokady akcji: brak")
+            self._blocked_reason_label.setText("Powody blokad: brak")
+            return
+        summary = ", ".join(f"{name}={count}" for name, count in sorted(self._blocked_action_counters.items()))
+        self._blocked_telemetry_label.setText(f"Blokady akcji: {summary}")
+        top = sorted(self._blocked_reason_counters.items(), key=lambda item: (-item[1], item[0]))[:3]
+        top_text = ", ".join(f"{reason}={count}" for reason, count in top)
+        self._blocked_reason_label.setText(f"Powody blokad: {top_text}")
