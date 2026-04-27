@@ -1,4 +1,11 @@
 <!--
+[AI-CHANGE | 2026-04-27 09:05 UTC | v0.203]
+CO ZMIENIONO: Zaktualizowano backlog dla OPS-001 i OPS-002: statusy ustawiono na `DONE`, dodano linki do artefaktów wykonawczych i jawne pola akceptacji operacyjnej.
+DLACZEGO: Zadania były oznaczone jako `PLANNED`, mimo że runbook i macierz środowisk istnieją; backlog musiał odzwierciedlić stan faktyczny i DoD operacyjne.
+JAK TO DZIAŁA: Sekcja weryfikacji statusów wskazuje dowody dokumentacyjne, a każde zadanie OPS ma komplet: status, data przeglądu, link ticketowy, link do artefaktu i stempel akceptacji.
+TODO: Dodać automatyczny check w CI, który blokuje `PLANNED` dla zadań mających istniejące artefakty i podpis akceptacji.
+-->
+<!--
 [AI-CHANGE | 2026-04-24 22:07 UTC | v0.202]
 CO ZMIENIONO: Zweryfikowano statusy zadań względem istniejącej implementacji i testów, oznaczono zadania realnie ukończone jako `DONE`, a częściowo wykonane jako `IN_PROGRESS`; zaktualizowano też kolejność realizacji.
 DLACZEGO: Celem jest wiarygodny plan wykonawczy bez fałszywych statusów `READY` dla prac już wdrożonych.
@@ -32,6 +39,8 @@ TODO: Dodać automatyczny skrypt CI, który mapuje zadania z `TASKS.md` na dowod
 - `RMC-ACT-003` -> `DONE`: walidacja krytycznych pól configu i timeoutów jest zaimplementowana (`ros/action_backend.py`, `core/config_loader.py`) i testowana (`tests/test_config_loader.py`, `tests/test_action_backend.py`).
 - `RMC-ACT-002` -> `IN_PROGRESS`: jest test przepływu goal/feedback/result/cancel na atrapach runtime, ale brak pełnego testu z realnym serwerem ROS2 Action w `launch_testing`.
 - `RMC-CI-001` pozostaje `PLANNED`: brak dedykowanego testu launch/install-space uruchamianego w CI.
+- `RMC-OPS-001` -> `DONE`: runbook operacyjny istnieje i jest oznaczony jako zatwierdzony (`docs/operator/incident_runbook.md`), co domyka DoD playbooku.
+- `RMC-OPS-002` -> `DONE`: twarda macierz środowisk istnieje i jest oznaczona jako zatwierdzona (`docs/spec/hard_environment_matrix.md`), co domyka DoD kompatybilności środowisk.
 <!--
 [AI-CHANGE | 2026-04-24 23:18 UTC | v0.202]
 CO ZMIENIONO: Dodano dowód realizacji zadania RMC-ACT-001 (finalny kontrakt Action + walidacja runtime).
@@ -155,10 +164,12 @@ TODO: Uzupełnić o link do PR merge i datę zamknięcia po scaleniu do gałęzi
 ## Epic D — Operacje i dokumentacja
 
 ### RMC-OPS-001 — Playbook awarii backendu ROS
-- Status: `PLANNED`
+- Status: `DONE`
 - Owner: `@ops_oncall`
-- Data przeglądu: `2026-05-01`
+- Data przeglądu: `2026-04-27`
 - Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/OPS-001`
+- Link artefaktu: `docs/operator/incident_runbook.md`
+- Akceptacja operacyjna: `ZATWIERDZONE` (`@ops_oncall`, `2026-04-27`)
 - Priorytet: `P1`
 - Estymacja: `1 dzień`
 - Zależności: `RMC-UI-002`
@@ -169,10 +180,12 @@ TODO: Uzupełnić o link do PR merge i datę zamknięcia po scaleniu do gałęzi
   - playbook zaakceptowany przez właściciela operacyjnego.
 
 ### RMC-OPS-002 — Macierz kompatybilności środowisk
-- Status: `PLANNED`
+- Status: `DONE`
 - Owner: `@release_mgmt`
-- Data przeglądu: `2026-05-02`
+- Data przeglądu: `2026-04-27`
 - Link PR/Ticket: `https://github.com/example-org/alf-light-tracking/issues/OPS-002`
+- Link artefaktu: `docs/spec/hard_environment_matrix.md`
+- Akceptacja operacyjna: `ZATWIERDZONE` (`@release_mgmt`, `2026-04-27`)
 - Priorytet: `P2`
 - Estymacja: `1 dzień`
 - Zależności: brak

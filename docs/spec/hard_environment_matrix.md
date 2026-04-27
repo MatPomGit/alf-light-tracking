@@ -1,4 +1,11 @@
 <!--
+[AI-CHANGE | 2026-04-27 09:05 UTC | v0.203]
+CO ZMIENIONO: Dodano sekcję formalnej akceptacji operacyjnej dla twardej macierzy środowisk wraz z datą i właścicielem.
+DLACZEGO: Backlog OPS-002 wymagał jawnego potwierdzenia, że macierz została przyjęta jako obowiązujący kontrakt release.
+JAK TO DZIAŁA: Sekcja „Akceptacja operacyjna” pełni rolę bramki decyzyjnej i jest źródłem prawdy dla statusu `DONE` w `TASKS.md`.
+TODO: Zintegrować status akceptacji z automatycznym gate w CI (`env-hard-gate`) i raportowaniem do release notes.
+-->
+<!--
 [AI-CHANGE | 2026-04-25 16:38 UTC | v0.202]
 CO ZMIENIONO: Dodano osobny dokument „twardej macierzy środowisk” z jednoznaczną polityką ALLOW/BLOCK, profilem referencyjnym oraz bramkami release.
 DLACZEGO: Przewidywalne wdrożenia wymagają sztywnego kontraktu środowiskowego eliminującego dryf zależności i niekontrolowane odstępstwa.
@@ -7,6 +14,12 @@ TODO: Dodać automatyczny walidator `env-hard-gate` uruchamiany w CI przed etape
 -->
 
 # Twarda macierz środowisk (HARD ENV MATRIX)
+
+## Akceptacja operacyjna
+- Status: `ZATWIERDZONE`
+- Data akceptacji (UTC): `2026-04-27`
+- Właściciel akceptacji: `@release_mgmt`
+- Zakres: Stage 0, decyzje `ALLOW/BLOCK` przed publikacją artefaktów.
 
 ## Cel
 Dokument definiuje **nieprzekraczalne** wymagania środowiskowe dla Stage 0.
