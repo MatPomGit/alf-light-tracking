@@ -1,18 +1,9 @@
-<!-- [AI-CHANGE | 2026-04-27 12:20 UTC | v0.203] CO ZMIENIONO: Dodano jawne wskazanie, że TASKS.md jest jedynym aktywnym backlogiem wykonawczym. DLACZEGO: Ujednolicenie źródła prawdy dla statusów, ownerów, review i DoD. JAK TO DZIAŁA: Sekcja polityki backlogu wymusza prowadzenie aktywnych zadań tylko tutaj. TODO: Dodać walidator CI sprawdzający obecność wymaganych pól metadanych dla każdego zadania. -->
-
 <!--
-[AI-CHANGE | 2026-04-27 09:05 UTC | v0.203]
-CO ZMIENIONO: Zaktualizowano backlog dla OPS-001 i OPS-002: statusy ustawiono na `DONE`, dodano linki do artefaktów wykonawczych i jawne pola akceptacji operacyjnej.
-DLACZEGO: Zadania były oznaczone jako `PLANNED`, mimo że runbook i macierz środowisk istnieją; backlog musiał odzwierciedlić stan faktyczny i DoD operacyjne.
-JAK TO DZIAŁA: Sekcja weryfikacji statusów wskazuje dowody dokumentacyjne, a każde zadanie OPS ma komplet: status, data przeglądu, link ticketowy, link do artefaktu i stempel akceptacji.
-TODO: Dodać automatyczny check w CI, który blokuje `PLANNED` dla zadań mających istniejące artefakty i podpis akceptacji.
--->
-<!--
-[AI-CHANGE | 2026-04-24 22:07 UTC | v0.202]
-CO ZMIENIONO: Zweryfikowano statusy zadań względem istniejącej implementacji i testów, oznaczono zadania realnie ukończone jako `DONE`, a częściowo wykonane jako `IN_PROGRESS`; zaktualizowano też kolejność realizacji.
-DLACZEGO: Celem jest wiarygodny plan wykonawczy bez fałszywych statusów `READY` dla prac już wdrożonych.
-JAK TO DZIAŁA: Status każdego zadania wynika z dowodów w repozytorium (testy/implementacja); `DONE` stosujemy wyłącznie tam, gdzie DoD ma pokrycie w kodzie, a luki oznaczamy jako `IN_PROGRESS` lub `PLANNED`.
-TODO: Dodać automatyczny skrypt CI, który mapuje zadania z `TASKS.md` na dowody (`tests/`, `setup.py`, `docs/`) i flaguje rozjazdy statusów.
+[AI-CHANGE | 2026-04-27 13:05 UTC | v0.203]
+CO ZMIENIONO: Na początku pliku pozostawiono jeden aktualny blok meta-zmiany, a historyczne bloki przeniesiono do COMMIT_LOG.md.
+DLACZEGO: Usunięcie nakładających się opisów tej samej zmiany poprawia czytelność i eliminuje sprzeczne metadane na starcie backlogu.
+JAK TO DZIAŁA: TASKS.md zawiera teraz pojedynczy, bieżący wpis meta; pełna historia wcześniejszych wpisów jest utrzymywana w dzienniku commitów modułu.
+TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE] w sekcji nagłówkowej TASKS.md.
 -->
 
 # TASKS — robot_mission_control
