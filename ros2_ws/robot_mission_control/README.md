@@ -1,9 +1,9 @@
 <!--
-[AI-CHANGE | 2026-04-23 19:01 UTC | v0.195]
-CO ZMIENIONO: Uporządkowano dokumentację modułu, scalono rozproszone notatki edytorskie i skrócono komentarze AI do jednego bloku.
-DLACZEGO: Dokument miał wiele nakładających się komentarzy, co utrudniało utrzymanie i czytelność.
-JAK TO DZIAŁA: README zawiera teraz jedną, zwartą sekcję zmian oraz aktualny opis uruchomienia, struktury i funkcji modułu.
-TODO: Uzupełnić README o diagram przepływu zdarzeń operatora i mapę kontraktów Action po stabilizacji API.
+[AI-CHANGE | 2026-04-27 13:53 UTC | v0.201]
+CO ZMIENIONO: Pozostawiono pojedynczy blok meta w README oraz przeniesiono szczegółową historię zmian dokumentu do COMMIT_LOG.md.
+DLACZEGO: README ma być zwięzłym dokumentem operacyjnym, a pełny ślad historyczny powinien być utrzymywany w dedykowanym logu zmian.
+JAK TO DZIAŁA: Ten plik zawiera teraz tylko jeden aktywny blok meta; kolejne opisy zmian README trafiają do COMMIT_LOG.md i są tam utrzymywane chronologicznie.
+TODO: Dodać automatyczny lint markdown blokujący więcej niż jeden blok [AI-CHANGE] w README.
 -->
 
 # robot_mission_control
@@ -20,13 +20,6 @@ Aplikacja desktopowa do nadzoru misji robota (PySide6 + most ROS2).
 
 ## Uruchomienie lokalne
 
-<!--
-[AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
-CO ZMIENIONO: Zaktualizowano instrukcję instalacji o dwa profile zależności: headless (core/ROS) i desktop (UI).
-DLACZEGO: Backendowe testy i uruchomienia CI mają działać bez PySide6, a UI ma być instalowane wyłącznie tam, gdzie potrzebne.
-JAK TO DZIAŁA: Operator/deweloper wybiera odpowiedni plik requirements; profil bazowy nie instaluje bibliotek GUI.
-TODO: Dodać w README gotowe komendy CI pokazujące uruchomienie samych testów core/ROS na profilu headless.
--->
 ```bash
 # Profil headless (core/ROS, testy backendowe)
 pip install -r ros2_ws/robot_mission_control/requirements.txt
@@ -40,13 +33,6 @@ source install/setup.bash
 ros2 launch robot_mission_control mission_control.launch.py
 ```
 
-<!--
-[AI-CHANGE | 2026-04-25 08:51 UTC | v0.202]
-CO ZMIENIONO: Dodano sekcję ręcznego testu E2E z realnym flow ROS2 Action (launch + ros2 run + goal/feedback/result/cancel).
-DLACZEGO: Backlog wymaga potwierdzenia działania poza mockami, a operator potrzebuje jednoznacznej procedury uruchomienia.
-JAK TO DZIAŁA: Skrypt `scripts/run_e2e_real_flow.sh` buduje workspace, uruchamia aplikację i serwer testowy, następnie wykonuje scenariusze success i cancel.
-TODO: Dodać automatyczne asercje logów i wynik w formacie CI (JUnit) do tej procedury.
--->
 ## Test E2E (realny flow ROS2 Action, bez mocków klienta)
 
 ```bash
@@ -62,7 +48,6 @@ Skrypt wykonuje:
 - `ros2 action send_goal --feedback` + `ros2 action cancel` (scenariusz anulowania).
 
 Logi są zapisywane do katalogu `logs/e2e_real_flow/`.
-
 
 ## Wydzielenie zależności
 
@@ -98,3 +83,8 @@ Logi są zapisywane do katalogu `logs/e2e_real_flow/`.
 - Bezpieczny fallback: przy niepewności wynik pozostaje `None`, UI pokazuje `BRAK DANYCH`.
 - W zakładce **Controls** dostępne są szybkie akcje: `Rozpocznij patrol`, `Powrót do bazy`, `Wstrzymaj misję`, `Wznów misję`.
 - Podczas aktywnego goal szybkie akcje są blokowane, by uniknąć kolizji komend.
+
+## Historia zmian dokumentu
+
+- Szczegółowa historia zmian README jest utrzymywana w `COMMIT_LOG.md`.
+- Fakty releasowe pozostają w `CHANGELOG.md`.

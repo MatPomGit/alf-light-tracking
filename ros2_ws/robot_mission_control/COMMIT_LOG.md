@@ -27,6 +27,20 @@ DLACZEGO: Potrzebujemy jawnego śladu technicznego dla reguły "jeden fakt = jed
 JAK TO DZIAŁA: Sekcja poniżej rejestruje commit porządkujący granice dokumentów i wskazuje zakres modyfikacji.
 TODO: Dodać automatyczne generowanie wpisu COMMIT_LOG.md z diffu plików dokumentacyjnych.
 -->
+
+<!--
+[AI-CHANGE | 2026-04-27 13:53 UTC | v0.201]
+CO ZMIENIONO: Dodano wpis commitowy dokumentujący uproszczenie README do jednego bloku meta i przeniesienie historii zmian do COMMIT_LOG.md.
+DLACZEGO: Utrzymanie wielu bloków meta w README obniża czytelność; historia techniczna powinna być przechowywana centralnie w logu commitów.
+JAK TO DZIAŁA: Nowa sekcja rejestruje decyzję dokumentacyjną i wskazuje granicę odpowiedzialności README vs COMMIT_LOG.md.
+TODO: Rozszerzyć format wpisu o pole "Zakres plików", aby szybciej odtwarzać wpływ zmian dokumentacyjnych.
+-->
+## 2026-04-27 | v0.201 | (pending commit)
+
+- Uproszczono `README.md`: pozostawiono jeden blok meta `[AI-CHANGE]` na początku dokumentu.
+- Usunięto historyczne bloki meta z treści README i przeniesiono ślad decyzji do `COMMIT_LOG.md`.
+- Doprecyzowano, że fakty releasowe pozostają w `CHANGELOG.md`, a historia techniczna dokumentu w `COMMIT_LOG.md`.
+
 ## 2026-04-27 | v0.203 | (pending commit)
 
 - Dodano sekcje "Granice dokumentu" w `TASKS.md`, `DEPLOYMENT_PLAN.md`, `CHANGELOG.md` i `COMMIT_LOG.md`.
