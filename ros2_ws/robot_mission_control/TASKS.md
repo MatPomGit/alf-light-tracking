@@ -1,3 +1,5 @@
+<!-- [AI-CHANGE | 2026-04-27 12:20 UTC | v0.203] CO ZMIENIONO: Dodano jawne wskazanie, że TASKS.md jest jedynym aktywnym backlogiem wykonawczym. DLACZEGO: Ujednolicenie źródła prawdy dla statusów, ownerów, review i DoD. JAK TO DZIAŁA: Sekcja polityki backlogu wymusza prowadzenie aktywnych zadań tylko tutaj. TODO: Dodać walidator CI sprawdzający obecność wymaganych pól metadanych dla każdego zadania. -->
+
 <!--
 [AI-CHANGE | 2026-04-27 09:05 UTC | v0.203]
 CO ZMIENIONO: Zaktualizowano backlog dla OPS-001 i OPS-002: statusy ustawiono na `DONE`, dodano linki do artefaktów wykonawczych i jawne pola akceptacji operacyjnej.
@@ -14,6 +16,12 @@ TODO: Dodać automatyczny skrypt CI, który mapuje zadania z `TASKS.md` na dowod
 -->
 
 # TASKS — robot_mission_control
+
+## Polityka backlogu wykonawczego
+- `TASKS.md` jest **jedynym** aktywnym backlogiem wykonawczym w projekcie.
+- Każde aktywne zadanie musi mieć pola: `Status`, `Owner`, `Data przeglądu`, `DoD`.
+- `TODO.md` pełni wyłącznie rolę historyczną i nie zawiera aktywnych pozycji.
+
 
 ## Legenda statusów
 - `PLANNED` — zadanie zaplanowane, bez aktywnego wykonawcy.
