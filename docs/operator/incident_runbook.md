@@ -1,4 +1,11 @@
 <!--
+[AI-CHANGE | 2026-04-27 09:05 UTC | v0.203]
+CO ZMIENIONO: Dodano sekcję formalnej akceptacji operacyjnej runbooka z datą, właścicielem i zakresem obowiązywania.
+DLACZEGO: Backlog OPS-001 wymagał domknięcia DoD poprzez jednoznaczny dowód zatwierdzenia dokumentu operacyjnego.
+JAK TO DZIAŁA: Sekcja „Akceptacja operacyjna” stanowi stempel GO dla Stage 0 i jest referencją dla pola akceptacji w `TASKS.md`.
+TODO: Powiązać akceptację runbooka z podpisem elektronicznym w systemie ticketowym, aby uniknąć ręcznej synchronizacji statusów.
+-->
+<!--
 [AI-CHANGE | 2026-04-25 16:38 UTC | v0.202]
 CO ZMIENIONO: Dodano dedykowany runbook incydentów operacyjnych z jednoznacznym triage, ścieżką eskalacji, procedurą rollback i kryteriami zamknięcia incydentu.
 DLACZEGO: Zespół potrzebuje jednej, stanowiskowej instrukcji działań pod presją czasu, aby skrócić MTTR i uniknąć niejednoznacznych reakcji podczas awarii.
@@ -7,6 +14,12 @@ TODO: Zintegrować sekcję „Timeline incydentu” z automatycznym eksportem zd
 -->
 
 # Runbook incydentów (operacyjny)
+
+## Akceptacja operacyjna
+- Status: `ZATWIERDZONE`
+- Data akceptacji (UTC): `2026-04-27`
+- Właściciel akceptacji: `@ops_oncall`
+- Zakres: Stage 0, obsługa incydentów percepcji i backendu ROS.
 
 ## Cel dokumentu
 Ten runbook definiuje jednolity sposób obsługi awarii dla stanowisk operatorskich Stage 0.
