@@ -76,10 +76,10 @@ jobs:
           test -f "install/g1_light_tracking/share/g1_light_tracking/config/control.yaml"
           test -f "install/g1_light_tracking/share/g1_light_tracking/config/bridge.yaml"
 
-          # [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
-          # CO ZMIENIONO: Dodano walidację entrypointa pakietu przez `ros2 run` i listę executable.
-          # DLACZEGO: Chcemy wcześnie wykrywać brak rejestracji `console_scripts`, zanim trafi to do merge.
-          # JAK TO DZIAŁA: Najpierw sprawdzamy obecność executable, potem uruchamiamy `ros2 run ... --help` jako szybki smoke test.
-          # TODO: Rozszerzyć krok o walidację wszystkich entrypointów publikowanych przez pakiety ROS2 w repozytorium.
-          ros2 pkg executables robot_mission_control | grep -E '^robot_mission_control mission_control_node$'
-          ros2 run robot_mission_control mission_control_node --help >/tmp/mission_control_help.txt
+          # [AI-CHANGE | 2026-04-28 08:21 UTC | v0.200]
+          # CO ZMIENIONO: Zmieniono nazwę walidowanego executable z `mission_control_node` na `robot_mission_control` w obu komendach ROS2.
+          # DLACZEGO: Entrypoint pakietu został ujednolicony do nazwy zgodnej z pakietem i workflow musi testować właściwy binarny punkt wejścia.
+          # JAK TO DZIAŁA: Krok najpierw potwierdza obecność `robot_mission_control robot_mission_control` w `ros2 pkg executables`, a następnie wykonuje smoke test `ros2 run ... --help`.
+          # TODO: Dodać dodatkowy test negatywny, który upewni się, że legacy executable (`mission_control_node`) nie jest już publikowany.
+          ros2 pkg executables robot_mission_control | grep -E '^robot_mission_control robot_mission_control$'
+          ros2 run robot_mission_control robot_mission_control --help >/tmp/mission_control_help.txt
