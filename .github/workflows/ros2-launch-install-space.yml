@@ -37,10 +37,17 @@ jobs:
         with:
           required-ros-distributions: jazzy
 
+      # [AI-CHANGE | 2026-04-28 16:55 UTC | v0.202]
+      # CO ZMIENIONO: Zastąpiono instalację `python3-pyside6` instalacją `PySide6` przez pip z `requirements-ui.txt`.
+      # DLACZEGO: Na Ubuntu 24.04 pakiet APT `python3-pyside6` nie jest dostępny, co przerywa job `pytest` błędem `Unable to locate package`.
+      # JAK TO DZIAŁA: APT instaluje tylko narzędzia bazowe, a zależność UI jest pobierana z pip jako część dedykowanego zestawu UI.
+      # TODO: Rozważyć pinowanie wersji PySide6 do zakresu zweryfikowanego z pluginami Qt używanymi w testach headless.
       - name: Install build and test tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep python3-pip python3-pytest python3-pyside6
+          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep python3-pip python3-pytest
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r ros2_ws/robot_mission_control/requirements-ui.txt
 
       - name: Build workspace
         run: |
@@ -106,13 +113,20 @@ jobs:
           set -u
           colcon test --base-paths ros2_ws --packages-select robot_mission_control --event-handlers console_direct+ --pytest-args -m launch_test
 
+      # [AI-CHANGE | 2026-04-28 16:55 UTC | v0.202]
+      # CO ZMIENIONO: Dodano bezpieczny fallback przy raportowaniu wyników launch_testing, gdy `install/setup.bash` nie istnieje.
+      # DLACZEGO: W przypadku wcześniejszej awarii buildu CI nie powinno kończyć się wtórnym błędem `No such file`, tylko zwrócić właściwą diagnozę testów.
+      # JAK TO DZIAŁA: Skrypt warunkowo ładuje `install/setup.bash` tylko gdy plik istnieje, a następnie zawsze uruchamia `colcon test-result --verbose`.
+      # TODO: Dodać upload artefaktów `log/latest_test` nawet przy nieudanym buildzie, aby skrócić czas triage.
       - name: Report launch_testing results
         if: always()
         run: |
           set -eo pipefail
           set +u
           source /opt/ros/jazzy/setup.bash
-          source install/setup.bash
+          if [ -f install/setup.bash ]; then
+            source install/setup.bash
+          fi
           set -u
           colcon test-result --verbose
 
@@ -171,10 +185,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-colcon-common-extensions python3-rosdep
 
+      # [AI-CHANGE | 2026-04-28 16:55 UTC | v0.202]
+      # CO ZMIENIONO: Zmieniono sanity build z `--packages-select` na `--packages-up-to` dla `robot_mission_control`.
+      # DLACZEGO: Pakiet zależy od `robot_mission_control_interfaces`; budowa tylko jednego pakietu powodowała brak artefaktów interfejsu i błąd colcon.
+      # JAK TO DZIAŁA: `--packages-up-to` buduje pakiet docelowy razem z wymaganymi zależnościami w prawidłowej kolejności.
+      # TODO: Dodać osobny job kontraktowy weryfikujący komplet zależności `ament_python`/`ament_cmake` dla całego workspace.
       - name: Quick package sanity check (pyproject vs setup.py)
         run: |
           python3 ros2_ws/robot_mission_control/setup.py --dry-run
-          source /opt/ros/jazzy/setup.bash && colcon build --base-paths ros2_ws --packages-select robot_mission_control --event-handlers console_direct+
+          source /opt/ros/jazzy/setup.bash && colcon build --base-paths ros2_ws --packages-up-to robot_mission_control --event-handlers console_direct+
 
       - name: Build workspace
         run: |

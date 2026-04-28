@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+# [AI-CHANGE | 2026-04-28 16:55 UTC | v0.202]
+# CO ZMIENIONO: Dodano plikową dyrektywę Ruff `noqa: E402` dla testu UI.
+# DLACZEGO: Test używa `pytest.importorskip` przed importami modułów aplikacji, aby bezpiecznie pomijać test przy braku bibliotek Qt, co koliduje z regułą E402.
+# JAK TO DZIAŁA: Ruff ignoruje wyłącznie E402 w tym pliku; pozostałe reguły lint pozostają aktywne bez zmian.
+# TODO: Przenieść `importorskip` do fixture inicjalizowanej wcześniej, aby docelowo usunąć wyjątkową dyrektywę lint.
+# ruff: noqa: E402
+
 from datetime import datetime, timedelta, timezone
 
 import pytest
