@@ -387,21 +387,23 @@ def test_diagnostics_tab_renders_problem_rows_with_cause_source_and_timestamp() 
 
     diagnostics_tab._refresh_view()
 
-    # [AI-CHANGE | 2026-04-24 12:10 UTC | v0.203]
-    # CO ZMIENIONO: Zaktualizowano asercje kolumn DiagnosticsTab po dodaniu pól „co to znaczy”
-    #               i „co zrobić”, które przesuwają indeks kolumny czasu.
-    # DLACZEGO: Test musi pilnować nowego układu tabeli oraz bezpiecznego fallbacku dla nieznanych kodów.
-    # JAK TO DZIAŁA: Asercje sprawdzają obecność fallbacku podpowiedzi operatorskich oraz timestamp w kolumnie 6.
-    # TODO: Rozszerzyć asercje o walidację kolumny „Klucz”, aby pełniej zabezpieczyć regresję układu tabeli.
+    # [AI-CHANGE | 2026-04-28 13:36 UTC | v0.206]
+    # CO ZMIENIONO: Zaktualizowano asercje kolumny severity, aby uwzględniały nowy format
+    #               „<SEVERITY> | <ikona i quality>” renderowany w tabeli DiagnosticsTab.
+    # DLACZEGO: UI dopisuje etykietę quality (np. „⛔ ERROR”), więc oczekiwanie samego „CRITICAL”
+    #           powoduje fałszywy alarm testu mimo poprawnego działania widoku.
+    # JAK TO DZIAŁA: Test weryfikuje pełny tekst severity dla rekordów ERROR/STALE oraz pozostawia
+    #                asercje source/cause/meaning/action/timestamp, by nadal łapać regresje układu danych.
+    # TODO: Dodać asercję koloru foreground komórki severity, aby potwierdzić pełne mapowanie quality -> styl.
     assert diagnostics_tab._issues_table.rowCount() == 2
-    assert diagnostics_tab._issues_table.item(0, 0).text() == "CRITICAL"
+    assert diagnostics_tab._issues_table.item(0, 0).text() == "CRITICAL | ⛔ ERROR"
     assert diagnostics_tab._issues_table.item(0, 1).text() == "ros_bridge"
     assert diagnostics_tab._issues_table.item(0, 2).text() == "transport_failure"
     assert diagnostics_tab._issues_table.item(0, 3).text() == "Kod lub status nie ma jeszcze opisu operatorskiego."
     assert diagnostics_tab._issues_table.item(0, 4).text().startswith("Wstrzymaj ryzykowne działania")
     assert diagnostics_tab._issues_table.item(0, 6).text() == "2026-04-23 21:08:00 UTC"
 
-    assert diagnostics_tab._issues_table.item(1, 0).text() == "MEDIUM"
+    assert diagnostics_tab._issues_table.item(1, 0).text() == "MEDIUM | ⚠ STALE"
     assert diagnostics_tab._issues_table.item(1, 1).text() == "action_client"
     assert diagnostics_tab._issues_table.item(1, 2).text() == "timeout"
     assert diagnostics_tab._issues_table.item(1, 6).text() == "2026-04-23 21:07:00 UTC"
