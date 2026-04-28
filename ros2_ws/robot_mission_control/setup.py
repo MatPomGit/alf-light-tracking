@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 
 from setuptools import find_packages, setup
 
@@ -32,6 +33,29 @@ def _read_requirements(filename: str) -> list[str]:
             continue
         parsed.append(normalized)
     return parsed
+
+
+# [AI-CHANGE | 2026-04-28 08:39 UTC | v0.201]
+# CO ZMIENIONO: Dodano funkcję `_ensure_default_setup_command_for_dry_run`, która przy samym `--dry-run`
+#               automatycznie dopina bezpieczną komendę setuptools (`check`).
+# DLACZEGO: W CI uruchamiane było `python3 setup.py --dry-run` bez komendy, co kończyło się błędem
+#           `error: no commands supplied` i przerywało pipeline mimo poprawnej konfiguracji pakietu.
+# JAK TO DZIAŁA: Funkcja wykrywa przypadek, gdy po `setup.py` są tylko opcje globalne (bez komendy),
+#                i tylko wtedy dopisuje `check`, dzięki czemu dry-run kończy się sukcesem bez zapisu artefaktów.
+# TODO: Rozważyć migrację walidacji packaging do `python -m build --sdist --wheel` oraz dedykowanego joba CI.
+def _ensure_default_setup_command_for_dry_run() -> None:
+    setup_args = sys.argv[1:]
+    if "--dry-run" not in setup_args:
+        return
+
+    has_explicit_command = any(not arg.startswith("-") for arg in setup_args)
+    if has_explicit_command:
+        return
+
+    sys.argv.append("check")
+
+
+_ensure_default_setup_command_for_dry_run()
 
 
 setup(
