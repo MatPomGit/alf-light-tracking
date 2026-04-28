@@ -159,8 +159,14 @@ jobs:
       - name: Run flake8
         run: flake8 ros2_ws/robot_mission_control
 
+      # [AI-CHANGE | 2026-04-28 17:00 UTC | v0.203]
+      # CO ZMIENIONO: Zmieniono ścieżkę uruchomienia `mypy` z nieistniejącego katalogu `src/` na katalog pakietu `robot_mission_control`.
+      # DLACZEGO: Pakiet nie używa layoutu `src/`, więc poprzednia komenda analizowała błędną ścieżkę i mogła pomijać realny kod.
+      # JAK TO DZIAŁA: `mypy` sprawdza teraz bezpośrednio moduły pakietu `ros2_ws/robot_mission_control/robot_mission_control`.
+      # TODO: Dodać konfigurację `mypy.ini` z jawnie zdefiniowanym `python_version` oraz regułami `strict` dla krytycznych modułów.
       - name: Run mypy
-        run: mypy ros2_ws/robot_mission_control/src
+        # Pakiet `robot_mission_control` nie używa layoutu `src/`.
+        run: mypy ros2_ws/robot_mission_control/robot_mission_control
 
   # [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
   # CO ZMIENIONO: Zachowano oraz wydzielono dotychczasowy smoke test build/install-space do osobnego joba.
