@@ -305,6 +305,15 @@ class DiagnosticsTab(QWidget):
     def _build_problem_rows(self, snapshot: dict[str, StateValue]) -> list[ProblemRow]:
         rows: list[ProblemRow] = []
         for state_key, item in snapshot.items():
+            # [AI-CHANGE | 2026-04-28 10:14 UTC | v0.205]
+            # CO ZMIENIONO: Dodano filtr pomijający bootstrapowe wpisy `not_initialized`.
+            # DLACZEGO: Po starcie aplikacji techniczne klucze bootstrapowe generują szum i
+            #           zawyżają listę problemów mimo braku realnych incydentów operatorskich.
+            # JAK TO DZIAŁA: Jeśli wpis pochodzi ze źródła `bootstrap` i ma `reason_code`
+            #                równe `not_initialized`, rekord jest odrzucany przed budową `ProblemRow`.
+            # TODO: Rozważyć licznik ukrytych rekordów bootstrapowych w stopce tabeli dla debugowania.
+            if item.source == "bootstrap" and item.reason_code == "not_initialized":
+                continue
             cause_code = item.reason_code or item.quality.value
             guidance = resolve_operator_guidance(reason_code=cause_code, status=str(item.value))
             rows.append(
