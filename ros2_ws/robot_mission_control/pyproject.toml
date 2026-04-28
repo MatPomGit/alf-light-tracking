@@ -1,8 +1,8 @@
-# [AI-CHANGE | 2026-04-28 07:54 UTC | v0.200]
-# CO ZMIENIONO: Usunięto sekcje PEP 621 (`[project]`, `[project.optional-dependencies]`, `[project.scripts]`) oraz konfigurację `tool.setuptools.*`, pozostawiając wyłącznie backend budowania.
-# DLACZEGO: Chcemy, aby źródłem metadanych był wyłącznie `setup.py`, co eliminuje generowanie `SpecifierSet(...)` w metadanych zwracanych przez `setup.py --dry-run`.
-# JAK TO DZIAŁA: `pip`/`build` nadal używają `setuptools.build_meta` z minimalnym `build-system`, a komplet metadanych pakietu jest pobierany z `setup.py`.
-# TODO: Dodać test CI sprawdzający, że `python setup.py --dry-run` nie zwraca już wpisów `SpecifierSet(...)` w wygenerowanych metadanych.
+# [AI-CHANGE | 2026-04-28 08:00 UTC | v0.200]
+# CO ZMIENIONO: Doprecyzowano, że `pyproject.toml` zawiera wyłącznie minimalny `build-system`, a metadane (`entry points`, `dependencies`, `maintainer`, `license`, `data_files`) pozostają wyłącznie w `setup.py`.
+# DLACZEGO: Dla pakietu ROS2 budowanego przez `ament_python` źródłem prawdy metadanych musi być `setup.py`, aby uniknąć rozjazdu konfiguracji i błędnych artefaktów.
+# JAK TO DZIAŁA: Backend `setuptools.build_meta` jest zachowany jedynie do procesu budowania, natomiast komplet metadanych runtime/install jest pobierany z `setup.py`.
+# TODO: Dodać automatyczny test CI, który blokuje commit, gdy w `pyproject.toml` pojawią się sekcje metadanych PEP 621.
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
