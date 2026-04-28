@@ -1,52 +1,8 @@
-# [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]
-# CO ZMIENIONO: Dodano zależność PyYAML i pakowanie plików YAML konfiguracyjnych aplikacji.
-# DLACZEGO: Klient dependency_status czyta listę bibliotek z pliku konfiguracyjnego po stronie robota.
-# JAK TO DZIAŁA: `PyYAML` obsługuje parser, a `package-data` dołącza katalog `config/*.yaml` do artefaktów.
-# TODO: Dodać osobny extras `dev` z narzędziami lint/test i pinowaniem wersji reproducible-build.
+# [AI-CHANGE | 2026-04-28 07:54 UTC | v0.200]
+# CO ZMIENIONO: Usunięto sekcje PEP 621 (`[project]`, `[project.optional-dependencies]`, `[project.scripts]`) oraz konfigurację `tool.setuptools.*`, pozostawiając wyłącznie backend budowania.
+# DLACZEGO: Chcemy, aby źródłem metadanych był wyłącznie `setup.py`, co eliminuje generowanie `SpecifierSet(...)` w metadanych zwracanych przez `setup.py --dry-run`.
+# JAK TO DZIAŁA: `pip`/`build` nadal używają `setuptools.build_meta` z minimalnym `build-system`, a komplet metadanych pakietu jest pobierany z `setup.py`.
+# TODO: Dodać test CI sprawdzający, że `python setup.py --dry-run` nie zwraca już wpisów `SpecifierSet(...)` w wygenerowanych metadanych.
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
-
-[project]
-name = "robot-mission-control"
-version = "0.1.0"
-description = "Desktop mission control app (PySide6 + ROS2 bridge)"
-readme = "README.md"
-requires-python = ">=3.10"
-dependencies = [
-  "PyYAML>=6.0",
-]
-
-# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
-# CO ZMIENIONO: Dodano grupę opcjonalnych zależności `ui` z biblioteką PySide6.
-# DLACZEGO: Testy core/ROS mają działać w środowisku headless bez wymuszania instalacji GUI.
-# JAK TO DZIAŁA: Bazowa instalacja pakietu obejmuje tylko backend, a `pip install .[ui]` doinstalowuje warstwę desktopową.
-# TODO: Rozważyć dodatkowe extra `dev` spinające `ui`, testy i narzędzia lint w jednym profilu deweloperskim.
-[project.optional-dependencies]
-ui = [
-  "PySide6>=6.7",
-]
-
-[project.scripts]
-# [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
-# CO ZMIENIONO: Dodano alias entrypointu `robot_mission_control` obok `robot-mission-control`.
-# DLACZEGO: `ros2 launch`/`ament_python` korzystają zwykle z nazwy podkreślnikowej, a alias redukuje ryzyko niespójności.
-# JAK TO DZIAŁA: Obie nazwy skryptów uruchamiają ten sam moduł `app.entrypoint:main`.
-# TODO: Uzgodnić docelowo pojedynczą nazwę binarki i usunąć alias po migracji skryptów operatorskich.
-# [AI-CHANGE | 2026-04-20 21:55 UTC | v0.157]
-# CO ZMIENIONO: Przełączono punkt startowy CLI na nowy moduł `robot_mission_control.app.entrypoint`.
-# DLACZEGO: Utrzymujemy wymaganą strukturę z katalogiem `app/` przy zachowaniu kompatybilności uruchamiania.
-# JAK TO DZIAŁA: Konsolowy skrypt `robot-mission-control` wywołuje `entrypoint.main`, który deleguje do legacy bootstrapu.
-# TODO: Dodać alternatywny skrypt `robot-mission-control-dev` z opcjami debug/logging.
-robot-mission-control = "robot_mission_control.app.entrypoint:main"
-robot_mission_control = "robot_mission_control.app.entrypoint:main"
-
-[tool.setuptools]
-include-package-data = true
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["robot_mission_control*"]
-
-[tool.setuptools.package-data]
-robot_mission_control = ["config/*.yaml"]
