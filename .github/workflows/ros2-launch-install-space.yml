@@ -30,6 +30,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-colcon-common-extensions python3-rosdep
 
+      # [AI-CHANGE | 2026-04-28 08:08 UTC | v0.200]
+      # CO ZMIENIONO: Dodano szybki check konfliktu `pyproject` vs `setup.py` dla `robot_mission_control` przed pełnym buildem workspace.
+      # DLACZEGO: Chcemy wykrywać regresję pakowania jak najwcześniej i przerwać CI zanim uruchomi się dłuższy, kosztowny build całego `ros2_ws`.
+      # JAK TO DZIAŁA: Najpierw wykonywany jest `setup.py --dry-run`, a potem izolowany `colcon build --packages-select robot_mission_control`; każdy błąd zatrzymuje job.
+      # TODO: Dodać analogiczny szybki check dla pozostałych pakietów Python ROS2 i uruchamiać go macierzowo równolegle.
+      - name: Quick package sanity check (pyproject vs setup.py)
+        run: |
+          python3 ros2_ws/robot_mission_control/setup.py --dry-run
+          source /opt/ros/jazzy/setup.bash && colcon build --base-paths ros2_ws --packages-select robot_mission_control --event-handlers console_direct+
+
       - name: Build workspace
         run: |
           source /opt/ros/jazzy/setup.bash
