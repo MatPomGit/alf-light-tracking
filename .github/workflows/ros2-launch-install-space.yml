@@ -77,10 +77,11 @@ jobs:
           test -f "install/g1_light_tracking/share/g1_light_tracking/config/control.yaml"
           test -f "install/g1_light_tracking/share/g1_light_tracking/config/bridge.yaml"
 
-          # [AI-CHANGE | 2026-04-28 08:21 UTC | v0.200]
-          # CO ZMIENIONO: Zmieniono nazwę walidowanego executable z `mission_control_node` na `robot_mission_control` w obu komendach ROS2.
-          # DLACZEGO: Entrypoint pakietu został ujednolicony do nazwy zgodnej z pakietem i workflow musi testować właściwy binarny punkt wejścia.
-          # JAK TO DZIAŁA: Krok najpierw potwierdza obecność `robot_mission_control robot_mission_control` w `ros2 pkg executables`, a następnie wykonuje smoke test `ros2 run ... --help`.
-          # TODO: Dodać dodatkowy test negatywny, który upewni się, że legacy executable (`mission_control_node`) nie jest już publikowany.
+          # [AI-CHANGE | 2026-04-28 14:35 UTC | v0.200]
+          # CO ZMIENIONO: Zastąpiono walidację pojedynczego executable listą rzeczywistych entrypointów publikowanych przez `setup.py` (`robot_mission_control` i `mission_step_action_test_server`).
+          # DLACZEGO: Workflow ma wykrywać regresję kontraktu pakietu; fałszywe oczekiwanie na nieistniejący executable (`mission_control_node`) mogłoby dawać błędny sygnał jakości.
+          # JAK TO DZIAŁA: `grep` wymusza obecność obu wpisów z `ros2 pkg executables`, a smoke test `ros2 run ... --help` jest wykonywany dla produkcyjnego entrypointu `robot_mission_control`.
+          # TODO: Dodać osobny test uruchomieniowy z `timeout` dla `mission_step_action_test_server`, aby potwierdzić start serwera bez blokowania joba CI.
           ros2 pkg executables robot_mission_control | grep -E '^robot_mission_control robot_mission_control$'
+          ros2 pkg executables robot_mission_control | grep -E '^robot_mission_control mission_step_action_test_server$'
           ros2 run robot_mission_control robot_mission_control --help >/tmp/mission_control_help.txt
