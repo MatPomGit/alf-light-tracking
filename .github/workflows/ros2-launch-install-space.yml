@@ -47,12 +47,13 @@ jobs:
 
       - name: Validate launch/install-space/runtime entrypoints
         run: |
-          # [AI-CHANGE | 2026-04-28 08:17 UTC | v0.200]
-          # CO ZMIENIONO: Zmieniono sekwencję inicjalizacji flag powłoki, aby `set -u` włączać dopiero po `source` środowisk ROS2.
-          # DLACZEGO: Pliki setup mogą odwoływać się do opcjonalnych zmiennych; zbyt wczesne `set -u` mogłoby przerwać krok mimo poprawnego środowiska.
-          # JAK TO DZIAŁA: Najpierw aktywujemy `-e` i `pipefail`, następnie źródłujemy środowiska, a na końcu zaostrzamy walidację przez `set -u`.
-          # TODO: Dodać dedykowany smoke test sprawdzający zgodność tej sekwencji z kolejnymi wersjami ROS2 setup scripts.
+          # [AI-CHANGE | 2026-04-28 12:00 UTC | v0.200]
+          # CO ZMIENIONO: Dodano jawne `set +u` przed `source` plików środowiskowych ROS2 i ponowne `set -u` po ich załadowaniu.
+          # DLACZEGO: Skrypty setup ROS2 mogą czytać niezdefiniowane zmienne (np. `AMENT_TRACE_SETUP_FILES`), więc aktywne `nounset` mogłoby wywołać fałszywy błąd `unbound variable`.
+          # JAK TO DZIAŁA: Krok utrzymuje rygor `-e` i `pipefail`, tymczasowo luzuje wyłącznie `-u` na czas `source`, a następnie przywraca `-u` przed właściwymi walidacjami.
+          # TODO: Dodać test kontraktowy CI, który emuluje brak `AMENT_TRACE_SETUP_FILES` i potwierdza poprawny przebieg sekwencji `set +u` -> `source` -> `set -u`.
           set -eo pipefail
+          set +u
           source /opt/ros/jazzy/setup.bash
           source install/setup.bash
           set -u
