@@ -47,9 +47,15 @@ jobs:
 
       - name: Validate launch/install-space/runtime entrypoints
         run: |
-          set -euo pipefail
+          # [AI-CHANGE | 2026-04-28 08:17 UTC | v0.200]
+          # CO ZMIENIONO: Zmieniono sekwencję inicjalizacji flag powłoki, aby `set -u` włączać dopiero po `source` środowisk ROS2.
+          # DLACZEGO: Pliki setup mogą odwoływać się do opcjonalnych zmiennych; zbyt wczesne `set -u` mogłoby przerwać krok mimo poprawnego środowiska.
+          # JAK TO DZIAŁA: Najpierw aktywujemy `-e` i `pipefail`, następnie źródłujemy środowiska, a na końcu zaostrzamy walidację przez `set -u`.
+          # TODO: Dodać dedykowany smoke test sprawdzający zgodność tej sekwencji z kolejnymi wersjami ROS2 setup scripts.
+          set -eo pipefail
           source /opt/ros/jazzy/setup.bash
           source install/setup.bash
+          set -u
 
           # [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
           # CO ZMIENIONO: Dodano test rozwiązywania launch file przez `ros2 launch --show-args`.
