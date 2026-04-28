@@ -220,6 +220,14 @@ def resolve_operator_guidance(*, reason_code: str | None = None, status: str | N
         guidance = CODE_GUIDANCE_MAP.get(normalized_code)
         if guidance is not None:
             return guidance
+        # [AI-CHANGE | 2026-04-28 10:14 UTC | v0.205]
+        # CO ZMIENIONO: Wymuszono bezpośredni fallback dla nieznanego `reason_code`.
+        # DLACZEGO: Nieznany kod błędu jest bardziej wiarygodnym sygnałem niepewności niż status ogólny;
+        #           zgodnie z zasadą bezpieczeństwa lepiej zwrócić brak precyzyjnej diagnozy niż mylący opis.
+        # JAK TO DZIAŁA: Gdy `reason_code` został podany, ale nie istnieje w mapie, funkcja zwraca
+        #                `FALLBACK_GUIDANCE` i nie przechodzi do mapowania po `status`.
+        # TODO: Dodać telemetrykę nieznanych `reason_code` z agregacją częstości do dalszego mapowania.
+        return FALLBACK_GUIDANCE
 
     normalized_status = (status or "").strip().upper()
     if normalized_status:
