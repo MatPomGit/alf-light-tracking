@@ -1,9 +1,13 @@
-# [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
-# CO ZMIENIONO: Dodano workflow CI z osobnym jobem `launch-install-space` walidującym `ros2 launch`, pliki `config` w `share/` i entrypoint `ros2 run`.
-# DLACZEGO: DoD wymaga niezależnego, blokującego joba instalacyjno-launchowego przed mergem.
-# JAK TO DZIAŁA: Job buduje workspace przez `colcon`, źródłuje `install/setup.bash` i wykonuje zestaw testów kontraktowych install-space.
-# TODO: Rozszerzyć walidację o uruchomienie pełnych testów `launch_testing` z asercjami runtime dla wszystkich pakietów.
-name: ROS2 launch/install-space checks
+# [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
+# CO ZMIENIONO: Przebudowano workflow CI na 4 osobne joby: `pytest` (unit/UI z markerami środowiskowymi),
+#               `launch-testing` (E2E ROS), `lint-type` (ruff/flake8/mypy) oraz `build-install-space-smoke`
+#               (build + walidacja install-space i smoke runtime).
+# DLACZEGO: Rozdzielenie odpowiedzialności jobów skraca diagnostykę regresji i spełnia wymaganie osobnych bram jakości
+#           dla testów jednostkowych/UI, E2E ROS, statycznej analizy oraz kontraktu build/install-space.
+# JAK TO DZIAŁA: Każdy job samodzielnie konfiguruje ROS2 Jazzy i uruchamia tylko przypisaną klasę walidacji,
+#                a warunki środowiskowe `RUN_UI_TESTS` i `RUN_LAUNCH_TESTS` determinują selekcję testów.
+# TODO: Dodać cache zależności (pip/apt/colcon) i macierz Python/ROS distro, aby skrócić czas CI bez utraty pokrycia.
+name: ROS2 quality gates
 
 on:
   pull_request:
@@ -12,8 +16,145 @@ on:
       - main
 
 jobs:
-  launch-install-space:
-    name: launch-install-space (required)
+  # [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
+  # CO ZMIENIONO: Dodano dedykowany job `pytest` rozdzielający testy unit oraz UI.
+  # DLACZEGO: Osobna brama dla testów Python przyspiesza diagnozowanie regresji bez mieszania ich z E2E ROS.
+  # JAK TO DZIAŁA: Job wykonuje dwa etapy `pytest`, a etap UI jest sterowany zmienną środowiskową `RUN_UI_TESTS`.
+  # TODO: Dodać markery `@pytest.mark.ui` i `@pytest.mark.unit`, aby odejść od selekcji przez `-k`.
+  pytest:
+    name: pytest (unit+UI)
+    runs-on: ubuntu-24.04
+    env:
+      RUN_UI_TESTS: "1"
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup ROS 2 Jazzy
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: jazzy
+
+      - name: Install build and test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep python3-pip python3-pytest python3-pyside6
+
+      - name: Build workspace
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build --base-paths ros2_ws --event-handlers console_direct+
+
+      - name: Run unit tests (without E2E launch tests)
+        run: |
+          set -eo pipefail
+          set +u
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          set -u
+          pytest -q ros2_ws/robot_mission_control/tests -k 'not launch_testing and not e2e_launch_testing and not ui_state_safety'
+
+      - name: Run UI tests (environment-gated)
+        if: ${{ env.RUN_UI_TESTS == '1' }}
+        run: |
+          set -eo pipefail
+          set +u
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          set -u
+          pytest -q ros2_ws/robot_mission_control/tests/test_ui_state_safety.py
+
+  # [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
+  # CO ZMIENIONO: Dodano osobny job `launch-testing` dla E2E ROS2.
+  # DLACZEGO: Testy integracyjne Action/launch mają inny profil awarii i powinny być raportowane niezależnie od unit/UI.
+  # JAK TO DZIAŁA: Job uruchamia `colcon test` wyłącznie z markerem `launch_test` oraz publikuje zbiorczy wynik `colcon test-result`.
+  # TODO: Rozdzielić raportowanie na osobne artefakty JUnit dla łatwiejszego triage w GitHub Actions.
+  launch-testing:
+    name: launch_testing (E2E ROS)
+    runs-on: ubuntu-24.04
+    env:
+      RUN_LAUNCH_TESTS: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup ROS 2 Jazzy
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: jazzy
+
+      - name: Install build and test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep python3-launch-testing python3-launch-testing-ros python3-pytest
+
+      - name: Build workspace
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build --base-paths ros2_ws --event-handlers console_direct+
+
+      - name: Run launch_testing E2E tests
+        if: ${{ env.RUN_LAUNCH_TESTS == '1' }}
+        run: |
+          set -eo pipefail
+          set +u
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          set -u
+          colcon test --base-paths ros2_ws --packages-select robot_mission_control --event-handlers console_direct+ --pytest-args -m launch_test
+
+      - name: Report launch_testing results
+        if: always()
+        run: |
+          set -eo pipefail
+          set +u
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          set -u
+          colcon test-result --verbose
+
+  # [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
+  # CO ZMIENIONO: Dodano job statycznej jakości `lint-type` (ruff, flake8, mypy).
+  # DLACZEGO: Wczesne wykrywanie problemów stylu i typów ogranicza ryzyko błędnych zmian trafiających do runtime.
+  # JAK TO DZIAŁA: Job instaluje narzędzia Python i wykonuje je sekwencyjnie na kodzie pakietu `robot_mission_control`.
+  # TODO: Przenieść konfigurację narzędzi do centralnego `pyproject.toml` i wymusić spójną politykę ignorów.
+  lint-type:
+    name: lint/type (ruff+flake8+mypy)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install lint/type tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff flake8 mypy
+
+      - name: Run ruff
+        run: ruff check ros2_ws/robot_mission_control
+
+      - name: Run flake8
+        run: flake8 ros2_ws/robot_mission_control
+
+      - name: Run mypy
+        run: mypy ros2_ws/robot_mission_control/src
+
+  # [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
+  # CO ZMIENIONO: Zachowano oraz wydzielono dotychczasowy smoke test build/install-space do osobnego joba.
+  # DLACZEGO: Kontrakt instalacyjny i uruchomieniowy jest krytyczny dla bezpieczeństwa wdrożenia ROS2.
+  # JAK TO DZIAŁA: Job buduje workspace, waliduje artefakty `share/config`, sprawdza `ros2 launch` i entrypointy `ros2 run`.
+  # TODO: Dodać smoke test z `timeout` uruchamiający `mission_step_action_test_server` i asercję logu gotowości.
+  build-install-space-smoke:
+    name: build/install-space smoke
     runs-on: ubuntu-24.04
 
     steps:
@@ -30,11 +171,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-colcon-common-extensions python3-rosdep
 
-      # [AI-CHANGE | 2026-04-28 08:08 UTC | v0.200]
-      # CO ZMIENIONO: Dodano szybki check konfliktu `pyproject` vs `setup.py` dla `robot_mission_control` przed pełnym buildem workspace.
-      # DLACZEGO: Chcemy wykrywać regresję pakowania jak najwcześniej i przerwać CI zanim uruchomi się dłuższy, kosztowny build całego `ros2_ws`.
-      # JAK TO DZIAŁA: Najpierw wykonywany jest `setup.py --dry-run`, a potem izolowany `colcon build --packages-select robot_mission_control`; każdy błąd zatrzymuje job.
-      # TODO: Dodać analogiczny szybki check dla pozostałych pakietów Python ROS2 i uruchamiać go macierzowo równolegle.
       - name: Quick package sanity check (pyproject vs setup.py)
         run: |
           python3 ros2_ws/robot_mission_control/setup.py --dry-run
@@ -47,29 +183,14 @@ jobs:
 
       - name: Validate launch/install-space/runtime entrypoints
         run: |
-          # [AI-CHANGE | 2026-04-28 12:00 UTC | v0.200]
-          # CO ZMIENIONO: Dodano jawne `set +u` przed `source` plików środowiskowych ROS2 i ponowne `set -u` po ich załadowaniu.
-          # DLACZEGO: Skrypty setup ROS2 mogą czytać niezdefiniowane zmienne (np. `AMENT_TRACE_SETUP_FILES`), więc aktywne `nounset` mogłoby wywołać fałszywy błąd `unbound variable`.
-          # JAK TO DZIAŁA: Krok utrzymuje rygor `-e` i `pipefail`, tymczasowo luzuje wyłącznie `-u` na czas `source`, a następnie przywraca `-u` przed właściwymi walidacjami.
-          # TODO: Dodać test kontraktowy CI, który emuluje brak `AMENT_TRACE_SETUP_FILES` i potwierdza poprawny przebieg sekwencji `set +u` -> `source` -> `set -u`.
           set -eo pipefail
           set +u
           source /opt/ros/jazzy/setup.bash
           source install/setup.bash
           set -u
 
-          # [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
-          # CO ZMIENIONO: Dodano test rozwiązywania launch file przez `ros2 launch --show-args`.
-          # DLACZEGO: To najtańsza kontrola CI, że launch jest poprawnie zainstalowany i możliwy do uruchomienia.
-          # JAK TO DZIAŁA: Komenda kończy się błędem, jeśli launch nie istnieje lub nie daje się sparsować.
-          # TODO: Dodać osobny krok z `timeout` i asercją logów dla rzeczywistego procesu launch.
           ros2 launch robot_mission_control mission_control.launch.py --show-args >/tmp/mission_control_launch_args.txt
 
-          # [AI-CHANGE | 2026-04-27 06:45 UTC | v0.203]
-          # CO ZMIENIONO: Dodano twardą walidację obecności plików konfiguracyjnych w install-space (`share/.../config`).
-          # DLACZEGO: Brak configu po instalacji może dać błędny runtime; lepiej przerwać pipeline niż dopuścić niepewną detekcję/sterylną konfigurację.
-          # JAK TO DZIAŁA: Każdy `test -f` failuje job, gdy artefakt instalacyjny nie został poprawnie zapakowany.
-          # TODO: Uogólnić listę plików do auto-odkrywania na podstawie `setup.py`/`package.xml`.
           test -f "install/robot_mission_control/share/robot_mission_control/config/default.yaml"
           test -f "install/robot_mission_control/share/robot_mission_control/config/action_backend.yaml"
           test -f "install/robot_emergency_stop/share/robot_emergency_stop/config/emergency_stop.yaml"
@@ -77,11 +198,6 @@ jobs:
           test -f "install/g1_light_tracking/share/g1_light_tracking/config/control.yaml"
           test -f "install/g1_light_tracking/share/g1_light_tracking/config/bridge.yaml"
 
-          # [AI-CHANGE | 2026-04-28 14:35 UTC | v0.200]
-          # CO ZMIENIONO: Zastąpiono walidację pojedynczego executable listą rzeczywistych entrypointów publikowanych przez `setup.py` (`robot_mission_control` i `mission_step_action_test_server`).
-          # DLACZEGO: Workflow ma wykrywać regresję kontraktu pakietu; fałszywe oczekiwanie na nieistniejący executable (`mission_control_node`) mogłoby dawać błędny sygnał jakości.
-          # JAK TO DZIAŁA: `grep` wymusza obecność obu wpisów z `ros2 pkg executables`, a smoke test `ros2 run ... --help` jest wykonywany dla produkcyjnego entrypointu `robot_mission_control`.
-          # TODO: Dodać osobny test uruchomieniowy z `timeout` dla `mission_step_action_test_server`, aby potwierdzić start serwera bez blokowania joba CI.
           ros2 pkg executables robot_mission_control | grep -E '^robot_mission_control robot_mission_control$'
           ros2 pkg executables robot_mission_control | grep -E '^robot_mission_control mission_step_action_test_server$'
           ros2 run robot_mission_control robot_mission_control --help >/tmp/mission_control_help.txt
