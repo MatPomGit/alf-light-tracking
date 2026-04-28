@@ -159,14 +159,13 @@ jobs:
       - name: Run flake8
         run: flake8 ros2_ws/robot_mission_control
 
-      # [AI-CHANGE | 2026-04-28 17:00 UTC | v0.203]
-      # CO ZMIENIONO: Zmieniono ścieżkę uruchomienia `mypy` z nieistniejącego katalogu `src/` na katalog pakietu `robot_mission_control`.
-      # DLACZEGO: Pakiet nie używa layoutu `src/`, więc poprzednia komenda analizowała błędną ścieżkę i mogła pomijać realny kod.
-      # JAK TO DZIAŁA: `mypy` sprawdza teraz bezpośrednio moduły pakietu `ros2_ws/robot_mission_control/robot_mission_control`.
-      # TODO: Dodać konfigurację `mypy.ini` z jawnie zdefiniowanym `python_version` oraz regułami `strict` dla krytycznych modułów.
+      # [AI-CHANGE | 2026-04-28 09:48 UTC | v0.204]
+      # CO ZMIENIONO: Przełączono uruchomienie `mypy` na konfigurację z `mypy.ini` i zawężono analizę do modułów biznesowych bez zależności ROS/UI.
+      # DLACZEGO: Strategia B dla CI ma ograniczyć fałszywe alarmy importów środowiskowych (`rclpy`, `launch`, `PySide6`) i skrócić czas lintowania.
+      # JAK TO DZIAŁA: `mypy --config-file mypy.ini` korzysta z centralnych reguł ignorowania brakujących importów oraz listy plików do typowania.
+      # TODO: Stopniowo rozszerzać listę `files` o kolejne moduły i zastępować globalne ignore regułami per-moduł.
       - name: Run mypy
-        # Pakiet `robot_mission_control` nie używa layoutu `src/`.
-        run: mypy ros2_ws/robot_mission_control/robot_mission_control
+        run: mypy --config-file mypy.ini
 
   # [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
   # CO ZMIENIONO: Zachowano oraz wydzielono dotychczasowy smoke test build/install-space do osobnego joba.
