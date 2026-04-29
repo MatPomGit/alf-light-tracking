@@ -1,15 +1,8 @@
 <!--
-[AI-CHANGE | 2026-04-27 09:05 UTC | v0.203]
-CO ZMIENIONO: Dodano sekcję formalnej akceptacji operacyjnej dla twardej macierzy środowisk wraz z datą i właścicielem.
-DLACZEGO: Backlog OPS-002 wymagał jawnego potwierdzenia, że macierz została przyjęta jako obowiązujący kontrakt release.
-JAK TO DZIAŁA: Sekcja „Akceptacja operacyjna” pełni rolę bramki decyzyjnej i jest źródłem prawdy dla statusu `DONE` w `TASKS.md`.
-TODO: Zintegrować status akceptacji z automatycznym gate w CI (`env-hard-gate`) i raportowaniem do release notes.
--->
-<!--
-[AI-CHANGE | 2026-04-25 16:38 UTC | v0.202]
-CO ZMIENIONO: Dodano osobny dokument „twardej macierzy środowisk” z jednoznaczną polityką ALLOW/BLOCK, profilem referencyjnym oraz bramkami release.
-DLACZEGO: Przewidywalne wdrożenia wymagają sztywnego kontraktu środowiskowego eliminującego dryf zależności i niekontrolowane odstępstwa.
-JAK TO DZIAŁA: Każdy rollout przechodzi przez hard gate; publikacja artefaktu jest możliwa wyłącznie dla profilu referencyjnego H1.
+[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+CO ZMIENIONO: Scalono dwa nagłówkowe wpisy AI macierzy środowisk w jeden aktualny opis dokumentu.
+DLACZEGO: Osobne bloki utworzenia i akceptacji były obok siebie, a dokument powinien zaczynać się od jednej czytelnej metainformacji.
+JAK TO DZIAŁA: Macierz nadal definiuje politykę ALLOW/BLOCK, profil referencyjny, bramki release i formalną akceptację operacyjną.
 TODO: Dodać automatyczny walidator `env-hard-gate` uruchamiany w CI przed etapem publikacji artefaktów.
 -->
 

@@ -1,21 +1,13 @@
 <!--
-[AI-CHANGE | 2026-04-21 11:00 UTC | v0.173]
-CO ZMIENIONO: Dodano plan wdrożenia produkcyjnego modułu `robot_mission_control`.
-DLACZEGO: Oprócz backlogu zadań potrzebny jest operacyjny plan rolloutu z bramkami jakości, rollbackiem i metrykami.
-JAK TO DZIAŁA: Dokument definiuje fazy wdrożenia, kryteria GO/NO-GO, plan monitoringu i działania po-incydentowe.
+[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+CO ZMIENIONO: Scalono nagłówkowe opisy DEPLOYMENT_PLAN.md i zaktualizowano runtime pakietu na `ament_cmake`.
+DLACZEGO: Plan miał dwa bloki AI przed treścią i przestarzałą informację o `ament_python`, co utrudniało odczyt aktualnej procedury ROS2.
+JAK TO DZIAŁA: Dokument zaczyna się jednym blokiem meta, a granice odpowiedzialności oraz rollout pozostają zwykłą treścią operacyjną.
 TODO: Po pierwszym pilotażu uzupełnić plan o rzeczywiste czasy MTTR i listę najczęstszych reason_code.
 -->
 
 # DEPLOYMENT PLAN — robot_mission_control
 
-
-<!--
-[AI-CHANGE | 2026-04-27 12:03 UTC | v0.203]
-CO ZMIENIONO: Doprecyzowano granice dokumentu wdrożeniowego, aby nie powielał backlogu, changelogu ani logu commitów.
-DLACZEGO: Rozdzielenie odpowiedzialności dokumentów eliminuje ryzyko niespójności i rozjazdów audytowych.
-JAK TO DZIAŁA: Plan wdrożeniowy zawiera tylko procedury rollout/rollback, a metadane wykonawcze i historia zmian pozostają w dedykowanych plikach.
-TODO: Dodać checklistę release managera, która przed publikacją wymusza weryfikację braku duplikatów między dokumentami.
--->
 ## Granice dokumentu (single source of truth)
 - Ten plik opisuje tylko rollout, gate'y GO/NO-GO, monitoring i rollback.
 - Statusy zadań, ownerzy i DoD są utrzymywane wyłącznie w `TASKS.md`.
@@ -28,7 +20,7 @@ bez prezentowania danych fikcyjnych (priorytet: `UNAVAILABLE` zamiast błędnego
 
 ## 2) Zakres
 - Pakiet: `ros2_ws/robot_mission_control`
-- Runtime: ROS2 (`rclpy`, `launch`, `ament_python`)
+- Runtime: ROS2 (`rclpy`, `launch`, `ament_cmake`)
 - Kluczowe ścieżki:
   - `launch/mission_control.launch.py`
   - `config/default.yaml`

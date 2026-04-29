@@ -3,26 +3,14 @@ import sys
 
 from setuptools import find_packages, setup
 
-# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
-# CO ZMIENIONO: Doprecyzowano rolę `setup.py` po przejściu pakietu ROS2 na `ament_cmake`.
-# DLACZEGO: `colcon build` korzysta teraz z `CMakeLists.txt`, ale `setup.py` nadal może obsługiwać instalację/testy
-#           Python poza workspace ROS2; pozostawienie starego opisu `ament_python` wprowadzałoby w błąd.
-# JAK TO DZIAŁA: Skrypt nadal rejestruje pakiet Python i entrypointy dla narzędzi setuptools, natomiast ROS2 instaluje
-#                moduły i wrappery przez `ament_cmake_python` oraz sekcje `install()` w CMake.
+# [AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+# CO ZMIENIONO: Uporządkowano opis `setup.py` do jednego bloku meta na początku pliku.
+# DLACZEGO: Plik miał kilka sąsiadujących nagłówków AI opisujących role packagingu, requirements i `ament_cmake`.
+# JAK TO DZIAŁA: `setup.py` pozostaje pomocniczym opisem setuptools, a ROS2 instaluje moduły i wrappery przez `CMakeLists.txt`.
 # TODO: Ujednolicić metadane pip i ROS2, aby wersja oraz lista plików instalacyjnych nie rozjechały się między buildami.
 package_name = "robot_mission_control"
 
 
-# [AI-CHANGE | 2026-04-21 10:19 UTC | v0.168]
-# CO ZMIENIONO: Dodano odczyt zależności z `requirements.txt` i dołączenie tego pliku do artefaktów pakietu.
-# DLACZEGO: Jedno źródło prawdy dla zależności minimalizuje ryzyko rozjazdu między pip i instalacją przez ROS2.
-# JAK TO DZIAŁA: Funkcja `_read_requirements` filtruje komentarze/puste linie, a wynik trafia do `install_requires`.
-# TODO: Rozdzielić zależności GUI i headless na extras, aby ułatwić testy bez środowiska graficznego.
-# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
-# CO ZMIENIONO: Uogólniono loader zależności tak, aby czytać osobne pliki dla runtime core oraz extras UI.
-# DLACZEGO: Rozdzielenie pakietów umożliwia uruchamianie testów backendowych bez instalacji PySide6.
-# JAK TO DZIAŁA: Funkcja przyjmuje nazwę pliku, filtruje puste linie/komentarze i zwraca listę do `install_requires` lub `extras_require`.
-# TODO: Dodać walidację wykrywającą cykliczne odwołania `-r` przy przyszłej rozbudowie plików requirements.
 def _read_requirements(filename: str) -> list[str]:
     requirements_path = Path(__file__).resolve().parent / filename
     if not requirements_path.exists():
@@ -70,18 +58,13 @@ setup(
         ("share/" + package_name + "/launch", ["launch/mission_control.launch.py"]),
         ("share/" + package_name + "/config", ["config/default.yaml", "config/action_backend.yaml"]),
     ],
-# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
-    # CO ZMIENIONO: Bazowe zależności instalacyjne przeniesiono do `requirements-core.txt` i dodano extra `ui`.
-    # DLACZEGO: Instalacja pod testy core/ROS nie powinna wymagać bibliotek GUI.
-    # JAK TO DZIAŁA: `install_requires` ładuje tylko backend, a `extras_require["ui"]` dodaje PySide6 dla aplikacji desktopowej.
+    # [AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+    # CO ZMIENIONO: Scalono opis zależności core/UI i danych pakietu w jeden blok przy konfiguracji setuptools.
+    # DLACZEGO: Dwa sąsiadujące komentarze AI przy `install_requires` i `package_data` dublowały opis packagingu.
+    # JAK TO DZIAŁA: `install_requires` ładuje backend, extra `ui` dodaje PySide6, a `package_data` dołącza asset logo.
     # TODO: Dodać extra `ci` agregujące zestaw headless + narzędzia raportowania pokrycia.
     install_requires=["setuptools", *_read_requirements("requirements-core.txt")],
     extras_require={"ui": _read_requirements("requirements-ui.txt")},
-    # [AI-CHANGE | 2026-04-23 14:44 UTC | v0.189]
-    # CO ZMIENIONO: Dodano `package_data` i `include_package_data`, aby dystrybuować asset logo UI.
-    # DLACZEGO: Bez jawnego dołączenia plików nie-pythonowych logo nie trafi do instalacji pakietu ROS2.
-    # JAK TO DZIAŁA: Wzorzec `ui/assets/*.svg` trafia do wheel/install-space i może być wczytany przez MainWindow.
-    # TODO: Rozszerzyć reguły o PNG/SVG oraz walidację obecności wszystkich assetów podczas builda.
     package_data={package_name: ["ui/assets/*.svg"]},
     include_package_data=True,
     zip_safe=False,

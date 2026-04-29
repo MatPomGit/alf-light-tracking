@@ -1,17 +1,9 @@
 <!--
-[AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
-CO ZMIENIONO: Zmieniono opisy granic modułów na nową lokalizację pakietu `robot_mission_control` w `ros2_ws`.
-DLACZEGO: Architektura musi być spójna z rzeczywistą strukturą katalogów repozytorium.
-JAK TO DZIAŁA: Sekcje dokumentu odnoszą się do ścieżek pod `ros2_ws/robot_mission_control/...`.
+[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+CO ZMIENIONO: Scalono dwa nagłówkowe bloki AI w jeden opis aktualnego zakresu dokumentu.
+DLACZEGO: Kolejne bloki meta przed tytułem dublowały historię utworzenia i relokacji pakietu, utrudniając wejście w treść architektury.
+JAK TO DZIAŁA: Dokument nadal opisuje granice modułów Stage 0 i aktualne ścieżki `ros2_ws/robot_mission_control/...`.
 TODO: Dodać sekcję zależności runtime pomiędzy modułami core a mostem ROS.
--->
-
-<!--
-[AI-CHANGE | 2026-04-20 20:39 UTC | v0.153]
-CO ZMIENIONO: Utworzono nowy dokument specyfikacyjny/architektoniczny/użytkowy dla etapu Stage 0.
-DLACZEGO: Uporządkowanie wymagań i procedur operacyjnych projektu oraz formalizacja kryteriów jakości.
-JAK TO DZIAŁA: Dokument stanowi źródło referencyjne; definiuje zasady, zakres i wymagane działania dla zespołu.
-TODO: Uzupełnić dokument o referencje do konkretnych modułów i artefaktów CI po ich wdrożeniu.
 -->
 
 # Granice modułów

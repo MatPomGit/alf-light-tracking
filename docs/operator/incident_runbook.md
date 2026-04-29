@@ -1,15 +1,8 @@
 <!--
-[AI-CHANGE | 2026-04-27 09:05 UTC | v0.203]
-CO ZMIENIONO: Dodano sekcję formalnej akceptacji operacyjnej runbooka z datą, właścicielem i zakresem obowiązywania.
-DLACZEGO: Backlog OPS-001 wymagał domknięcia DoD poprzez jednoznaczny dowód zatwierdzenia dokumentu operacyjnego.
-JAK TO DZIAŁA: Sekcja „Akceptacja operacyjna” stanowi stempel GO dla Stage 0 i jest referencją dla pola akceptacji w `TASKS.md`.
-TODO: Powiązać akceptację runbooka z podpisem elektronicznym w systemie ticketowym, aby uniknąć ręcznej synchronizacji statusów.
--->
-<!--
-[AI-CHANGE | 2026-04-25 16:38 UTC | v0.202]
-CO ZMIENIONO: Dodano dedykowany runbook incydentów operacyjnych z jednoznacznym triage, ścieżką eskalacji, procedurą rollback i kryteriami zamknięcia incydentu.
-DLACZEGO: Zespół potrzebuje jednej, stanowiskowej instrukcji działań pod presją czasu, aby skrócić MTTR i uniknąć niejednoznacznych reakcji podczas awarii.
-JAK TO DZIAŁA: Operator klasyfikuje incydent wg symptomu, wykonuje checklistę 5-minutową, uruchamia właściwy scenariusz INC i zamyka incydent dopiero po spełnieniu kryteriów wyjścia.
+[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+CO ZMIENIONO: Scalono nagłówkowe wpisy AI runbooka w jeden blok opisujący treść i akceptację operacyjną.
+DLACZEGO: Dwa bloki meta pod rząd powtarzały historię utworzenia i zatwierdzenia, odciągając uwagę od procedury incydentowej.
+JAK TO DZIAŁA: Runbook zachowuje triage, eskalację, rollback, kryteria zamknięcia i sekcję akceptacji operacyjnej jako zwykłą treść dokumentu.
 TODO: Zintegrować sekcję „Timeline incydentu” z automatycznym eksportem zdarzeń z UI do systemu ticketowego.
 -->
 

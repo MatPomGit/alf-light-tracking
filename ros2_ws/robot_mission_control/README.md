@@ -1,8 +1,8 @@
 <!--
-[AI-CHANGE | 2026-04-27 13:53 UTC | v0.201]
-CO ZMIENIONO: Pozostawiono pojedynczy blok meta w README oraz przeniesiono szczegółową historię zmian dokumentu do COMMIT_LOG.md.
-DLACZEGO: README ma być zwięzłym dokumentem operacyjnym, a pełny ślad historyczny powinien być utrzymywany w dedykowanym logu zmian.
-JAK TO DZIAŁA: Ten plik zawiera teraz tylko jeden aktywny blok meta; kolejne opisy zmian README trafiają do COMMIT_LOG.md i są tam utrzymywane chronologicznie.
+[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+CO ZMIENIONO: Uporządkowano README do jednego bloku meta i zaktualizowano opis pakietu po przejściu na `ament_cmake`.
+DLACZEGO: Dokument miał drugi blok AI w środku treści oraz przestarzałą informację o `ament_python`, co utrudniało szybkie odczytanie aktualnego sposobu budowania ROS2.
+JAK TO DZIAŁA: Szczegóły E2E są opisane zwykłą treścią operacyjną, a sekcja integracji ROS2 wskazuje aktualny build `ament_cmake` z lokalnym typem Action.
 TODO: Dodać automatyczny lint markdown blokujący więcej niż jeden blok [AI-CHANGE] w README.
 -->
 
@@ -41,11 +41,6 @@ cd ros2_ws/robot_mission_control
 ```
 
 Skrypt wykonuje:
-<!-- [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332] -->
-<!-- CO ZMIENIONO: Zaktualizowano opis builda E2E do pojedynczego pakietu `robot_mission_control`. -->
-<!-- DLACZEGO: Pakiet `robot_mission_control_interfaces` został scalony z aplikacją i nie powinien być już budowany osobno. -->
-<!-- JAK TO DZIAŁA: Skrypt E2E buduje jeden pakiet, który zawiera aplikację, wrappery `ros2 run` oraz lokalny typ Action. -->
-<!-- TODO: Dodać w README sekcję instalacji po czystym workspace ROS2 z komendą walidującą wygenerowany typ Action. -->
 - `colcon build` pakietu `robot_mission_control`,
 - `ros2 run robot_mission_control mission_step_action_test_server`,
 - `ros2 launch robot_mission_control mission_control.launch.py`,
@@ -78,7 +73,8 @@ Logi są zapisywane do katalogu `logs/e2e_real_flow/`.
 ## Integracja ROS2
 
 - `launch/mission_control.launch.py` uruchamia node Mission Control z parametrami z `config/default.yaml`.
-- `package.xml` deklaruje pakiet ROS2 kompatybilny z `ament_python`.
+- `package.xml` deklaruje pakiet ROS2 budowany przez `ament_cmake`.
+- `CMakeLists.txt` generuje lokalny typ `robot_mission_control/action/MissionStep` i instaluje wrappery `ros2 run`.
 
 ## Controls — komunikacja i szybkie akcje
 

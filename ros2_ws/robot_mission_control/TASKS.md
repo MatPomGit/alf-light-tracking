@@ -1,8 +1,8 @@
 <!--
-[AI-CHANGE | 2026-04-27 13:05 UTC | v0.203]
-CO ZMIENIONO: Na początku pliku pozostawiono jeden aktualny blok meta-zmiany, a historyczne bloki przeniesiono do COMMIT_LOG.md.
-DLACZEGO: Usunięcie nakładających się opisów tej samej zmiany poprawia czytelność i eliminuje sprzeczne metadane na starcie backlogu.
-JAK TO DZIAŁA: TASKS.md zawiera teraz pojedynczy, bieżący wpis meta; pełna historia wcześniejszych wpisów jest utrzymywana w dzienniku commitów modułu.
+[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+CO ZMIENIONO: Utrzymano jeden blok meta na początku TASKS.md i włączono aktualizację ścieżki `MissionStep.action` do zwykłej treści backlogu.
+DLACZEGO: W środku sekcji statusów znajdował się dodatkowy blok AI opisujący ten sam porządek dokumentu, przez co backlog tracił czytelność.
+JAK TO DZIAŁA: Statusy zadań pozostają w listach backlogu, a historia zmian dokumentacyjnych trafia do COMMIT_LOG.md zamiast kolejnych bloków AI w treści.
 TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE] w sekcji nagłówkowej TASKS.md.
 -->
 
@@ -46,11 +46,6 @@ TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE]
 - `RMC-CI-001` pozostaje `PLANNED`: brak dedykowanego testu launch/install-space uruchamianego w CI.
 - `RMC-OPS-001` -> `DONE`: runbook operacyjny istnieje i jest oznaczony jako zatwierdzony (`docs/operator/incident_runbook.md`), co domyka DoD playbooku.
 - `RMC-OPS-002` -> `DONE`: twarda macierz środowisk istnieje i jest oznaczona jako zatwierdzona (`docs/spec/hard_environment_matrix.md`), co domyka DoD kompatybilności środowisk.
-<!-- [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332] -->
-<!-- CO ZMIENIONO: Zmieniono ścieżkę artefaktu RMC-ACT-001 na `robot_mission_control/action/MissionStep.action`. -->
-<!-- DLACZEGO: Kontrakt Action został przeniesiony do pakietu aplikacji, więc backlog nie może wskazywać usuniętego pakietu. -->
-<!-- JAK TO DZIAŁA: Status pozostaje `DONE`, ale dowodem jest lokalny plik akcji oraz test zgodności z konfiguracją runtime. -->
-<!-- TODO: Dodać zadanie CI sprawdzające, że `ros2 interface show robot_mission_control/action/MissionStep` działa po buildzie. -->
 - `RMC-ACT-001` -> `DONE`: kontrakt `MissionStep.action` jest dostarczony lokalnie (`robot_mission_control/action/MissionStep.action`), a zgodność backend/UI potwierdzają walidacja runtime (`robot_mission_control/app.py`) i testy (`tests/test_action_contract_runtime_alignment.py`).
 
 ## Epic A — Kontrakt i stabilizacja backendu ROS2 Action

@@ -1,16 +1,8 @@
 <!--
-[AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
-CO ZMIENIONO: Zaktualizowano referencje ścieżek `robot_mission_control` do lokalizacji w `ros2_ws/`.
-DLACZEGO: Dokumentacja miała nieaktualną ścieżkę po relokacji pakietu operatorskiego.
-JAK TO DZIAŁA: Opisy interfejsów wskazują teraz pełną ścieżkę w workspace ROS2, co eliminuje błędną nawigację.
-TODO: Uzupełnić dokument o docelowy kontrakt ROS Action po wdrożeniu backendu produkcyjnego.
--->
-
-<!--
-[AI-CHANGE | 2026-04-20 21:07 UTC | v0.156]
-CO ZMIENIONO: Zastąpiono poprzedni szkic pełną inwentaryzacją interfejsów ROS2 dla MVP: topic, service, action oraz parametry runtime z ownerami, QoS i częstotliwością.
-DLACZEGO: DoD wymaga, aby 100% interfejsów MVP miało jednoznacznego właściciela i kontrakt techniczny; wcześniej dokument był tylko szablonem.
-JAK TO DZIAŁA: Dokument mapuje każdy interfejs do noda źródłowego/docelowego, opisuje kontrakt QoS/częstotliwości i oznacza brakujące decyzje jako GAP z odpowiedzialnym ownerem i terminem domknięcia.
+[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
+CO ZMIENIONO: Scalono dwa nagłówkowe wpisy AI inwentaryzacji ROS2 w jeden blok opisujący aktualny zakres.
+DLACZEGO: Historia utworzenia dokumentu i późniejszej relokacji ścieżek była zapisana jako dwa bloki pod rząd przed tytułem.
+JAK TO DZIAŁA: Dokument nadal mapuje interfejsy MVP, ownerów, QoS, częstotliwości i aktualne ścieżki w `ros2_ws/`.
 TODO: Zautomatyzować generację tej inwentaryzacji z kodu (`create_*`, `declare_parameter`) i dodać walidację w CI blokującą merge przy brakach owner/QoS/frequency.
 -->
 

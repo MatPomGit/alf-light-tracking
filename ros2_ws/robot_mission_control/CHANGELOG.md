@@ -1,18 +1,11 @@
-<!-- [AI-CHANGE | 2026-04-20 14:12 UTC | v0.141] -->
-<!-- CO ZMIENIONO: Dodano dziennik zmian dla nowego modułu robot_mission_control. -->
-<!-- DLACZEGO: Potrzebna jest ścieżka audytowa dla kolejnych iteracji i decyzji architektonicznych. -->
-<!-- JAK TO DZIAŁA: Sekcja wersji zapisuje zakres zmian i poziom gotowości komponentów. -->
+<!-- [AI-CHANGE | 2026-04-29 13:51 UTC | v0.333] -->
+<!-- CO ZMIENIONO: Scalono nagłówkowe opisy CHANGELOG.md do jednego bloku meta. -->
+<!-- DLACZEGO: Changelog miał osobny blok utworzenia dokumentu i kolejny blok zakresu tuż pod tytułem, co dublowało opis odpowiedzialności. -->
+<!-- JAK TO DZIAŁA: Dokument zawiera jeden nagłówek meta, a zakres odpowiedzialności pozostaje jako zwykła sekcja treści. -->
 <!-- TODO: Zintegrować changelog z automatycznym generowaniem release notes w CI/CD. -->
 
 # Changelog
 
-<!--
-[AI-CHANGE | 2026-04-27 12:03 UTC | v0.203]
-CO ZMIENIONO: Uporządkowano strukturę CHANGELOG.md tak, aby przechowywał wyłącznie fakty releasowe bez szczegółów commitowych.
-DLACZEGO: Ten sam fakt nie może występować równolegle w wielu plikach, a szczegóły techniczne należą do COMMIT_LOG.md.
-JAK TO DZIAŁA: Każdy wpis wersji zawiera tylko datę wydania, poziom gotowości i wpływ produktowy; implementacyjne detale są referencją do COMMIT_LOG.md.
-TODO: Dodać sekcję "Breaking changes" i automatyczną walidację semver podczas tworzenia release.
--->
 ## Zakres dokumentu
 - Ten plik opisuje wyłącznie historię wersji/release.
 - Szczegóły techniczne commitów i PR utrzymujemy tylko w `COMMIT_LOG.md`.
