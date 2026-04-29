@@ -28,16 +28,14 @@ rclpy = pytest.importorskip("rclpy")
 GoalStatus = pytest.importorskip("action_msgs.msg").GoalStatus
 ActionClient = pytest.importorskip("rclpy.action").ActionClient
 Future = pytest.importorskip("rclpy.task").Future
-MissionStep = pytest.importorskip("robot_mission_control_interfaces.action").MissionStep
+MissionStep = pytest.importorskip("robot_mission_control.action").MissionStep
 
-# [AI-CHANGE | 2026-04-27 06:40 UTC | v0.202]
-# CO ZMIENIONO: Dodano test E2E `launch_testing` uruchamiający realny serwer `MissionStep` i walidujący
-#               scenariusze accept/feedback/result/cancel/reject na runtime ROS2 bez atrap klienta.
-# DLACZEGO: Dotychczasowe testy Action opierały się głównie o mocki; brakowało dowodu działania kontraktu
-#           i transportu na prawdziwym runtime, co utrudnia wykrywanie regresji integracyjnych.
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Test E2E importuje `MissionStep` z `robot_mission_control.action`.
+# DLACZEGO: Po scaleniu kontrakt Action jest generowany w pakiecie aplikacji; import starego pakietu interfejsów
+#           dawałby fałszywy błąd integracji albo wymagał instalacji nieistniejącego już pakietu.
 # JAK TO DZIAŁA: `generate_test_description` startuje serwer testowy przez `launch_ros_actions.Node`,
-#                a test klienta wysyła cele i asertywnie sprawdza: akceptację, feedback, wynik, anulowanie
-#                oraz odrzucenie niepoprawnego goal (preferencja bezpiecznego reject zamiast fałszywego wyniku).
+#                a test klienta sprawdza akceptację, feedback, wynik, anulowanie oraz bezpieczne odrzucenie pustego goal.
 # TODO: Dodać raportowanie metryk czasu (latencja accept/result/cancel) do diagnostyki wydajności E2E.
 @pytest.mark.launch_test
 def generate_test_description() -> tuple[launch.LaunchDescription, dict[str, Any]]:

@@ -387,20 +387,19 @@ def test_diagnostics_tab_renders_problem_rows_with_cause_source_and_timestamp() 
 
     diagnostics_tab._refresh_view()
 
-    # [AI-CHANGE | 2026-04-29 00:00 UTC | v0.207]
-    # CO ZMIENIONO: Zaktualizowano asercje kolumny severity, aby uwzględniały nowy format
-    #               „<SEVERITY> | <ikona i quality>” renderowany w tabeli DiagnosticsTab.
-    # DLACZEGO: UI dopisuje etykietę quality (np. „⛔ ERROR”), więc oczekiwanie samego „CRITICAL”
-    #           powoduje fałszywy alarm testu mimo poprawnego działania widoku.
-    # JAK TO DZIAŁA: Test weryfikuje pełny tekst severity dla rekordów ERROR/STALE oraz pozostawia
-    #                asercje source/cause/meaning/action/timestamp, by nadal łapać regresje układu danych.
-    # TODO: Dodać asercję koloru foreground komórki severity, aby potwierdzić pełne mapowanie quality -> styl.
+    # [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+    # CO ZMIENIONO: Zaktualizowano asercję instrukcji operatora dla `transport_failure`.
+    # DLACZEGO: Resolver guidance zwraca teraz konkretną instrukcję wstrzymania sterowania ruchem, a stary prefiks
+    #           `Wstrzymaj ryzykowne działania` dawał fałszywy błąd mimo bezpieczniejszego komunikatu UI.
+    # JAK TO DZIAŁA: Test nadal sprawdza severity/source/cause/meaning/timestamp, a akcję waliduje po aktualnym
+    #                prefiksie komunikatu wymuszającego przerwanie sterowania przed kontynuacją.
+    # TODO: Dodać test kontraktowy dla pełnej mapy `reason_code -> guidance`, aby zmiany treści były jawne.
     assert diagnostics_tab._issues_table.rowCount() == 2
     assert diagnostics_tab._issues_table.item(0, 0).text() == "CRITICAL | ⛔ ERROR"
     assert diagnostics_tab._issues_table.item(0, 1).text() == "ros_bridge"
     assert diagnostics_tab._issues_table.item(0, 2).text() == "transport_failure"
     assert diagnostics_tab._issues_table.item(0, 3).text() == "Transport danych przerwał się i stan systemu jest niewiarygodny."
-    assert diagnostics_tab._issues_table.item(0, 4).text().startswith("Wstrzymaj ryzykowne działania")
+    assert diagnostics_tab._issues_table.item(0, 4).text().startswith("Wstrzymaj sterowanie ruchem")
     assert diagnostics_tab._issues_table.item(0, 6).text() == "2026-04-23 21:08:00 UTC"
 
     assert diagnostics_tab._issues_table.item(1, 0).text() == "MEDIUM | ⚠ STALE"

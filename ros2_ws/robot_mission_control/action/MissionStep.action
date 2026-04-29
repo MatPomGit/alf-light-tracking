@@ -1,0 +1,22 @@
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Przeniesiono kontrakt `MissionStep.action` z pakietu `robot_mission_control_interfaces`
+#               do głównego pakietu `robot_mission_control`.
+# DLACZEGO: Interfejs i aplikacja mają być dystrybuowane jako pojedynczy pakiet, bez ryzyka instalacji
+#           niezgodnych wersji pakietu aplikacyjnego i pakietu interfejsów.
+# JAK TO DZIAŁA: `rosidl_generate_interfaces` w `robot_mission_control/CMakeLists.txt` generuje typ
+#                importowany jako `robot_mission_control.action.MissionStep`, zachowując pola Goal/Feedback/Result.
+# TODO: Zastąpić `parameters_json` typowaną wiadomością po ustaleniu stabilnego schematu parametrów misji.
+# Goal
+string goal
+string correlation_id
+string parameters_json
+---
+# Feedback
+float32 progress
+string stage
+string detail
+---
+# Result
+string outcome
+bool success
+string reason_code

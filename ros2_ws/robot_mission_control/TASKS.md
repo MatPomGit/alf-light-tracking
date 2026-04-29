@@ -46,7 +46,12 @@ TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE]
 - `RMC-CI-001` pozostaje `PLANNED`: brak dedykowanego testu launch/install-space uruchamianego w CI.
 - `RMC-OPS-001` -> `DONE`: runbook operacyjny istnieje i jest oznaczony jako zatwierdzony (`docs/operator/incident_runbook.md`), co domyka DoD playbooku.
 - `RMC-OPS-002` -> `DONE`: twarda macierz środowisk istnieje i jest oznaczona jako zatwierdzona (`docs/spec/hard_environment_matrix.md`), co domyka DoD kompatybilności środowisk.
-- `RMC-ACT-001` -> `DONE`: kontrakt `MissionStep.action` jest dostarczony lokalnie (`robot_mission_control_interfaces/action/MissionStep.action`), a zgodność backend/UI potwierdzają walidacja runtime (`robot_mission_control/app.py`) i testy (`tests/test_action_contract_runtime_alignment.py`).
+<!-- [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332] -->
+<!-- CO ZMIENIONO: Zmieniono ścieżkę artefaktu RMC-ACT-001 na `robot_mission_control/action/MissionStep.action`. -->
+<!-- DLACZEGO: Kontrakt Action został przeniesiony do pakietu aplikacji, więc backlog nie może wskazywać usuniętego pakietu. -->
+<!-- JAK TO DZIAŁA: Status pozostaje `DONE`, ale dowodem jest lokalny plik akcji oraz test zgodności z konfiguracją runtime. -->
+<!-- TODO: Dodać zadanie CI sprawdzające, że `ros2 interface show robot_mission_control/action/MissionStep` działa po buildzie. -->
+- `RMC-ACT-001` -> `DONE`: kontrakt `MissionStep.action` jest dostarczony lokalnie (`robot_mission_control/action/MissionStep.action`), a zgodność backend/UI potwierdzają walidacja runtime (`robot_mission_control/app.py`) i testy (`tests/test_action_contract_runtime_alignment.py`).
 
 ## Epic A — Kontrakt i stabilizacja backendu ROS2 Action
 

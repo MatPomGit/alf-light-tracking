@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+"""Wrapper uruchamiany przez `ros2 run robot_mission_control robot_mission_control`."""
+
+from robot_mission_control.app.entrypoint import main
+
+
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Dodano jawny wrapper wykonywalny instalowany przez `ament_cmake`.
+# DLACZEGO: Po przejściu z `ament_python` na `ament_cmake` entrypointy z `setup.py` nie są źródłem skryptów `ros2 run`.
+# JAK TO DZIAŁA: CMake instaluje ten plik do `lib/robot_mission_control`, a wrapper deleguje do dotychczasowego bootstrapu.
+# TODO: Dodać test instalacyjny sprawdzający obecność wrappera w install-space po `colcon build`.
+if __name__ == "__main__":
+    raise SystemExit(main())

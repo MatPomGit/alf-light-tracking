@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""Wrapper uruchamiany przez `ros2 run robot_mission_control mission_step_action_test_server`."""
+
+from robot_mission_control.e2e.mission_step_action_test_server import main
+
+
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Dodano wrapper serwera testowego Action instalowany przez `ament_cmake`.
+# DLACZEGO: Test E2E nadal uruchamia serwer przez `ros2 run`, a po scaleniu pakietów nie można polegać
+#           na entrypointach generowanych przez `ament_python`.
+# JAK TO DZIAŁA: CMake instaluje wrapper do `lib/robot_mission_control`, skąd wywołuje lokalny serwer `MissionStep`.
+# TODO: Dodać smoke test `ros2 run robot_mission_control mission_step_action_test_server --help` po ustaleniu obsługi argumentów.
+if __name__ == "__main__":
+    main()

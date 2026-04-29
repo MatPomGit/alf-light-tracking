@@ -25,7 +25,13 @@ class ActionBackendConfig:
     """Konfiguracja klienta ROS2 Action."""
 
     action_name: str = "/mission_control/execute_step"
-    action_type_module: str = "robot_mission_control_interfaces.action"
+    # [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+    # CO ZMIENIONO: Domyślny moduł Action wskazuje teraz `robot_mission_control.action`.
+    # DLACZEGO: Typ `MissionStep` jest generowany w pakiecie aplikacji; odwołanie do usuniętego pakietu interfejsów
+    #           powodowałoby niedostępność backendu i mogłoby zachęcać do ręcznego obejścia błędu importu.
+    # JAK TO DZIAŁA: Dynamiczny loader importuje lokalny moduł i przy niepowodzeniu zachowuje bezpieczny brak backendu.
+    # TODO: Dodać diagnostykę rozróżniającą brak wygenerowanego typu od błędnej nazwy klasy w konfiguracji.
+    action_type_module: str = "robot_mission_control.action"
     action_type_name: str = "MissionStep"
     node_name: str = "robot_mission_control_action_client"
     server_wait_timeout_sec: float = 1.0

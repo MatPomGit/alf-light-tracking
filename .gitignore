@@ -1,0 +1,11 @@
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Dodano ignorowanie artefaktów Pythona i tymczasowych katalogów Pytest.
+# DLACZEGO: Testy lokalne tworzą `__pycache__`, `.pytest_cache` oraz `pytest-cache-files-*`; część katalogów może mieć
+#           ograniczone ACL na Windows i powodować ostrzeżenia `git status` mimo braku zmian źródłowych.
+# JAK TO DZIAŁA: Git pomija wygenerowane katalogi po nazwie, bez wpływu na pliki źródłowe, konfigurację ROS2 i kontrakty Action.
+# TODO: Rozszerzyć `.gitignore` o artefakty `build/`, `install/` i `log/` po potwierdzeniu standardowego układu workspace.
+__pycache__/
+.pytest_cache/
+pytest-cache-files-*/
+pytest-tmp-root/
+.pytest_tmp/

@@ -3,11 +3,13 @@ import sys
 
 from setuptools import find_packages, setup
 
-# [AI-CHANGE | 2026-04-21 12:10 UTC | v0.167]
-# CO ZMIENIONO: Dodano `setup.py` wymagany przez `ament_python` dla budowania pakietu w workspace ROS2.
-# DLACZEGO: Sam `pyproject.toml` nie gwarantował poprawnego wykrycia przez `colcon build` we wszystkich środowiskach ROS2.
-# JAK TO DZIAŁA: Skrypt rejestruje pakiet Python, entrypoint node'a i instaluje pliki `launch/`, `config/` oraz manifest.
-# TODO: Dodać test instalacyjny w CI sprawdzający obecność plików launch/config w install-space.
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Doprecyzowano rolę `setup.py` po przejściu pakietu ROS2 na `ament_cmake`.
+# DLACZEGO: `colcon build` korzysta teraz z `CMakeLists.txt`, ale `setup.py` nadal może obsługiwać instalację/testy
+#           Python poza workspace ROS2; pozostawienie starego opisu `ament_python` wprowadzałoby w błąd.
+# JAK TO DZIAŁA: Skrypt nadal rejestruje pakiet Python i entrypointy dla narzędzi setuptools, natomiast ROS2 instaluje
+#                moduły i wrappery przez `ament_cmake_python` oraz sekcje `install()` w CMake.
+# TODO: Ujednolicić metadane pip i ROS2, aby wersja oraz lista plików instalacyjnych nie rozjechały się między buildami.
 package_name = "robot_mission_control"
 
 

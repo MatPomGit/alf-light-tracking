@@ -1,8 +1,10 @@
-# [AI-CHANGE | 2026-04-28 08:00 UTC | v0.200]
-# CO ZMIENIONO: Doprecyzowano, że `pyproject.toml` zawiera wyłącznie minimalny `build-system`, a metadane (`entry points`, `dependencies`, `maintainer`, `license`, `data_files`) pozostają wyłącznie w `setup.py`.
-# DLACZEGO: Dla pakietu ROS2 budowanego przez `ament_python` źródłem prawdy metadanych musi być `setup.py`, aby uniknąć rozjazdu konfiguracji i błędnych artefaktów.
-# JAK TO DZIAŁA: Backend `setuptools.build_meta` jest zachowany jedynie do procesu budowania, natomiast komplet metadanych runtime/install jest pobierany z `setup.py`.
-# TODO: Dodać automatyczny test CI, który blokuje commit, gdy w `pyproject.toml` pojawią się sekcje metadanych PEP 621.
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Doprecyzowano, że `pyproject.toml` dotyczy tylko pomocniczego builda setuptools, nie builda ROS2.
+# DLACZEGO: Pakiet ROS2 jest teraz budowany przez `ament_cmake`, a utrzymywanie opisu `ament_python` byłoby sprzeczne
+#           z manifestem i mogłoby prowadzić do błędnych założeń przy instalacji.
+# JAK TO DZIAŁA: Backend `setuptools.build_meta` pozostaje dla narzędzi Python, natomiast instalacja ROS2 jest sterowana
+#                przez `CMakeLists.txt` i `package.xml`.
+# TODO: Dodać test CI porównujący wersję pakietu w `setup.py`, `package.xml` i ewentualnym artefakcie wheel.
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"

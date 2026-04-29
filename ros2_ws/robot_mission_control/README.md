@@ -41,7 +41,12 @@ cd ros2_ws/robot_mission_control
 ```
 
 Skrypt wykonuje:
-- `colcon build` pakietów `robot_mission_control` i `robot_mission_control_interfaces`,
+<!-- [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332] -->
+<!-- CO ZMIENIONO: Zaktualizowano opis builda E2E do pojedynczego pakietu `robot_mission_control`. -->
+<!-- DLACZEGO: Pakiet `robot_mission_control_interfaces` został scalony z aplikacją i nie powinien być już budowany osobno. -->
+<!-- JAK TO DZIAŁA: Skrypt E2E buduje jeden pakiet, który zawiera aplikację, wrappery `ros2 run` oraz lokalny typ Action. -->
+<!-- TODO: Dodać w README sekcję instalacji po czystym workspace ROS2 z komendą walidującą wygenerowany typ Action. -->
+- `colcon build` pakietu `robot_mission_control`,
 - `ros2 run robot_mission_control mission_step_action_test_server`,
 - `ros2 launch robot_mission_control mission_control.launch.py`,
 - `ros2 action send_goal --feedback` (scenariusz sukcesu),

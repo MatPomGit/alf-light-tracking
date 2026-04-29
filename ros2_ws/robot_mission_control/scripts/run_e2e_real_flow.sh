@@ -37,7 +37,13 @@ cleanup() {
 trap cleanup EXIT
 
 pushd "${WS_DIR}" >/dev/null
-colcon build --packages-select robot_mission_control robot_mission_control_interfaces >"${LOG_DIR}/colcon_build.log" 2>&1
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Build E2E wybiera tylko pakiet `robot_mission_control`.
+# DLACZEGO: Kontrakt `MissionStep` jest częścią tego samego pakietu, więc wybór usuniętego pakietu
+#           `robot_mission_control_interfaces` kończyłby scenariusz błędem przed testem runtime.
+# JAK TO DZIAŁA: `colcon build --packages-select robot_mission_control` buduje aplikację, skrypty oraz lokalny typ Action.
+# TODO: Dodać wariant skryptu z czystym `build/ install/ log/`, aby wykrywać zależności ukryte w poprzednich artefaktach.
+colcon build --packages-select robot_mission_control >"${LOG_DIR}/colcon_build.log" 2>&1
 source install/setup.bash
 
 ros2 run robot_mission_control mission_step_action_test_server >"${LOG_DIR}/action_server.log" 2>&1 &
@@ -50,13 +56,13 @@ sleep 3
 
 echo "[E2E] Wysyłam goal (scenariusz result + feedback)."
 ros2 action send_goal --feedback /mission_control/execute_step \
-  robot_mission_control_interfaces/action/MissionStep \
+  robot_mission_control/action/MissionStep \
   '{goal: start_patrol, correlation_id: e2e-success, parameters_json: "{}"}' \
   >"${LOG_DIR}/goal_success.log" 2>&1
 
 echo "[E2E] Wysyłam goal do anulowania."
 ros2 action send_goal --feedback /mission_control/execute_step \
-  robot_mission_control_interfaces/action/MissionStep \
+  robot_mission_control/action/MissionStep \
   '{goal: return_to_base, correlation_id: e2e-cancel, parameters_json: "{}"}' \
   >"${LOG_DIR}/goal_cancel.log" 2>&1 &
 CANCEL_PID=$!

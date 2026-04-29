@@ -7,13 +7,12 @@ import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
 
-from robot_mission_control_interfaces.action import MissionStep
+from robot_mission_control.action import MissionStep
 
-# [AI-CHANGE | 2026-04-25 08:51 UTC | v0.202]
-# CO ZMIENIONO: Dodano realny serwer testowy ROS2 Action dla kontraktu `MissionStep`,
-#               wykorzystywany do walidacji E2E przepływu goal/feedback/result/cancel bez mocków klienta.
-# DLACZEGO: Potrzebujemy deterministycznego endpointu runtime do testów operatorskich i smoke testów,
-#           aby potwierdzić działanie mostu Mission Control poza testami jednostkowymi opartymi o atrapy.
+# [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+# CO ZMIENIONO: Serwer testowy importuje `MissionStep` z lokalnego pakietu `robot_mission_control.action`.
+# DLACZEGO: Po scaleniu pakietów typ Action nie jest już dostarczany przez `robot_mission_control_interfaces`;
+#           import ze starej lokalizacji blokowałby test E2E i mógłby ukryć brak wygenerowanego kontraktu.
 # JAK TO DZIAŁA: Serwer akceptuje wyłącznie poprawne cele (`goal` niepusty), publikuje progres 0.2..1.0,
 #                obsługuje cancel przez `goal_handle.is_cancel_requested` i zwraca spójny `Result` z reason_code.
 # TODO: Rozszerzyć serwer o profile scenariuszy (success/abort/timeout) sterowane parametrem ROS2.

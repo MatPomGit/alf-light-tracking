@@ -161,23 +161,21 @@ class RosBridgeService:
             return local_path
         return Path(__file__).resolve().parent.parent / "config" / "action_backend.yaml"
 
-    # [AI-CHANGE | 2026-04-24 23:18 UTC | v0.202]
-    # CO ZMIENIONO: Dodano walidację zgodności kontraktu `MissionStep.action` z konfiguracją runtime i mapowaniem UI.
-    # DLACZEGO: Celem jest eliminacja rozjazdu typu Action vs backend vs UI zanim backend przejdzie do aktywnego trybu.
-    # JAK TO DZIAŁA: Loader odczytuje lokalny plik `.action` (jeśli dostępny), parsuje pola Goal/Feedback/Result
-    #                i wymusza zgodność: payload quick-akcji musi trafiać w pola Goal, feedback musi mieć `progress`,
-    #                a `result.display_fields` musi wskazywać istniejące pola Result; przy niepewności zwracamy `False`.
+    # [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332]
+    # CO ZMIENIONO: Walidacja kontraktu szuka `MissionStep.action` w lokalnym pakiecie `robot_mission_control`.
+    # DLACZEGO: Po scaleniu pakietów stara ścieżka `robot_mission_control_interfaces/action` jest niepoprawna;
+    #           przy niezgodnej konfiguracji bezpieczniej wyłączyć backend niż uruchomić go na złym typie.
+    # JAK TO DZIAŁA: Loader akceptuje tylko moduł `robot_mission_control.action`, odczytuje lokalny plik `.action`,
+    #                parsuje pola Goal/Feedback/Result i przy każdym rozjeździe zwraca `False`.
     # TODO: Dodać równoległą walidację przez introspekcję wygenerowanego typu ROS2 w install-space.
     def _resolve_local_action_contract_path(self, config: ActionBackendConfig) -> Path | None:
         """Zwraca ścieżkę do lokalnego pliku `.action` zgodnego z aktualnym configiem."""
         if config.action_type_name.strip() != "MissionStep":
             return None
-        if config.action_type_module.strip() != "robot_mission_control_interfaces.action":
+        if config.action_type_module.strip() != "robot_mission_control.action":
             return None
 
-        workspace_candidate = (
-            Path(__file__).resolve().parent.parent.parent / "robot_mission_control_interfaces" / "action" / "MissionStep.action"
-        )
+        workspace_candidate = Path(__file__).resolve().parent.parent / "action" / "MissionStep.action"
         if workspace_candidate.exists():
             return workspace_candidate
         return None

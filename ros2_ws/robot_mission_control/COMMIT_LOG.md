@@ -78,9 +78,15 @@ TODO: Dodać walidator CI, który wykrywa bloki [AI-CHANGE] poza pierwszym bloki
 
 ### 2026-04-24 23:18 UTC | v0.202
 - CO ZMIENIONO: Dodano dowód realizacji zadania RMC-ACT-001 (finalny kontrakt Action + walidacja runtime).
-- DLACZEGO: Po dodaniu pakietu `robot_mission_control_interfaces` i testów zgodności kontraktu zadanie spełnia DoD.
+- DLACZEGO: Po dodaniu lokalnego kontraktu `MissionStep.action` i testów zgodności kontraktu zadanie spełnia DoD.
 - JAK TO DZIAŁA: W backlogu oznaczamy status `DONE` oraz wskazujemy artefakty: `MissionStep.action`, walidacja w `app.py`, test zgodności `tests/test_action_contract_runtime_alignment.py`.
 - TODO: Uzupełnić o link do PR merge i datę zamknięcia po scaleniu do gałęzi głównej.
+
+### 2026-04-29 13:15 UTC | v0.332
+- CO ZMIENIONO: Scalono pakiet interfejsów z `robot_mission_control` i przeniesiono akcję do `robot_mission_control/action/MissionStep.action`.
+- DLACZEGO: Aplikacja i kontrakt Action mają być instalowane jako pojedynczy pakiet, bez ryzyka rozjazdu wersji między pakietami.
+- JAK TO DZIAŁA: `ament_cmake` generuje lokalny typ `robot_mission_control/action/MissionStep`, a konfiguracja runtime importuje `robot_mission_control.action`.
+- TODO: Dodać wynik pełnego `colcon build` z czystego workspace po uruchomieniu w środowisku ROS2.
 
 ### 2026-04-27 12:20 UTC | v0.203
 - CO ZMIENIONO: Dodano jawne wskazanie, że TASKS.md jest jedynym aktywnym backlogiem wykonawczym.
