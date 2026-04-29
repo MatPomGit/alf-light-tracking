@@ -5,12 +5,19 @@ import unittest
 import uuid
 from typing import Any
 
-import launch
-import launch_ros.actions
-import launch_testing
-import launch_testing.actions
 import pytest
-import rclpy
+
+# [AI-CHANGE | 2026-04-29 00:00 UTC | v0.207]
+# CO ZMIENIONO: Dodano warunkowe pomijanie testu E2E, gdy brak zależności ROS2 `launch`/`launch_ros`/`launch_testing`/`rclpy`.
+# DLACZEGO: W CI bez pełnego środowiska ROS2 kolekcja testów kończyła się błędem importu, co przerywało cały etap testów.
+# JAK TO DZIAŁA: `pytest.importorskip` sprawdza moduły podczas importu pliku; przy braku zależności test jest oznaczany jako
+#                `skipped`, dzięki czemu pipeline nie raportuje fałszywego błędu kolekcji i zachowuje deterministyczny wynik.
+# TODO: Rozdzielić testy E2E do osobnego joba CI z preinstalowanym ROS2 Jazzy i `launch_testing`.
+launch = pytest.importorskip("launch")
+launch_ros_actions = pytest.importorskip("launch_ros.actions")
+launch_testing = pytest.importorskip("launch_testing")
+launch_testing_actions = pytest.importorskip("launch_testing.actions")
+rclpy = pytest.importorskip("rclpy")
 from action_msgs.msg import GoalStatus
 from rclpy.action import ActionClient
 from rclpy.task import Future
@@ -22,13 +29,13 @@ from robot_mission_control_interfaces.action import MissionStep
 #               scenariusze accept/feedback/result/cancel/reject na runtime ROS2 bez atrap klienta.
 # DLACZEGO: Dotychczasowe testy Action opierały się głównie o mocki; brakowało dowodu działania kontraktu
 #           i transportu na prawdziwym runtime, co utrudnia wykrywanie regresji integracyjnych.
-# JAK TO DZIAŁA: `generate_test_description` startuje serwer testowy przez `launch_ros.actions.Node`,
+# JAK TO DZIAŁA: `generate_test_description` startuje serwer testowy przez `launch_ros_actions.Node`,
 #                a test klienta wysyła cele i asertywnie sprawdza: akceptację, feedback, wynik, anulowanie
 #                oraz odrzucenie niepoprawnego goal (preferencja bezpiecznego reject zamiast fałszywego wyniku).
 # TODO: Dodać raportowanie metryk czasu (latencja accept/result/cancel) do diagnostyki wydajności E2E.
 @pytest.mark.launch_test
 def generate_test_description() -> tuple[launch.LaunchDescription, dict[str, Any]]:
-    action_server = launch_ros.actions.Node(
+    action_server = launch_ros_actions.Node(
         package="robot_mission_control",
         executable="mission_step_action_test_server",
         name="mission_step_action_test_server",
@@ -40,7 +47,7 @@ def generate_test_description() -> tuple[launch.LaunchDescription, dict[str, Any
         launch.LaunchDescription(
             [
                 action_server,
-                launch_testing.actions.ReadyToTest(),
+                launch_testing_actions.ReadyToTest(),
             ]
         ),
         {"action_server": action_server},
