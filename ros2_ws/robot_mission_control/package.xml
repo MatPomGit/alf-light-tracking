@@ -1,11 +1,9 @@
 <?xml version="1.0"?>
-<!-- [AI-CHANGE | 2026-04-29 13:15 UTC | v0.332] -->
-<!-- CO ZMIENIONO: Przełączono manifest z `ament_python` na `ament_cmake` i dodano lokalne generowanie Action. -->
-<!-- DLACZEGO: `robot_mission_control` ma być pojedynczym pakietem zawierającym aplikację oraz kontrakt `MissionStep`, -->
-<!--           bez zależności od usuniętego pakietu `robot_mission_control_interfaces`. -->
-<!-- JAK TO DZIAŁA: `ament_cmake` uruchamia generowanie interfejsu, `ament_cmake_python` instaluje moduły Python, -->
-<!--                a `rosidl_default_runtime` udostępnia wygenerowany typ w runtime. -->
-<!-- TODO: Dodać job CI wykonujący `colcon build --packages-select robot_mission_control` po czystym usunięciu install/build/log. -->
+<!-- [AI-CHANGE | 2026-04-29 13:51 UTC | v0.333] -->
+<!-- CO ZMIENIONO: Poprawiono komentarz manifestu ROS2 tak, aby był zgodny z regułami XML. -->
+<!-- DLACZEGO: XML nie dopuszcza sekwencji podwójnego myślnika wewnątrz komentarza, a opis komendy colcon łamał parsowanie package.xml. -->
+<!-- JAK TO DZIAŁA: Manifest nadal deklaruje build ament_cmake i lokalne generowanie Action, ale bez niedozwolonych tokenów komentarza. -->
+<!-- TODO: Dodać job CI wykonujący colcon build dla pakietu robot_mission_control po czystym usunięciu install/build/log. -->
 <package format="3">
   <name>robot_mission_control</name>
   <version>0.1.0</version>
