@@ -387,7 +387,7 @@ def test_diagnostics_tab_renders_problem_rows_with_cause_source_and_timestamp() 
 
     diagnostics_tab._refresh_view()
 
-    # [AI-CHANGE | 2026-04-28 13:36 UTC | v0.206]
+    # [AI-CHANGE | 2026-04-29 00:00 UTC | v0.207]
     # CO ZMIENIONO: Zaktualizowano asercje kolumny severity, aby uwzględniały nowy format
     #               „<SEVERITY> | <ikona i quality>” renderowany w tabeli DiagnosticsTab.
     # DLACZEGO: UI dopisuje etykietę quality (np. „⛔ ERROR”), więc oczekiwanie samego „CRITICAL”
@@ -399,7 +399,7 @@ def test_diagnostics_tab_renders_problem_rows_with_cause_source_and_timestamp() 
     assert diagnostics_tab._issues_table.item(0, 0).text() == "CRITICAL | ⛔ ERROR"
     assert diagnostics_tab._issues_table.item(0, 1).text() == "ros_bridge"
     assert diagnostics_tab._issues_table.item(0, 2).text() == "transport_failure"
-    assert diagnostics_tab._issues_table.item(0, 3).text() == "Kod lub status nie ma jeszcze opisu operatorskiego."
+    assert diagnostics_tab._issues_table.item(0, 3).text() == "Transport danych przerwał się i stan systemu jest niewiarygodny."
     assert diagnostics_tab._issues_table.item(0, 4).text().startswith("Wstrzymaj ryzykowne działania")
     assert diagnostics_tab._issues_table.item(0, 6).text() == "2026-04-23 21:08:00 UTC"
 
