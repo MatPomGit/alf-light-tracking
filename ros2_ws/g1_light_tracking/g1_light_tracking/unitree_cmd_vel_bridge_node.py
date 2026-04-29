@@ -94,7 +94,13 @@ class UnitreeCmdVelBridgeNode(Node):
         self.last_cmd_time = self.get_clock().now()
         self.request_id = 0
         self.is_moving = False
-        self.sent_ids = {}
+        # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+        # CO ZMIENIONO: Dodano jawny typ mapy `sent_ids`.
+        # DLACZEGO: Pełna analiza `mypy` wymaga typu pustego słownika; bez niego nie wiadomo, jakie identyfikatory
+        #           odpowiedzi Unitree są śledzone i łatwo przeoczyć błędne porównanie typów.
+        # JAK TO DZIAŁA: Kluczem jest request id wysłany do API, a wartością nazwa/etykieta komendy używana w logice odpowiedzi.
+        # TODO: Zastąpić wartość tekstową strukturą z czasem wysłania, aby wykrywać przeterminowane odpowiedzi API.
+        self.sent_ids: dict[int, str] = {}
         self._last_rx_log_time = None
         self._last_tx_log_time = None
         self._last_subscribers_log_time = None

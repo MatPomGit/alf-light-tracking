@@ -7,9 +7,16 @@ import json
 import importlib.util
 import sys
 
-import yaml
+# [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+# CO ZMIENIONO: Oznaczono import PyYAML jako import bez stubów typów.
+# DLACZEGO: Bootstrap wczytuje konfigurację YAML poprawnie w runtime, ale pełne `mypy` nie ma lokalnych stubów PyYAML.
+# JAK TO DZIAŁA: Ignorowany jest tylko brak informacji typów biblioteki zewnętrznej; błędy walidacji konfiguracji
+#                nadal przechodzą przez bezpieczne ścieżki fallbacku aplikacji.
+# TODO: Uzupełnić zależności developerskie o `types-PyYAML` albo przenieść parser YAML za typowany adapter.
+import yaml  # type: ignore[import-untyped]
 from datetime import timedelta
 from pathlib import Path
+from types import ModuleType
 from typing import Optional
 
 from PySide6.QtCore import QTimer
@@ -87,7 +94,14 @@ class RosBridgeService:
 
     def __init__(self, supervisor: Supervisor) -> None:
         self._supervisor = supervisor
-        self._rclpy = None
+        # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+        # CO ZMIENIONO: Dodano jawny typ opcjonalnego modułu `rclpy`.
+        # DLACZEGO: `rclpy` jest ładowany dynamicznie dopiero po audycie dostępności ROS2; bez adnotacji `mypy`
+        #           traktował pole jako stałe `None` i odrzucał późniejsze przypisanie modułu.
+        # JAK TO DZIAŁA: Pole przyjmuje `None` przed inicjalizacją i `ModuleType` po udanym imporcie; brak importu
+        #                nadal ustawia stany na `UNAVAILABLE`, zgodnie z bezpiecznym fallbackiem.
+        # TODO: Wydzielić dynamiczne ładowanie ROS2 do osobnego adaptera z protokołem metod `init`/`shutdown`.
+        self._rclpy: ModuleType | None = None
         self._initialized = False
         self._state_store = StateStore()
         self._channel_name = "ros_bridge_channel"

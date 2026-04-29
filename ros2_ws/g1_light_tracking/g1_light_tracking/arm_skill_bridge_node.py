@@ -8,11 +8,17 @@ from rclpy.node import Node
 from std_srvs.srv import Trigger
 
 try:
-    from unitree_hg.msg import LowCmd, LowState  # type: ignore
+    # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+    # CO ZMIENIONO: Usunięto nieużywane komentarze `type: ignore` z opcjonalnego importu `unitree_hg`.
+    # DLACZEGO: W środowisku z dostępnymi stubami komentarze były raportowane jako nieużywane i blokowały pełne `mypy`.
+    # JAK TO DZIAŁA: Import pozostaje opcjonalny; brak pakietu nadal zapisuje błąd w `_UNITREE_HG_IMPORT_ERROR`
+    #                i pozwala warstwie runtime odrzucić uruchomienie zależne od brakującego typu.
+    # TODO: Dodać minimalne stuby lokalne dla `unitree_hg.msg`, aby typować konstrukcję LowCmd/LowState bez importu runtime.
+    from unitree_hg.msg import LowCmd, LowState
     _UNITREE_HG_IMPORT_ERROR = None
 except ImportError as exc:
-    LowCmd = None  # type: ignore[assignment]
-    LowState = None  # type: ignore[assignment]
+    LowCmd = None
+    LowState = None
     _UNITREE_HG_IMPORT_ERROR = exc
 
 from g1_light_tracking.arm_skill_controller import ArmSkillController

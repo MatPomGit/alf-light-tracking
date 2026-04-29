@@ -7,7 +7,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
 
-import yaml
+# [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+# CO ZMIENIONO: Oznaczono import PyYAML jako import bez stubów typów.
+# DLACZEGO: Klient audytu zależności parsuje YAML w runtime, ale środowisko statyczne nie ma `types-PyYAML`,
+#           co generowało błąd niezwiązany z logiką bezpieczeństwa audytu.
+# JAK TO DZIAŁA: `mypy` pomija tylko brak metadanych typów importu, a parser nadal zwraca UNKNOWN przy danych niepewnych.
+# TODO: Dodać walidację schematu katalogu zależności przed wykonaniem zapytań audytu.
+import yaml  # type: ignore[import-untyped]
 
 
 # [AI-CHANGE | 2026-04-20 20:05 UTC | v0.151]

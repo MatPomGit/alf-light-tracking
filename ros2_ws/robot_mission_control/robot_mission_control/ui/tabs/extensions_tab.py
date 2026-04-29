@@ -199,6 +199,14 @@ class ExtensionsTab(QWidget):
     def _render_activation(self, item: StateValue | None) -> str:
         if not is_actionable(item):
             return "BRAK DANYCH"
+        # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+        # CO ZMIENIONO: Dodano asercję zawężającą próbkę aktywacji pluginu po walidacji jakości.
+        # DLACZEGO: `mypy` nie wie, że `is_actionable` odrzuca `None`, a UI nie powinno interpretować aktywacji
+        #           pluginu bez pewnej próbki.
+        # JAK TO DZIAŁA: Dla braku danych zwracamy `BRAK DANYCH`; dopiero potwierdzona próbka trafia do mapowania
+        #                `AKTYWNE`/`NIEAKTYWNE`.
+        # TODO: Dodać typowany helper `actionable_value`, który zwraca wartość albo `None` bez potrzeby asercji w UI.
+        assert item is not None
         if bool(item.value):
             return "AKTYWNE"
         return "NIEAKTYWNE"

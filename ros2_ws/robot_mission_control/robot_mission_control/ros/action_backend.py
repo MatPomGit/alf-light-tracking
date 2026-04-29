@@ -245,7 +245,17 @@ class Ros2MissionActionBackend:
         return True
 
     def _build_goal_message(self, goal_payload: dict[str, Any]) -> Any | None:
-        goal_msg = self._action_type.Goal()
+        # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+        # CO ZMIENIONO: Dodano jawne odrzucenie budowania Goal, gdy typ Action nie został załadowany.
+        # DLACZEGO: `mypy` słusznie wykrywa, że `_action_type` może być `None`; w runtime bez kontraktu bezpieczniej
+        #           zwrócić brak wiadomości niż stworzyć niepewny payload.
+        # JAK TO DZIAŁA: Przy braku typu metoda zwraca `None`, a wyższa warstwa backendu odrzuca goal zamiast wysyłać
+        #                dane o niepotwierdzonym kontrakcie.
+        # TODO: Dodać metrykę diagnostyczną `action_type_missing`, aby UI rozróżniało brak typu od błędnego payloadu.
+        action_type = self._action_type
+        if action_type is None:
+            return None
+        goal_msg = action_type.Goal()
         mapped_any = False
         for key, value in goal_payload.items():
             if not hasattr(goal_msg, key):

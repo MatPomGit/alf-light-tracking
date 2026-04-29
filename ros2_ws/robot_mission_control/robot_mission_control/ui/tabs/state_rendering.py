@@ -27,6 +27,13 @@ def render_value(item: StateValue | None, fallback: str = "BRAK DANYCH") -> str:
     """Renderuje wartość z bezpiecznym fallbackiem dla danych niepewnych."""
     if not is_actionable(item):
         return fallback
+    # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+    # CO ZMIENIONO: Dodano asercję zawężającą typ po bramce `is_actionable`.
+    # DLACZEGO: Helper bezpieczeństwa odrzuca `None`, ale `mypy` nie zawęża typu przez funkcję pomocniczą.
+    # JAK TO DZIAŁA: Asercja dokumentuje kontrakt lokalny i nie zmienia runtime dla poprawnych danych;
+    #                przy naruszeniu kontraktu wykonanie zatrzyma się zamiast wyrenderować fałszywą wartość.
+    # TODO: Przekształcić `is_actionable` w `TypeGuard`, gdy minimalna wersja Pythona w projekcie będzie to wspierać.
+    assert item is not None
     return str(item.value)
 
 

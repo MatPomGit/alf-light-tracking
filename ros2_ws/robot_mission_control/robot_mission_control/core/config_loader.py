@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-import yaml
+# [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+# CO ZMIENIONO: Oznaczono import PyYAML jako zależność bez lokalnych stubów typów.
+# DLACZEGO: Pełna analiza `mypy` bez pakietu `types-PyYAML` zgłasza `import-untyped`, mimo że runtime i testy
+#           poprawnie używają `yaml.safe_load`.
+# JAK TO DZIAŁA: Ignorowany jest wyłącznie brak stubów importu; walidacja danych YAML pozostaje jawna w kodzie.
+# TODO: Dodać `types-PyYAML` do zależności developerskich, gdy projekt będzie miał osobny profil dev/ci.
+import yaml  # type: ignore[import-untyped]
 
 from robot_mission_control.core.error_codes import DEFAULT_ERROR_MESSAGES, ErrorCode
 from robot_mission_control.core.models import MissionControlConfig
@@ -25,7 +31,13 @@ class ConfigValidationError(ValueError):
         self.message = message
 
 
-_REQUIRED_FIELDS: dict[str, type] = {
+# [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+# CO ZMIENIONO: Doprecyzowano typ mapy wymaganych pól konfiguracji.
+# DLACZEGO: Pole `operator_timeout_sec` dopuszcza `int` albo `float`, więc wartością mapy może być pojedynczy typ
+#           albo krotka typów; poprzednia adnotacja `dict[str, type]` była zbyt wąska.
+# JAK TO DZIAŁA: Walidacja runtime nadal używa `isinstance`, a typ mapy odzwierciedla dokładnie obsługiwane reguły.
+# TODO: Zastąpić prostą mapę typów walidatorem per-pole z zakresem wartości i komunikatem operatorskim.
+_REQUIRED_FIELDS: dict[str, type | tuple[type, ...]] = {
     "session_id": str,
     "operator_timeout_sec": (int, float),
     "max_event_queue_size": int,

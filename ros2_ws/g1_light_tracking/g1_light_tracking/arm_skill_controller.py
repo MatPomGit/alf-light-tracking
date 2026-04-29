@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Callable, List, Optional, Set
+from typing import Any, Callable, List, Optional, Set, cast
 
 
 class ArmSkillController:
@@ -253,7 +253,15 @@ class ArmSkillController:
         low_state = self._get_low_state()
         if low_state is None:
             raise RuntimeError('Brak stanu low_state w trakcie sekwencji ramion.')
-        return [float(low_state.motor_state[joint].q) for joint in self.ARM_JOINTS]
+        # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+        # CO ZMIENIONO: Zawężono typ `low_state` do obiektu dynamicznego przed odczytem `motor_state`.
+        # DLACZEGO: SDK Unitree dostarcza typy runtime bez kompletnych adnotacji, więc `mypy` widzi wynik jako `object`
+        #           i blokuje dostęp do pola mimo wcześniejszej walidacji obecności stanu.
+        # JAK TO DZIAŁA: Po odrzuceniu `None` rzutowanie na `Any` dotyczy tylko odczytu snapshotu pozycji;
+        #                jeśli SDK zwróci niepoprawny obiekt, wyjątek nadal zatrzyma sekwencję zamiast zwrócić fałszywą pozę.
+        # TODO: Dodać lokalny `Protocol` dla LowState z polami `motor_state[].q`, aby zastąpić `Any` typem strukturalnym.
+        typed_low_state = cast(Any, low_state)
+        return [float(typed_low_state.motor_state[joint].q) for joint in self.ARM_JOINTS]
 
     def _wait_for_low_state(self, timeout_s: float):
         """

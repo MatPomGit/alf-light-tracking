@@ -6,10 +6,16 @@ from datetime import datetime, timezone
 
 import cv2
 import numpy as np
-import rclpy # type: ignore
-from rclpy.node import Node # type: ignore
-from sensor_msgs.msg import Image # type: ignore
-from std_msgs.msg import String # type: ignore
+# [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+# CO ZMIENIONO: Usunięto nieużywane komentarze `type: ignore` z importów ROS2.
+# DLACZEGO: Pełny `mypy` widzi dostępne typy ROS2 w tym środowisku i traktuje ignorowanie jako błąd jakości.
+# JAK TO DZIAŁA: Importy pozostają bez zmian runtime; jeśli ROS2 nie jest dostępny, moduł nadal nie wystartuje,
+#                co jest bezpieczniejsze niż publikowanie niepewnej detekcji bez transportu.
+# TODO: Dodać wariant testów headless z atrapami ROS2 dla walidacji logiki detektora bez procesu rclpy.
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from std_msgs.msg import String
 
 from .vision import DetectionPersistenceFilter, DetectorConfig, detect_spots_with_config
 

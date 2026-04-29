@@ -4,7 +4,7 @@ import logging
 import math
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
 import cv2
 import numpy as np
@@ -183,13 +183,21 @@ class ColorDetector(BaseDetector):
                 raise ValueError(f"Nieznany preset koloru: {self.config.color_name}")
             ranges = COLOR_PRESETS[self.config.color_name]
 
-        mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+        # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+        # CO ZMIENIONO: Zawężono typ maski po operacjach OpenCV przez `cast(np.ndarray, ...)`.
+        # DLACZEGO: Stub OpenCV zwraca szerokie typy `Mat | ndarray`, a logika detekcji wymaga dalszego traktowania
+        #           maski jako tablicy NumPy bez rozluźniania walidacji obrazu.
+        # JAK TO DZIAŁA: Runtime pozostaje bez zmian; rzutowanie opisuje oczekiwany kontrakt po `inRange`, `bitwise_or`
+        #                i progowaniu, a dalsza morfologia nadal odrzuca niepewne detekcje przez istniejące progi.
+        # TODO: Wprowadzić alias typu `MaskArray` i test kontraktowy sprawdzający `dtype == uint8` po każdym etapie maski.
+        mask: np.ndarray[Any, Any] = np.zeros(hsv.shape[:2], dtype=np.uint8)
         for low, high in ranges:
             local = cv2.inRange(hsv, np.array(low, dtype=np.uint8), np.array(high, dtype=np.uint8))
-            mask = cv2.bitwise_or(mask, local)
+            mask = cast(np.ndarray[Any, Any], cv2.bitwise_or(mask, local))
         if blur > 1:
-            mask = cv2.GaussianBlur(mask, (blur, blur), 0)
-            _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+            mask = cast(np.ndarray[Any, Any], cv2.GaussianBlur(mask, (blur, blur), 0))
+            _, thresholded_mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+            mask = cast(np.ndarray[Any, Any], thresholded_mask)
         return _apply_morphology(mask, erode_iter=self.config.erode_iter, dilate_iter=self.config.dilate_iter)
 
 
@@ -198,10 +206,17 @@ def _apply_morphology(mask: np.ndarray, erode_iter: int, dilate_iter: int) -> np
     Cel: Ta funkcja realizuje odpowiedzialność `_apply_morphology` w aktualnym module.
     Dlaczego tak: Wydzielenie tej jednostki upraszcza debugowanie i chroni krytyczne ścieżki przed niekontrolowanymi zmianami.
     """
+    # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+    # CO ZMIENIONO: Zastąpiono niejawne `None` dla kernela morfologii jawną maską 3x3.
+    # DLACZEGO: Stuby OpenCV nie dopuszczają `None`, a jawny kernel eliminuje niejednoznaczność operacji erode/dilate.
+    # JAK TO DZIAŁA: Kernel 3x3 odpowiada standardowej morfologii dla maski binarnej; wynik nadal jest maską NumPy
+    #                używaną dopiero po późniejszych filtrach jakości detekcji.
+    # TODO: Dodać parametryzację rozmiaru kernela w konfiguracji kalibracji percepcji.
+    morphology_kernel = np.ones((3, 3), dtype=np.uint8)
     if erode_iter > 0:
-        mask = cv2.erode(mask, None, iterations=erode_iter)
+        mask = cast(np.ndarray[Any, Any], cv2.erode(mask, morphology_kernel, iterations=erode_iter))
     if dilate_iter > 0:
-        mask = cv2.dilate(mask, None, iterations=dilate_iter)
+        mask = cast(np.ndarray[Any, Any], cv2.dilate(mask, morphology_kernel, iterations=dilate_iter))
     return mask
 
 
@@ -1017,7 +1032,13 @@ def detect_spots(
     scored_detections: List[Tuple[float, Detection]] = []
 
     area_reference = float(np.median([det.area for det, _ in candidates])) if candidates else 0.0
-    detections: List[Detection] = []
+    # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+    # CO ZMIENIONO: Zmieniono nazwę listy walidowanych detekcji, aby nie kolidowała z gałęzią legacy.
+    # DLACZEGO: `mypy` traktuje ponowną adnotację `detections` w tej samej funkcji jako redefinicję, mimo rozłącznych gałęzi.
+    # JAK TO DZIAŁA: `validated_detections` zbiera tylko kandydatów po twardej walidacji fotometrycznej; gałąź legacy
+    #                zachowuje dotychczasową nazwę i zachowanie.
+    # TODO: Rozdzielić gałąź legacy i nowy ranking na osobne funkcje, żeby ograniczyć zasięg lokalnych zmiennych.
+    validated_detections: List[Detection] = []
     # [MatPom-CHANGE | 2026-04-17 12:42 UTC | v0.87]
     # CO ZMIENIONO: Dodano etap twardej walidacji fotometrycznej kandydatów na bazie
     # cech ring-based (kontrast średni, sharpness P95 i udział prześwietleń).
@@ -1059,7 +1080,7 @@ def detect_spots(
         )
         if score < float(min_detection_score):
             continue
-        detections.append(det)
+        validated_detections.append(det)
         scored_detections.append((score, det))
 
     scored_detections.sort(key=lambda item: item[0], reverse=True)
@@ -1092,12 +1113,12 @@ def detect_spots(
             diagnostics["rejected"] = True
             return [], mask, (x0, y0, w, h), diagnostics
 
-    detections = [det for _, det in scored_detections]
-    detections = detections[:max_spots]
-    for idx, det in enumerate(detections, start=1):
+    ranked_detections = [det for _, det in scored_detections]
+    ranked_detections = ranked_detections[:max_spots]
+    for idx, det in enumerate(ranked_detections, start=1):
         det.rank = idx
 
-    return detections, mask, (x0, y0, w, h), diagnostics
+    return ranked_detections, mask, (x0, y0, w, h), diagnostics
 
 
 def detect_spots_with_config(

@@ -216,12 +216,19 @@ class OverviewTab(QWidget):
         critical_alert = self._operator_alerts.last_critical_alert() if self._operator_alerts is not None else None
         critical_alert_count = self._count_active_critical_alerts()
         self._critical_alarm_count_value.setText(str(critical_alert_count))
-        can_continue = (
-            is_actionable(connection_item)
+        # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+        # CO ZMIENIONO: Rozbito decyzję kontynuacji na jawnie typowany warunek połączenia.
+        # DLACZEGO: `is_actionable` chroni runtime przed niepewną próbką, ale statycznie nie zawęża `StateValue | None`;
+        #           dostęp do `.value` musi być poprzedzony bezpośrednim sprawdzeniem `None`.
+        # JAK TO DZIAŁA: `connection_is_connected` jest prawdziwe tylko dla pewnej próbki `CONNECTED`; brak próbki
+        #                albo jakość inna niż VALID blokują kontynuację misji.
+        # TODO: Przenieść tę decyzję do wspólnego helpera bezpieczeństwa, żeby Controls/Overview używały identycznej bramki.
+        connection_is_connected = (
+            connection_item is not None
+            and is_actionable(connection_item)
             and str(connection_item.value).upper() == "CONNECTED"
-            and worst_quality is None
-            and critical_alert_count == 0
         )
+        can_continue = connection_is_connected and worst_quality is None and critical_alert_count == 0
         self._set_safety_decision(can_continue=can_continue)
         if critical_alert is None:
             self._alarm_banner.setVisible(False)
@@ -256,6 +263,13 @@ class OverviewTab(QWidget):
     def _render_mission_state(self, action_status_item: StateValue | None) -> str:
         if not is_actionable(action_status_item):
             return render_card_value_with_warning(action_status_item, fallback="BRAK DANYCH")
+        # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
+        # CO ZMIENIONO: Dodano asercję zawężającą status akcji po walidacji jakości.
+        # DLACZEGO: Bezpośredni dostęp do `.value` jest bezpieczny tylko po potwierdzeniu, że próbka istnieje i ma jakość VALID.
+        # JAK TO DZIAŁA: Brak lub niepewny status wcześniej zwraca ostrzeżenie `BRAK DANYCH`; asercja zabezpiecza kontrakt
+        #                przed przypadkowym ominięciem tej bramki.
+        # TODO: Zastąpić asercję typowanym `TypeGuard` dla wspólnej funkcji `is_actionable`.
+        assert action_status_item is not None
         status = str(action_status_item.value)
         return map_action_status_to_mission_state(status)
 
