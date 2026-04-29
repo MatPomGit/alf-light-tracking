@@ -13,16 +13,22 @@ import pytest
 # JAK TO DZIAŁA: `pytest.importorskip` sprawdza moduły podczas importu pliku; przy braku zależności test jest oznaczany jako
 #                `skipped`, dzięki czemu pipeline nie raportuje fałszywego błędu kolekcji i zachowuje deterministyczny wynik.
 # TODO: Rozdzielić testy E2E do osobnego joba CI z preinstalowanym ROS2 Jazzy i `launch_testing`.
+# [AI-CHANGE | 2026-04-29 12:00 UTC | v0.207]
+# CO ZMIENIONO: Zastąpiono importy `from ... import ...` po `pytest.importorskip` bezpiecznym pobieraniem symboli z modułów.
+# DLACZEGO: Ruff zgłaszał E402, ponieważ importy były poniżej kodu wykonywalnego; to blokowało etap lint w CI.
+# JAK TO DZIAŁA: Najpierw warunkowo ładujemy moduły przez `pytest.importorskip`, a następnie przypisujemy wymagane klasy
+#                (`GoalStatus`, `ActionClient`, `Future`, `MissionStep`) z załadowanych modułów bez dodatkowych instrukcji `import`.
+# TODO: Rozważyć wydzielenie helpera do warunkowego ładowania zależności ROS2, aby uniknąć duplikacji w innych testach E2E.
 launch = pytest.importorskip("launch")
 launch_ros_actions = pytest.importorskip("launch_ros.actions")
 launch_testing = pytest.importorskip("launch_testing")
 launch_testing_actions = pytest.importorskip("launch_testing.actions")
 rclpy = pytest.importorskip("rclpy")
-from action_msgs.msg import GoalStatus
-from rclpy.action import ActionClient
-from rclpy.task import Future
 
-from robot_mission_control_interfaces.action import MissionStep
+GoalStatus = pytest.importorskip("action_msgs.msg").GoalStatus
+ActionClient = pytest.importorskip("rclpy.action").ActionClient
+Future = pytest.importorskip("rclpy.task").Future
+MissionStep = pytest.importorskip("robot_mission_control_interfaces.action").MissionStep
 
 # [AI-CHANGE | 2026-04-27 06:40 UTC | v0.202]
 # CO ZMIENIONO: Dodano test E2E `launch_testing` uruchamiający realny serwer `MissionStep` i walidujący
