@@ -110,7 +110,16 @@ def test_map_tab_handles_ros_disconnection() -> None:
 
     tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.VALID, ros_connected=False, tf_available=True, now_utc=now)
 
-    assert "ros_disconnected" in tab._quality_label.text()
+    # [AI-CHANGE | 2026-04-30 18:05 UTC | v0.201]
+    # CO ZMIENIONO: Zaktualizowano asercję do wspólnego kodu `ros_unavailable` i dodano
+    #               weryfikację, że wskazówka operatorska jest specyficzna (bez fallbacku).
+    # DLACZEGO: Test regresyjny ma gwarantować spójny standard kodów i czytelny komunikat
+    #           naprawczy dla operatora po rozłączeniu ROS.
+    # JAK TO DZIAŁA: Test sprawdza obecność `ros_unavailable` w quality label oraz treść
+    #                podpowiedzi „Warstwa ROS jest niedostępna...” pochodzącą z mapy guidance.
+    # TODO: Dodać asercję identycznej treści guidance dla rozłączenia ROS w pozostałych kartach UI.
+    assert "ros_unavailable" in tab._quality_label.text()
+    assert "Warstwa ROS jest niedostępna" in tab._operator_hint_label.text()
     assert tab._source_label.text() == "Źródło danych: BRAK DANYCH"
 
 
