@@ -128,6 +128,7 @@ class MainWindow(QMainWindow):
         self._connection_label: QLabel | None = None
         self._source_quality_label: QLabel | None = None
         self._status_bar: QStatusBar | None = None
+        self._tabs_panel: QTabWidget | None = None
 
         central = QWidget(self)
         root_layout = QVBoxLayout(central)
@@ -316,13 +317,24 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(QLabel("Nawigacja", sidebar))
 
-        for label in [
-            "Misja",
-            "Robot",
-            "Łączność",
-            "Mapa",
-            "Zadania",
-        ]:
+        # [AI-CHANGE | 2026-04-30 12:00 UTC | v0.204]
+        # CO ZMIENIONO: W sekcji „Nawigacja” aktywowano przycisk „Robot” i podłączono go
+        #               do przełączania głównego panelu na zakładkę Telemetry.
+        # DLACZEGO: Użytkownik zgłosił, że przycisk „Robot” był bezużyteczny (disabled z etykietą
+        #           „NIEDOSTĘPNE W TEJ WERSJI”), więc wdrożono podstawową, użyteczną nawigację.
+        # JAK TO DZIAŁA: Kliknięcie „Robot” wywołuje `_activate_robot_navigation()`, która bezpiecznie
+        #                sprawdza obecność QTabWidget i przełącza widok na indeks zakładki telemetrycznej.
+        #                Gdy panel nie jest gotowy, metoda kończy się bez wyjątku (bezpieczny fallback).
+        # TODO: Dodać mapowanie wszystkich przycisków sekcji Nawigacja na dedykowane zakładki/route'y.
+        mission_button = QPushButton("Misja — NIEDOSTĘPNE W TEJ WERSJI", sidebar)
+        mission_button.setEnabled(False)
+        layout.addWidget(mission_button)
+
+        robot_button = QPushButton("Robot", sidebar)
+        robot_button.clicked.connect(self._activate_robot_navigation)
+        layout.addWidget(robot_button)
+
+        for label in ["Łączność", "Mapa", "Zadania"]:
             button = QPushButton(f"{label} — NIEDOSTĘPNE W TEJ WERSJI", sidebar)
             button.setEnabled(False)
             layout.addWidget(button)
@@ -333,6 +345,7 @@ class MainWindow(QMainWindow):
     def _build_tabs_panel(self) -> QWidget:
         tabs = QTabWidget(self)
         tabs.setDocumentMode(True)
+        self._tabs_panel = tabs
 
         tab_defs = [
             ("Overview", "panel_overview", OverviewTab),
@@ -348,6 +361,20 @@ class MainWindow(QMainWindow):
             tabs.addTab(self._build_safe_tab(panel_name, panel_cls), label)
 
         return tabs
+
+    # [AI-CHANGE | 2026-04-30 12:00 UTC | v0.204]
+    # CO ZMIENIONO: Dodano helper aktywujący widok „Robot” przez przełączenie głównego panelu zakładek.
+    # DLACZEGO: Logika kliknięcia przycisku „Robot” powinna być wydzielona i testowalna.
+    # JAK TO DZIAŁA: Metoda ustawia indeks 1 (Telemetry) tylko wtedy, gdy `self._tabs_panel` istnieje
+    #                i zawiera odpowiednią liczbę zakładek; w przeciwnym razie nie wykonuje akcji.
+    # TODO: Zastąpić indeks stałą semantyczną lub wyszukiwaniem zakładki po nazwie, aby uniknąć regresji.
+    def _activate_robot_navigation(self) -> None:
+        if self._tabs_panel is None:
+            return
+        telemetry_tab_index = 1
+        if self._tabs_panel.count() <= telemetry_tab_index:
+            return
+        self._tabs_panel.setCurrentIndex(telemetry_tab_index)
 
     def _build_safe_tab(self, panel_name: str, panel_cls: type[QWidget]) -> QWidget:
         """Build single tab with local failure boundary (only this panel becomes unavailable)."""
