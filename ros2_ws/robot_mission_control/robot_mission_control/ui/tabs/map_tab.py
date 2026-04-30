@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from robot_mission_control.core import DataQuality
+from .operator_guidance import resolve_operator_guidance
 from .state_rendering import quality_color_hex, render_quality_with_icon
 
 
@@ -94,7 +95,7 @@ class MapTab(QWidget):
         if not ros_connected:
             return (DataQuality.UNAVAILABLE, "ros_disconnected")
         if not tf_available:
-            return (DataQuality.UNAVAILABLE, "missing_tf")
+            return (DataQuality.UNAVAILABLE, "MAP_TF_MISSING")
         if sample is None:
             return (DataQuality.UNAVAILABLE, "missing_sample")
         if quality is not DataQuality.VALID:
@@ -102,12 +103,12 @@ class MapTab(QWidget):
 
         reference_time = now_utc if now_utc is not None else datetime.now(timezone.utc)
         if reference_time - sample.timestamp > timedelta(seconds=self._MAX_SAMPLE_AGE_SECONDS):
-            return (DataQuality.STALE, "stale_timestamp")
+            return (DataQuality.STALE, "MAP_POSE_STALE")
 
         if self._expected_frame_id is None:
             self._expected_frame_id = sample.frame_id
         elif sample.frame_id != self._expected_frame_id:
-            return (DataQuality.ERROR, "frame_mismatch")
+            return (DataQuality.ERROR, "MAP_FRAME_MISMATCH")
 
         if sample.position_text is None:
             return (DataQuality.UNAVAILABLE, "missing_position")
@@ -148,11 +149,24 @@ class MapTab(QWidget):
             self._operator_hint_label.setStyleSheet("color: #0b6e4f;")
             return
 
+        # [AI-CHANGE | 2026-04-30 13:10 UTC | v0.201]
+        # CO ZMIENIONO: Dla jakości innej niż VALID podłączono `resolve_operator_guidance`,
+        #               aby sekcja operatorska prezentowała mapowanie „co się stało / co zrobić”
+        #               na bazie `reason_code` z walidacji mapy.
+        # DLACZEGO: Operator musi dostać precyzyjne zalecenia i bezpieczny fallback dla nieznanych
+        #           kodów; w logice krytycznej preferujemy brak kontynuacji działań zamiast ryzyka
+        #           decyzji na błędnych danych lokalizacji.
+        # JAK TO DZIAŁA: Przy degradacji mapy czyścimy pozycję/trajektorię do `BRAK DANYCH`,
+        #                a następnie budujemy etykietę z `meaning` i `action` z mapy guidance.
+        #                Gdy kod jest nieznany, `resolve_operator_guidance` zwraca ostrożny fallback.
+        # TODO: Dodać telemetrykę UI dla najczęstszych reason_code mapy i ich czasu trwania.
         self._position_label.setText("Pozycja: BRAK DANYCH")
         self._trajectory_label.setText("Trajektoria: BRAK DANYCH")
         self._source_label.setText("Źródło danych: BRAK DANYCH")
+        operator_guidance = resolve_operator_guidance(reason_code=reason_code, status=None)
         self._operator_hint_label.setText(
-            "Wskazówki: Zweryfikuj ROS/TF, spójność frame_id i świeżość timestamp.")
+            f"Wskazówki: Co się stało: {operator_guidance.meaning} Co zrobić: {operator_guidance.action}"
+        )
         self._operator_hint_label.setStyleSheet("color: #b7791f;")
 
     def set_map_status(self, quality: DataQuality, *, position_text: str | None = None) -> None:
