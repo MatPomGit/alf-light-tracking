@@ -175,6 +175,14 @@ class DiagnosticsTab(QWidget):
         dependency_layout.addWidget(QLabel("Status połączenia ROS:"), 1, 0)
         self._ros_connection_value = QLabel("ROZŁĄCZONY", dependency_card)
         dependency_layout.addWidget(self._ros_connection_value, 1, 1)
+        # [AI-CHANGE | 2026-04-30 23:50 UTC | v0.201]
+        # CO ZMIENIONO: Dodano licznik aktywnych incydentów mapy w karcie Diagnostics.
+        # DLACZEGO: Operator ma mieć natychmiastowy podgląd skali problemu mapowego obok innych wskaźników runtime.
+        # JAK TO DZIAŁA: Etykieta odświeża się na podstawie `OperatorAlerts.active_map_incidents_count()`.
+        # TODO: Dodać kliknięcie licznika przełączające filtr tabeli na same problemy mapowe.
+        dependency_layout.addWidget(QLabel("Aktywne incydenty mapy:"), 2, 0)
+        self._map_incidents_value = QLabel("0", dependency_card)
+        dependency_layout.addWidget(self._map_incidents_value, 2, 1)
 
         root.addWidget(dependency_card)
 
@@ -216,6 +224,8 @@ class DiagnosticsTab(QWidget):
         self._render_dependency_status(snapshot)
         self._render_ros_connection(snapshot)
         self._sync_ack_button_state()
+        map_count = self._operator_alerts.active_map_incidents_count() if self._operator_alerts is not None else 0
+        self._map_incidents_value.setText(str(map_count))
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         self._last_refresh_value.setText(f"Ostatnie odświeżenie: {now}")
 
@@ -260,6 +270,8 @@ class DiagnosticsTab(QWidget):
         pending_alerts = [alert for alert in active_alerts if not alert.acknowledged]
         if not pending_alerts:
             self._sync_ack_button_state()
+            map_count = self._operator_alerts.active_map_incidents_count() if self._operator_alerts is not None else 0
+            self._map_incidents_value.setText(str(map_count))
             return
 
         selected_key = self._selected_state_key()
@@ -269,6 +281,8 @@ class DiagnosticsTab(QWidget):
 
         self._operator_alerts.ack_alert(alert_id=target_alert.alert_id, operator_id="diagnostics_ui")
         self._sync_ack_button_state()
+        map_count = self._operator_alerts.active_map_incidents_count() if self._operator_alerts is not None else 0
+        self._map_incidents_value.setText(str(map_count))
 
     # [AI-CHANGE | 2026-04-23 21:10 UTC | v0.194]
     # CO ZMIENIONO: Tabela diagnostyczna jest filtrowana (`tylko problemy`/`tylko krytyczne`)

@@ -94,6 +94,14 @@ class OverviewTab(QWidget):
         safety_layout.addWidget(self._what_to_do_value, 3, 1)
         safety_layout.addWidget(QLabel("Aktywne alarmy krytyczne:", safety_card), 4, 0)
         safety_layout.addWidget(self._critical_alarm_count_value, 4, 1)
+        # [AI-CHANGE | 2026-04-30 23:50 UTC | v0.201]
+        # CO ZMIENIONO: Dodano licznik aktywnych incydentów mapy w panelu decyzji Overview.
+        # DLACZEGO: Operator musi widzieć, czy ryzyko dotyczy domeny mapowania bez wchodzenia do Diagnostics.
+        # JAK TO DZIAŁA: Pole aktualizuje się z `OperatorAlerts.active_map_incidents_count()` podczas odświeżenia.
+        # TODO: Dodać kolorowanie licznika mapy zależnie od najwyższego severity incydentu mapowego.
+        self._map_incident_count_value = QLabel("0", safety_card)
+        safety_layout.addWidget(QLabel("Aktywne incydenty mapy:", safety_card), 5, 0)
+        safety_layout.addWidget(self._map_incident_count_value, 5, 1)
         root.addWidget(safety_card)
 
         card = QFrame(self)
@@ -172,6 +180,7 @@ class OverviewTab(QWidget):
             self._what_happened_value.setText(fallback_guidance.meaning)
             self._what_to_do_value.setText(fallback_guidance.action)
             self._critical_alarm_count_value.setText("0")
+            self._map_incident_count_value.setText("0")
             self._set_safety_decision(can_continue=False)
             self._alarm_banner.setText("ALERT KRYTYCZNY: BRAK POŁĄCZENIA ZE STATESTORE")
             self._alarm_banner.setVisible(True)
@@ -216,6 +225,8 @@ class OverviewTab(QWidget):
         critical_alert = self._operator_alerts.last_critical_alert() if self._operator_alerts is not None else None
         critical_alert_count = self._count_active_critical_alerts()
         self._critical_alarm_count_value.setText(str(critical_alert_count))
+        map_incidents_count = self._operator_alerts.active_map_incidents_count() if self._operator_alerts is not None else 0
+        self._map_incident_count_value.setText(str(map_incidents_count))
         # [AI-CHANGE | 2026-04-29 13:35 UTC | v0.333]
         # CO ZMIENIONO: Rozbito decyzję kontynuacji na jawnie typowany warunek połączenia.
         # DLACZEGO: `is_actionable` chroni runtime przed niepewną próbką, ale statycznie nie zawęża `StateValue | None`;

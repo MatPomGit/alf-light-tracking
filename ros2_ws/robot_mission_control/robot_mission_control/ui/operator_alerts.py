@@ -9,6 +9,25 @@ from threading import RLock
 from robot_mission_control.core import DataQuality, StateValue
 
 
+# [AI-CHANGE | 2026-04-30 23:50 UTC | v0.201]
+# CO ZMIENIONO: Dodano reguły mapowania kodów mapy na priorytety alertów oraz licznik wygaszania
+#               incydentu po serii poprawnych próbek VALID.
+# DLACZEGO: Incydenty mapy muszą mieć stabilny priorytet i nie mogą znikać po pojedynczym,
+#           przypadkowym odczycie VALID, aby ograniczyć ryzyko fałszywego „OK”.
+# JAK TO DZIAŁA: `_resolve_map_alert_rule` nadaje severity/kod dla kluczy mapowych, a
+#                `_valid_streak_by_state_key` zamyka alert dopiero po `valid_clear_streak` kolejnych VALID.
+# TODO: Dodać per-kod adaptacyjny próg wygaszania oparty o statystykę jakości strumienia mapy.
+_MAP_ALERT_SEVERITY_BY_CODE: dict[str, str] = {
+    "MAP_TF_MISSING": "CRITICAL",
+    "MAP_POSE_STALE": "HIGH",
+    "MAP_FRAME_MISMATCH": "CRITICAL",
+    "MAP_SNAPSHOT_INCOMPLETE": "HIGH",
+    "MAP_DATA_UNAVAILABLE": "HIGH",
+    "MAP_QUALITY_DEGRADED": "MEDIUM",
+}
+_MAP_STATE_KEY_PREFIX = "map_"
+
+
 # [AI-CHANGE | 2026-04-23 16:30 UTC | v0.188]
 # CO ZMIENIONO: Dodano model `OperatorAlert` i rejestr `OperatorAlerts` z obsługą publikacji,
 #               listy aktywnych alertów, ACK operatora oraz automatycznego zamykania alertów
@@ -43,19 +62,21 @@ class OperatorAlert:
 class OperatorAlerts:
     """In-memory registry alertów używany przez widoki operatorskie."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, valid_clear_streak: int = 2) -> None:
         self._lock = RLock()
         self._alerts: dict[str, OperatorAlert] = {}
         self._active_by_state_key: dict[str, str] = {}
         self._last_critical_alert_id: str | None = None
+        self._valid_clear_streak = max(1, int(valid_clear_streak))
+        self._valid_streak_by_state_key: dict[str, int] = {}
 
     def sync_from_snapshot(self, snapshot: dict[str, StateValue]) -> None:
         """Synchronizuje alerty na podstawie jakości próbek w snapshotcie StateStore."""
         for key, item in snapshot.items():
-            if item.quality in (DataQuality.UNAVAILABLE, DataQuality.ERROR):
-                severity = "CRITICAL" if item.quality is DataQuality.ERROR else "HIGH"
-                code = item.reason_code or f"state_{item.quality.value.lower()}"
+            if item.quality in (DataQuality.UNAVAILABLE, DataQuality.ERROR, DataQuality.STALE):
+                severity, code = self._resolve_alert_rule(state_key=key, item=item)
                 message = f"{key}: {item.source} ({item.quality.value})"
+                self._valid_streak_by_state_key[key] = 0
                 self.publish_alert(
                     state_key=key,
                     severity=severity,
@@ -65,7 +86,10 @@ class OperatorAlerts:
                 )
                 continue
             if item.quality is DataQuality.VALID:
-                self.close_alert_for_key(state_key=key, timestamp=item.timestamp)
+                streak = self._valid_streak_by_state_key.get(key, 0) + 1
+                self._valid_streak_by_state_key[key] = streak
+                if streak >= self._valid_clear_streak:
+                    self.close_alert_for_key(state_key=key, timestamp=item.timestamp)
 
     def publish_alert(
         self,
@@ -151,6 +175,25 @@ class OperatorAlerts:
             if self._last_critical_alert_id is None:
                 return None
             return self._alerts.get(self._last_critical_alert_id)
+
+
+    def active_map_incidents_count(self) -> int:
+        """Zwraca liczbę aktywnych alertów związanych ze stanem mapy."""
+        with self._lock:
+            return sum(1 for alert_id in self._active_by_state_key.values() if self._alerts[alert_id].state_key.startswith(_MAP_STATE_KEY_PREFIX))
+
+    def _resolve_alert_rule(self, *, state_key: str, item: StateValue) -> tuple[str, str]:
+        reason_code = (item.reason_code or "").strip()
+        if state_key.startswith(_MAP_STATE_KEY_PREFIX):
+            normalized_code = reason_code.upper() if reason_code else "MAP_DATA_UNAVAILABLE"
+            severity = _MAP_ALERT_SEVERITY_BY_CODE.get(normalized_code, "HIGH")
+            return severity, normalized_code
+
+        severity = "CRITICAL" if item.quality is DataQuality.ERROR else "HIGH"
+        if item.quality is DataQuality.STALE:
+            severity = "MEDIUM"
+        code = reason_code or f"state_{item.quality.value.lower()}"
+        return severity, code
 
     def _normalize_timestamp(self, timestamp: datetime) -> datetime:
         if timestamp.tzinfo is None:
