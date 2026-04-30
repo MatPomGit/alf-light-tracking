@@ -127,38 +127,54 @@ class MapTab(QWidget):
         now_utc: datetime | None = None,
     ) -> tuple[DataQuality, str]:
         """Waliduje próbkę mapy i zwraca bezpieczny wynik jakości + reason_code."""
-        # [AI-CHANGE | 2026-04-30 18:05 UTC | v0.201]
-        # CO ZMIENIONO: Ujednolicono docelowy kod dla utraty łączności ROS na `ros_unavailable`
-        #               zamiast lokalnego wariantu `ros_disconnected`.
-        # DLACZEGO: Wspólny standard kodów upraszcza mapowanie guidance w wielu kartach UI i
-        #           eliminuje ryzyko niespójnych komunikatów operatorskich po tym samym incydencie.
-        # JAK TO DZIAŁA: Gdy `ros_connected` jest `False`, walidacja zwraca teraz dokładnie
-        #                `(DataQuality.UNAVAILABLE, "ros_unavailable")`, który ma dedykowany opis
-        #                i akcję w `CODE_GUIDANCE_MAP`.
-        # TODO: Wydzielić reason_code mapy do współdzielonych stałych, aby uniknąć literówek w UI/ROS bridge.
-        if quality not in self._ALLOWED_QUALITIES:
-            return (DataQuality.ERROR, "invalid_quality")
-        if not ros_connected:
-            return (DataQuality.UNAVAILABLE, "ros_unavailable")
-        if not tf_available:
-            return (DataQuality.UNAVAILABLE, "MAP_TF_MISSING")
-        if sample is None:
-            return (DataQuality.UNAVAILABLE, "missing_sample")
-        if quality is not DataQuality.VALID:
-            return (quality, f"degraded_input_quality:{quality.value}")
+        # [AI-CHANGE | 2026-04-30 23:40 UTC | v0.199]
+        # CO ZMIENIONO: Dodano twardą walidację schematu wejścia (typy + format), w tym wymaganie
+        #               timezone-aware datetime oraz niepustych pól `frame_id` i `source`.
+        # DLACZEGO: Niepoprawna próbka mapy nie może propagować wyjątków runtime do UI ani skutkować
+        #           ryzykiem renderowania błędnej pozycji; lepszy jest jawny stan ERROR z reason_code.
+        # JAK TO DZIAŁA: Funkcja jest opakowana w `try/except` i dla każdego naruszenia schematu
+        #                zwraca `(DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")`; pozostałe przypadki
+        #                zachowują dotychczasowe mapowanie reason_code bez crashowania interfejsu.
+        # TODO: Rozszerzyć walidację schematu o kontrakt semantyczny (np. limity zakresów współrzędnych) per platforma.
+        try:
+            if quality not in self._ALLOWED_QUALITIES:
+                return (DataQuality.ERROR, "invalid_quality")
+            if not ros_connected:
+                return (DataQuality.UNAVAILABLE, "ros_unavailable")
+            if not tf_available:
+                return (DataQuality.UNAVAILABLE, "MAP_TF_MISSING")
+            if sample is None:
+                return (DataQuality.UNAVAILABLE, "missing_sample")
+            if quality is not DataQuality.VALID:
+                return (quality, f"degraded_input_quality:{quality.value}")
 
-        reference_time = now_utc if now_utc is not None else datetime.now(timezone.utc)
-        if reference_time - sample.timestamp > timedelta(seconds=self._max_sample_age_seconds):
-            return (DataQuality.STALE, "MAP_POSE_STALE")
-        if sample.frame_id not in self._allowed_frames:
-            return (DataQuality.ERROR, "MAP_FRAME_NOT_ALLOWED")
-        if self._expected_frame_id is None:
-            self._expected_frame_id = sample.frame_id
-        elif sample.frame_id != self._expected_frame_id:
-            return (DataQuality.ERROR, "MAP_FRAME_MISMATCH")
+            if not isinstance(sample.timestamp, datetime) or sample.timestamp.tzinfo is None:
+                return (DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")
+            if not isinstance(sample.frame_id, str) or not sample.frame_id.strip():
+                return (DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")
+            if not isinstance(sample.source, str) or not sample.source.strip():
+                return (DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")
+            if sample.position_text is not None and not isinstance(sample.position_text, str):
+                return (DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")
+            if sample.trajectory_text is not None and not isinstance(sample.trajectory_text, str):
+                return (DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")
 
-        if sample.position_text is None:
-            return (DataQuality.UNAVAILABLE, "missing_position")
+            reference_time = now_utc if now_utc is not None else datetime.now(timezone.utc)
+            if not isinstance(reference_time, datetime) or reference_time.tzinfo is None:
+                return (DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")
+            if reference_time - sample.timestamp > timedelta(seconds=self._max_sample_age_seconds):
+                return (DataQuality.STALE, "MAP_POSE_STALE")
+            if sample.frame_id not in self._allowed_frames:
+                return (DataQuality.ERROR, "MAP_FRAME_NOT_ALLOWED")
+            if self._expected_frame_id is None:
+                self._expected_frame_id = sample.frame_id
+            elif sample.frame_id != self._expected_frame_id:
+                return (DataQuality.ERROR, "MAP_FRAME_MISMATCH")
+
+            if sample.position_text is None or not sample.position_text.strip():
+                return (DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")
+        except Exception:
+            return (DataQuality.ERROR, "MAP_SAMPLE_INVALID_SCHEMA")
 
         # [AI-CHANGE | 2026-04-30 22:10 UTC | v0.201]
         # CO ZMIENIONO: Dodano walidację kinematyczną porównującą bieżącą próbkę z poprzednią

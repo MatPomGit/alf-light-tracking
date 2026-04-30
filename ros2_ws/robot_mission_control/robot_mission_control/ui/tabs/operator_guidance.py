@@ -146,6 +146,15 @@ STATUS_GUIDANCE_MAP: dict[str, OperatorGuidance] = {
 #                korzystają z rozszerzonego słownika bez zmian interfejsu publicznego.
 # TODO: Dodać walidator CI, który wykryje nowy `reason_code` bez wpisu w mapie operatorskiej.
 CRITICAL_REASON_CODE_GUIDANCE_MAP: dict[str, OperatorGuidance] = {
+    # [AI-CHANGE | 2026-04-30 23:40 UTC | v0.199]
+    # CO ZMIENIONO: Dodano obsługę reason_code `MAP_SAMPLE_INVALID_SCHEMA` z dedykowaną instrukcją operatorską.
+    # DLACZEGO: Walidator mapy zwraca teraz jawny kod błędu schematu i operator musi dostać precyzyjny komunikat naprawczy.
+    # JAK TO DZIAŁA: `resolve_operator_guidance` zwraca opis przyczyny i akcję dla nowego kodu bez fallbacku ogólnego.
+    # TODO: Ujednolicić nazewnictwo kodów `*_INVALID_SCHEMA` między modułami mapy, vision i telemetryki.
+    "MAP_SAMPLE_INVALID_SCHEMA": OperatorGuidance(
+        meaning="Próbka mapy ma niepoprawny schemat (typy/pola) i została odrzucona dla bezpieczeństwa.",
+        action="Nie ufaj danym lokalizacji; sprawdź kontrakt publishera mapy, timezone timestampu oraz niepuste frame/source.",
+    ),
     "MAP_TF_MISSING": OperatorGuidance(
         meaning="Brakuje transformacji TF dla mapy i pozycja robota nie może zostać wiarygodnie wyznaczona.",
         action="Wstrzymaj działania zależne od lokalizacji, sprawdź publikację TF i wznowienie dopiero po potwierdzeniu poprawnych ramek.",
