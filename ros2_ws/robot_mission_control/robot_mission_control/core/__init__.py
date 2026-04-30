@@ -26,6 +26,11 @@ from robot_mission_control.core.models import (
     MissionControlConfig,
     MissionEvent,
 )
+# [AI-CHANGE | 2026-04-30 12:00 UTC | v0.201]
+# CO ZMIENIONO: Rozszerzono publiczne eksporty `core` o klucze stanu mapy.
+# DLACZEGO: Moduły UI/ROS muszą importować te same identyfikatory bez duplikowania stałych.
+# JAK TO DZIAŁA: Nowe stałe są eksportowane z `core.state_store` oraz dodane do `__all__`.
+# TODO: Dodać test kontraktowy `__all__`, który wykryje brak eksportu nowego klucza stanu.
 from robot_mission_control.core.state_store import (
     DataQuality,
     GLOBAL_STATE_KEYS,
@@ -36,6 +41,9 @@ from robot_mission_control.core.state_store import (
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
     STATE_KEY_DEPENDENCY_STATUS,
+    STATE_KEY_MAP_FRAME_STATUS,
+    STATE_KEY_MAP_PATH,
+    STATE_KEY_MAP_POSE,
     STATE_KEY_PLAYBACK_STATUS,
     STATE_KEY_RECORDING_STATUS,
     STATE_KEY_ROS_CONNECTION_STATUS,
@@ -62,6 +70,9 @@ __all__ = [
     "STATE_KEY_BAG_INTEGRITY_STATUS",
     "STATE_KEY_DATA_SOURCE_MODE",
     "STATE_KEY_DEPENDENCY_STATUS",
+    "STATE_KEY_MAP_FRAME_STATUS",
+    "STATE_KEY_MAP_PATH",
+    "STATE_KEY_MAP_POSE",
     "STATE_KEY_PLAYBACK_STATUS",
     "STATE_KEY_RECORDING_STATUS",
     "STATE_KEY_ROS_CONNECTION_STATUS",
