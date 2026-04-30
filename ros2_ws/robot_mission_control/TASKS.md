@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
-CO ZMIENIONO: Utrzymano jeden blok meta na początku TASKS.md i włączono aktualizację ścieżki `MissionStep.action` do zwykłej treści backlogu.
-DLACZEGO: W środku sekcji statusów znajdował się dodatkowy blok AI opisujący ten sam porządek dokumentu, przez co backlog tracił czytelność.
-JAK TO DZIAŁA: Statusy zadań pozostają w listach backlogu, a historia zmian dokumentacyjnych trafia do COMMIT_LOG.md zamiast kolejnych bloków AI w treści.
-TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE] w sekcji nagłówkowej TASKS.md.
--->
-
 # TASKS — robot_mission_control
 
 ## Granice dokumentu (single source of truth)
@@ -18,7 +10,6 @@ TODO: Dodać linter markdown, który wykrywa więcej niż jeden blok [AI-CHANGE]
 - `TASKS.md` jest **jedynym** aktywnym backlogiem wykonawczym w projekcie.
 - Każde aktywne zadanie musi mieć pola: `Status`, `Owner`, `Data przeglądu`, `DoD`.
 - `TODO.md` pełni wyłącznie rolę historyczną i nie zawiera aktywnych pozycji.
-
 
 ## Legenda statusów
 - `PLANNED` — zadanie zaplanowane, bez aktywnego wykonawcy.

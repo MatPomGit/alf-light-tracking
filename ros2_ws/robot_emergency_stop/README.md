@@ -1,13 +1,10 @@
 # robot_emergency_stop
 
 <!--
-[AI-CHANGE | 2026-04-20 07:08 UTC | v0.134]
-CO ZMIENIONO: Rozszerzono README o dokładny opis przepływu informacji w module oraz o szczegółowe wyjaśnienie
-  zabezpieczeń anty-ruchowych (warstwa topic, warstwa stanu, warstwa watchdog i warstwa bridge/API).
-DLACZEGO: Użytkownik potrzebuje dokumentacji przekazywalnej dla innych osób, która jasno tłumaczy nie tylko „co”,
-  ale też „jak” i „dlaczego” moduł blokuje ruch robota w sytuacjach ryzyka.
-JAK TO DZIAŁA: Dodane sekcje prowadzą przez pełną ścieżkę danych: od `cmd_vel_in` i sygnałów bezpieczeństwa,
-  przez decyzję FSM, po wyjścia `cmd_vel_out` oraz `/emergency_stop/active` i reakcję bridge hard-stop.
+[CHANGE | 2026-04-20 07:08 UTC | v0.134]
+CO ZMIENIONO: Rozszerzono README o dokładny opis przepływu informacji w module oraz o szczegółowe wyjaśnienie zabezpieczeń anty-ruchowych (warstwa topic, warstwa stanu, warstwa watchdog i warstwa bridge/API).
+DLACZEGO: Użytkownik potrzebuje dokumentacji przekazywalnej dla innych osób, która jasno tłumaczy nie tylko „co”, ale też „jak” i „dlaczego” moduł blokuje ruch robota w sytuacjach ryzyka.
+JAK TO DZIAŁA: Dodane sekcje prowadzą przez pełną ścieżkę danych: od `cmd_vel_in` i sygnałów bezpieczeństwa, przez decyzję FSM, po wyjścia `cmd_vel_out` oraz `/emergency_stop/active` i reakcję bridge hard-stop.
 TODO: Dodać diagram sekwencyjny z osiami czasu (`cmd_vel`, `estop_signal`, `heartbeat`) dla trzech scenariuszy awaryjnych.
 -->
 

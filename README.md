@@ -1,16 +1,8 @@
 # ROS2 Unitree G1 light tracking PoC
 
-<!--
-[AI-CHANGE | 2026-04-27 09:51 UTC | v0.203]
-CO ZMIENIONO: Zastąpiono rozbudowaną treść README wersją skróconą, a następnie doprecyzowano ją o sekcję statusu funkcji „Mapa” (aktywna nawigacja, walidacja jakości i fallback `BRAK DANYCH`).
-DLACZEGO: Uproszczenie README skraca czas wejścia do projektu, a dopisek o mapie usuwa lukę informacyjną po wdrożeniu funkcji istotnej operacyjnie.
-JAK TO DZIAŁA: README działa jako krótki punkt startowy — użytkownik dostaje minimalny kontekst projektu, dwie ścieżki uruchomienia, odnośniki do dokumentacji oraz jawny opis bezpiecznego zachowania zakładki Mapa.
-TODO: Dodać w README krótki diagram przepływu uruchomienia (detekcja -> decyzja -> sterowanie) i screenshot zakładki Mapa dla statusów VALID/UNAVAILABLE.
--->
-
 ## 1. Czym jest pakiet
 
-`alf-light-tracking` to pakiet ROS2 do śledzenia plamki światła dla robota Unitree G1, z trybami uruchomienia zarówno na robocie, jak i lokalnie (symulacja/testy). Priorytet jakościowy projektu: **lepiej odrzucić niepewną detekcję niż zwrócić wynik błędny**.
+`alf-light-tracking` to pakiet ROS2 do śledzenia plamki światła dla robota Unitree G1, z trybami uruchomienia zarówno na robocie, jak i lokalnie (symulacja/testy).
 
 ## 2. Szybki start (headless/UI)
 

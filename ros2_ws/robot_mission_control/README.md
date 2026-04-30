@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
-CO ZMIENIONO: Uporządkowano README do jednego bloku meta, zaktualizowano opis pakietu po przejściu na `ament_cmake` oraz dodano sekcję „Mapa (zakładka UI)” z zasadami bezpieczeństwa renderowania.
-DLACZEGO: Dokument miał drugi blok AI i przestarzały opis `ament_python`, a po wdrożeniu funkcji mapy brakowało krótkiej instrukcji operatorskiej w README komponentu.
-JAK TO DZIAŁA: README zawiera jeden blok meta, spójny opis builda `ament_cmake` oraz sekcję mapy (nawigacja po etykiecie, walidacja ROS/TF/timestamp/frame, reason_code i fallback `BRAK DANYCH`).
-TODO: Dodać automatyczny lint markdown blokujący więcej niż jeden blok [AI-CHANGE] w README i rozszerzyć sekcję mapy o przykładowe payloady StateStore.
--->
-
 # robot_mission_control
 
 Aplikacja desktopowa do nadzoru misji robota (PySide6 + most ROS2).

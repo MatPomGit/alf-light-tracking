@@ -1,9 +1,3 @@
-<!-- [AI-CHANGE | 2026-04-29 13:51 UTC | v0.333] -->
-<!-- CO ZMIENIONO: Uporządkowano COMMIT_LOG.md tak, aby miał jeden blok meta na początku dokumentu. -->
-<!-- DLACZEGO: Wiele bloków AI stojących przed kolejnymi wpisami historii utrudniało czytanie dziennika zmian. -->
-<!-- JAK TO DZIAŁA: Sam log pozostaje chronologiczną listą wpisów, a dodatkowe opisy meta usunięto z treści pomiędzy sekcjami. -->
-<!-- TODO: Zautomatyzować aktualizację tego pliku hookiem commit-msg lub skryptem release. -->
-
 # Commit log — robot_mission_control
 
 ## Zakres dokumentu
@@ -86,3 +80,7 @@
 - Zmiana 1...
 - Zmiana 2...
 ```
+
+
+<!-- TODO: Zautomatyzować aktualizację tego pliku hookiem commit-msg lub skryptem release. -->
+

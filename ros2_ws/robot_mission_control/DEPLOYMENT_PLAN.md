@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
-CO ZMIENIONO: Scalono nagłówkowe opisy DEPLOYMENT_PLAN.md i zaktualizowano runtime pakietu na `ament_cmake`.
-DLACZEGO: Plan miał dwa bloki AI przed treścią i przestarzałą informację o `ament_python`, co utrudniało odczyt aktualnej procedury ROS2.
-JAK TO DZIAŁA: Dokument zaczyna się jednym blokiem meta, a granice odpowiedzialności oraz rollout pozostają zwykłą treścią operacyjną.
-TODO: Po pierwszym pilotażu uzupełnić plan o rzeczywiste czasy MTTR i listę najczęstszych reason_code.
--->
-
 # DEPLOYMENT PLAN — robot_mission_control
 
 ## Granice dokumentu (single source of truth)
@@ -95,3 +87,7 @@ bez prezentowania danych fikcyjnych (priorytet: `UNAVAILABLE` zamiast błędnego
 - Tydzień 2: korekty konfiguracji timeoutów Action.
 - Tydzień 3: analiza trendów jakości i decyzja o tuningach UI.
 - Tydzień 4: raport stabilności + decyzja o zamknięciu etapu rolloutu.
+
+
+
+<!-- TODO: Po pierwszym pilotażu uzupełnić plan o rzeczywiste czasy MTTR i listę najczęstszych reason_code. -->

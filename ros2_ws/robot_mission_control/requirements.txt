@@ -1,4 +1,4 @@
-# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
+# [CHANGE | 2026-04-24 10:48 UTC | v0.201]
 # CO ZMIENIONO: `requirements.txt` ustawiono jako profil headless (core/ROS) bez GUI.
 # DLACZEGO: Backendowe testy CI muszą działać bez PySide6 i bez sztucznych obejść środowiska.
 # JAK TO DZIAŁA: Plik deleguje do `requirements-core.txt`, a GUI instalujemy osobno z `requirements-ui.txt`.

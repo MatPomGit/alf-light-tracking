@@ -1,4 +1,4 @@
-# [AI-CHANGE | 2026-04-24 10:48 UTC | v0.201]
+# [CHANGE | 2026-04-24 10:48 UTC | v0.201]
 # CO ZMIENIONO: Dodano dedykowany zestaw zależności UI instalowany opcjonalnie.
 # DLACZEGO: Warstwa desktopowa ma inne wymagania niż backend testowany w CI headless.
 # JAK TO DZIAŁA: Instalacja `pip install .[ui]` lub `pip install -r requirements-ui.txt` doinstalowuje PySide6.

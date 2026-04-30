@@ -1,4 +1,4 @@
-# [AI-CHANGE | 2026-04-20 14:12 UTC | v0.141]
+# [CHANGE | 2026-04-20 14:12 UTC | v0.141]
 # CO ZMIENIONO: Dodano lokalne zasady pracy dla poddrzewa robot_mission_control.
 # DLACZEGO: Chcemy utrzymać spójność stylu i bezpieczne zachowanie UI w obszarze aplikacji desktopowej.
 # JAK TO DZIAŁA: Instrukcje poniżej obowiązują dla wszystkich plików w tym katalogu i niżej.
