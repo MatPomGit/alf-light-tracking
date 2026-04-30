@@ -29,6 +29,13 @@ from robot_mission_control.core import (
     STATE_KEY_BAG_INTEGRITY_STATUS,
     STATE_KEY_DATA_SOURCE_MODE,
     STATE_KEY_DEPENDENCY_STATUS,
+    STATE_KEY_MAP_DATA_QUALITY,
+    STATE_KEY_MAP_FRAME_ID,
+    STATE_KEY_MAP_REASON_CODE,
+    STATE_KEY_MAP_TF_STATUS,
+    STATE_KEY_MAP_TIMESTAMP,
+    STATE_KEY_MAP_TRAJECTORY,
+    STATE_KEY_MAP_POSITION,
     STATE_KEY_PLAYBACK_STATUS,
     STATE_KEY_RECORDING_STATUS,
     STATE_KEY_ROS_CONNECTION_STATUS,
@@ -506,12 +513,29 @@ class MainWindow(QMainWindow):
             self._connection_label.setText(f"Połączenie ROS: {connection}")
         if self._source_quality_label is not None:
             self._source_quality_label.setText(f"Jakość źródła: {self._render_quality(source_item)}")
+        self._refresh_map_tab_from_snapshot()
         if self._status_bar is not None:
             self._status_bar.showMessage(
                 f"{version_message} | STATUS: ROS={connection} PLAYBACK={playback} RECORDING={recording} "
                 f"ACTION={action_status} PROGRESS={action_progress} RESULT={action_result} INCIDENTS={incidents_count} | "
                 f"{dependency_message}"
             )
+
+    # [AI-CHANGE | 2026-04-30 16:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano cykliczne przekazywanie snapshotu mapy z MainWindow do MapTab.
+    # DLACZEGO: Zakładka mapy nie może pozostawać w stanie domyślnym; musi otrzymywać aktualny rekord store.
+    # JAK TO DZIAŁA: Podczas każdego odświeżenia UI MainWindow wyszukuje instancję MapTab i przekazuje
+    #                pełny snapshot przez adapter `update_from_store_snapshot`, który stosuje twardy fallback do None.
+    # TODO: Dodać sygnał Qt emitowany tylko przy zmianach kluczy mapy, aby ograniczyć koszt pełnego odświeżania.
+    def _refresh_map_tab_from_snapshot(self) -> None:
+        if self._tabs_panel is None:
+            return
+        snapshot = self._state_store.snapshot()
+        for index in range(self._tabs_panel.count()):
+            widget = self._tabs_panel.widget(index)
+            if isinstance(widget, MapTab):
+                widget.update_from_store_snapshot(snapshot)
+                return
 
     def _render_version_status(self) -> str:
         short_sha = self._version_metadata.short_sha or "---"
