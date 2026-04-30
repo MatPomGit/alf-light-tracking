@@ -69,8 +69,9 @@ def test_map_tab_handles_missing_tf() -> None:
 
     tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.VALID, ros_connected=True, tf_available=False, now_utc=now)
 
-    assert "missing_tf" in tab._quality_label.text()
+    assert "MAP_TF_MISSING" in tab._quality_label.text()
     assert tab._position_label.text().endswith("BRAK DANYCH")
+    assert "Co się stało:" in tab._operator_hint_label.text()
 
 
 def test_map_tab_handles_stale_timestamp() -> None:
@@ -86,7 +87,7 @@ def test_map_tab_handles_stale_timestamp() -> None:
         now_utc=now,
     )
 
-    assert "stale_timestamp" in tab._quality_label.text()
+    assert "MAP_POSE_STALE" in tab._quality_label.text()
     assert "STALE" in tab._quality_label.text()
 
 
@@ -98,7 +99,7 @@ def test_map_tab_handles_inconsistent_frame_id() -> None:
     tab.set_map_sample(sample=_sample(ts=now, frame="map"), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)
     tab.set_map_sample(sample=_sample(ts=now, frame="odom"), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)
 
-    assert "frame_mismatch" in tab._quality_label.text()
+    assert "MAP_FRAME_MISMATCH" in tab._quality_label.text()
     assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
 
 

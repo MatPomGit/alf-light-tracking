@@ -146,6 +146,18 @@ STATUS_GUIDANCE_MAP: dict[str, OperatorGuidance] = {
 #                korzystają z rozszerzonego słownika bez zmian interfejsu publicznego.
 # TODO: Dodać walidator CI, który wykryje nowy `reason_code` bez wpisu w mapie operatorskiej.
 CRITICAL_REASON_CODE_GUIDANCE_MAP: dict[str, OperatorGuidance] = {
+    "MAP_TF_MISSING": OperatorGuidance(
+        meaning="Brakuje transformacji TF dla mapy i pozycja robota nie może zostać wiarygodnie wyznaczona.",
+        action="Wstrzymaj działania zależne od lokalizacji, sprawdź publikację TF i wznowienie dopiero po potwierdzeniu poprawnych ramek.",
+    ),
+    "MAP_POSE_STALE": OperatorGuidance(
+        meaning="Ostatnia pozycja mapowa jest przeterminowana i nie reprezentuje bieżącego położenia robota.",
+        action="Nie kontynuuj ruchu krytycznego; przywróć świeży strumień lokalizacji i potwierdź aktualny timestamp.",
+    ),
+    "MAP_FRAME_MISMATCH": OperatorGuidance(
+        meaning="Odebrano niespójne frame_id dla danych mapy, więc układ odniesienia lokalizacji jest niejednoznaczny.",
+        action="Przerwij decyzje oparte o mapę, ujednolić konfigurację ramek i wznowić dopiero po spójnej walidacji frame_id.",
+    ),
     "transport_failure": OperatorGuidance(
         meaning="Transport danych przerwał się i stan systemu jest niewiarygodny.",
         action="Wstrzymaj sterowanie ruchem, sprawdź łącze i wznowienie transmisji przed kontynuacją.",
