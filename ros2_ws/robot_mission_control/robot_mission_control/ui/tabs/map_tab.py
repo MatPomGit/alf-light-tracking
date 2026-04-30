@@ -95,7 +95,7 @@ class MapTab(QWidget):
         self._operator_hint_label.setStyleSheet("color: #b7791f;")
         layout.addWidget(self._operator_hint_label)
 
-        self._availability_label = QLabel("Status panelu: NIEDOSTĘPNE W TEJ WERSJI", self)
+        self._availability_label = QLabel("Status panelu: OCZEKIWANIE NA DANE", self)
         self._availability_label.setStyleSheet("color: #aa8800;")
         layout.addWidget(self._availability_label)
 
@@ -167,6 +167,20 @@ class MapTab(QWidget):
         indicator_color = quality_color_hex(quality_item)
         self._quality_label.setText(f"Jakość danych mapy: {rendered_quality} | reason_code={reason_code}")
         self._quality_label.setStyleSheet(f"color: {indicator_color};")
+        # [AI-CHANGE | 2026-04-30 21:00 UTC | v0.201]
+        # CO ZMIENIONO: Powiązano status panelu mapy z wynikiem walidacji (`resolved_quality`)
+        #               oraz `reason_code` przez dedykowane mapowanie stanów operacyjnych.
+        # DLACZEGO: Statyczny napis „NIEDOSTĘPNE W TEJ WERSJI” nie odzwierciedlał realnej
+        #           gotowości danych i utrudniał szybką diagnostykę błędów wejścia mapy.
+        # JAK TO DZIAŁA: `_resolve_panel_status_text` zwraca jeden ze stanów: GOTOWY,
+        #                OCZEKIWANIE NA DANE, BRAK TF, ROZŁĄCZONY ROS. Wynik jest wyświetlany
+        #                zawsze po walidacji, zanim zostanie wyrenderowana reszta etykiet UI.
+        # TODO: Dodać dedykowane kolory statusu panelu zależnie od ryzyka operacyjnego stanu.
+        panel_status_text = self._resolve_panel_status_text(
+            resolved_quality=resolved_quality,
+            reason_code=reason_code,
+        )
+        self._availability_label.setText(f"Status panelu: {panel_status_text}")
 
         if resolved_quality is DataQuality.VALID and sample is not None:
             self._last_valid_position_text = sample.position_text
@@ -268,3 +282,13 @@ class MapTab(QWidget):
                 source="legacy",
             )
         self.set_map_sample(sample=sample, quality=quality, ros_connected=True, tf_available=True)
+
+    def _resolve_panel_status_text(self, *, resolved_quality: DataQuality, reason_code: str) -> str:
+        """Mapuje wynik walidacji mapy na zwięzły status gotowości panelu."""
+        if reason_code == "ros_unavailable":
+            return "ROZŁĄCZONY ROS"
+        if reason_code == "MAP_TF_MISSING":
+            return "BRAK TF"
+        if resolved_quality is DataQuality.VALID and reason_code == "ok":
+            return "GOTOWY"
+        return "OCZEKIWANIE NA DANE"
