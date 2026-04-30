@@ -1,9 +1,9 @@
 <!--
 [AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
-CO ZMIENIONO: Uporządkowano README do jednego bloku meta i zaktualizowano opis pakietu po przejściu na `ament_cmake`.
-DLACZEGO: Dokument miał drugi blok AI w środku treści oraz przestarzałą informację o `ament_python`, co utrudniało szybkie odczytanie aktualnego sposobu budowania ROS2.
-JAK TO DZIAŁA: Szczegóły E2E są opisane zwykłą treścią operacyjną, a sekcja integracji ROS2 wskazuje aktualny build `ament_cmake` z lokalnym typem Action.
-TODO: Dodać automatyczny lint markdown blokujący więcej niż jeden blok [AI-CHANGE] w README.
+CO ZMIENIONO: Uporządkowano README do jednego bloku meta, zaktualizowano opis pakietu po przejściu na `ament_cmake` oraz dodano sekcję „Mapa (zakładka UI)” z zasadami bezpieczeństwa renderowania.
+DLACZEGO: Dokument miał drugi blok AI i przestarzały opis `ament_python`, a po wdrożeniu funkcji mapy brakowało krótkiej instrukcji operatorskiej w README komponentu.
+JAK TO DZIAŁA: README zawiera jeden blok meta, spójny opis builda `ament_cmake` oraz sekcję mapy (nawigacja po etykiecie, walidacja ROS/TF/timestamp/frame, reason_code i fallback `BRAK DANYCH`).
+TODO: Dodać automatyczny lint markdown blokujący więcej niż jeden blok [AI-CHANGE] w README i rozszerzyć sekcję mapy o przykładowe payloady StateStore.
 -->
 
 # robot_mission_control
@@ -84,6 +84,12 @@ Logi są zapisywane do katalogu `logs/e2e_real_flow/`.
 - Bezpieczny fallback: przy niepewności wynik pozostaje `None`, UI pokazuje `BRAK DANYCH`.
 - W zakładce **Controls** dostępne są szybkie akcje: `Rozpocznij patrol`, `Powrót do bazy`, `Wstrzymaj misję`, `Wznów misję`.
 - Podczas aktywnego goal szybkie akcje są blokowane, by uniknąć kolizji komend.
+
+## Mapa (zakładka UI)
+
+- Przycisk **Mapa** w sidebarze jest aktywny i przełącza widok po etykiecie zakładki (nie po kruchym indeksie).
+- `MapTab` stosuje walidację bezpieczeństwa (ROS/TF/timestamp/frame) i przy degradacji czyści pozycję/trajektorię do `BRAK DANYCH`.
+- Jakość danych mapy jest pokazywana wspólnie z `reason_code`, a instrukcje operatorskie pochodzą z `operator_guidance.py`.
 
 ## Historia zmian dokumentu
 
