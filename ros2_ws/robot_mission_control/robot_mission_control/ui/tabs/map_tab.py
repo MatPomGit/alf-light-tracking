@@ -27,6 +27,9 @@ class MapSample:
 
     timestamp: datetime
     frame_id: str
+    x: float | None
+    y: float | None
+    yaw: float | None
     position_text: str | None
     trajectory_text: str | None
     source: str
@@ -53,6 +56,8 @@ class MapTab(QWidget):
         DataQuality.ERROR,
     )
     _MAX_SAMPLE_AGE_SECONDS = 2.5
+    _MAX_LINEAR_SPEED_MPS = 3.5
+    _MAX_ANGULAR_SPEED_RADPS = 2.5
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -60,6 +65,7 @@ class MapTab(QWidget):
         self._last_valid_position_text: str | None = None
         self._last_valid_trajectory_text: str | None = None
         self._last_valid_timestamp: datetime | None = None
+        self._previous_sample_for_kinematics: MapSample | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -143,6 +149,21 @@ class MapTab(QWidget):
         if sample.position_text is None:
             return (DataQuality.UNAVAILABLE, "missing_position")
 
+        # [AI-CHANGE | 2026-04-30 22:10 UTC | v0.201]
+        # CO ZMIENIONO: Dodano walidację kinematyczną porównującą bieżącą próbkę z poprzednią
+        #               oraz limity bezpieczeństwa dla prędkości liniowej/kątowej.
+        # DLACZEGO: Skoki pozycji/yaw pomiędzy próbkami często oznaczają błąd danych mapy;
+        #           zgodnie z polityką bezpieczeństwa wolimy odrzucić próbkę niż pokazać fałszywą lokalizację.
+        # JAK TO DZIAŁA: `_validate_kinematics_against_previous_sample` zwraca reason_code dla outliera
+        #                (UNAVAILABLE przy pojedynczym braku danych wejściowych albo ERROR przy przekroczeniu limitów),
+        #                a dla poprawnej próbki zwraca `ok`.
+        # TODO: Zastąpić limity stałe wartościami dynamicznymi zależnymi od trybu robota i klasy platformy.
+        kinematic_quality, kinematic_reason = self._validate_kinematics_against_previous_sample(
+            current_sample=sample
+        )
+        if kinematic_quality is not DataQuality.VALID:
+            return (kinematic_quality, kinematic_reason)
+
         return (DataQuality.VALID, "ok")
 
     def set_map_sample(
@@ -183,6 +204,7 @@ class MapTab(QWidget):
         self._availability_label.setText(f"Status panelu: {panel_status_text}")
 
         if resolved_quality is DataQuality.VALID and sample is not None:
+            self._previous_sample_for_kinematics = sample
             self._last_valid_position_text = sample.position_text
             self._last_valid_trajectory_text = sample.trajectory_text
             self._last_valid_timestamp = sample.timestamp
@@ -223,6 +245,44 @@ class MapTab(QWidget):
         )
         self._operator_hint_label.setStyleSheet("color: #b7791f;")
 
+    # [AI-CHANGE | 2026-04-30 22:10 UTC | v0.201]
+    # CO ZMIENIONO: Dodano metodę do walidacji kinematyki względem poprzedniej próbki mapy.
+    # DLACZEGO: Wczesne wykrycie niefizycznych skoków pozycji/kąta chroni operatora przed fałszywym obrazem sytuacji.
+    # JAK TO DZIAŁA: Jeśli brakuje którejkolwiek danej liczbowej lub czasu, metoda zwraca bezpieczny stan
+    #                `UNAVAILABLE`; jeśli limity są przekroczone, zwraca `ERROR` z `MAP_KINEMATIC_OUTLIER`.
+    # TODO: Rozważyć licznik kolejnych outlierów i eskalację do osobnego kodu alarmowego dla dłuższych serii.
+    def _validate_kinematics_against_previous_sample(
+        self, *, current_sample: MapSample
+    ) -> tuple[DataQuality, str]:
+        previous_sample = self._previous_sample_for_kinematics
+        if previous_sample is None:
+            return (DataQuality.VALID, "ok")
+
+        if (
+            current_sample.x is None
+            or current_sample.y is None
+            or current_sample.yaw is None
+            or previous_sample.x is None
+            or previous_sample.y is None
+            or previous_sample.yaw is None
+        ):
+            return (DataQuality.UNAVAILABLE, "MAP_KINEMATIC_INPUT_MISSING")
+
+        dt_seconds = (current_sample.timestamp - previous_sample.timestamp).total_seconds()
+        if dt_seconds <= 0.0:
+            return (DataQuality.UNAVAILABLE, "MAP_KINEMATIC_NON_MONOTONIC_TIME")
+
+        dx = current_sample.x - previous_sample.x
+        dy = current_sample.y - previous_sample.y
+        dyaw = abs(current_sample.yaw - previous_sample.yaw)
+        linear_speed = (dx * dx + dy * dy) ** 0.5 / dt_seconds
+        angular_speed = dyaw / dt_seconds
+
+        if linear_speed > self._MAX_LINEAR_SPEED_MPS or angular_speed > self._MAX_ANGULAR_SPEED_RADPS:
+            return (DataQuality.ERROR, "MAP_KINEMATIC_OUTLIER")
+
+        return (DataQuality.VALID, "ok")
+
     # [AI-CHANGE | 2026-04-30 16:20 UTC | v0.201]
     # CO ZMIENIONO: Dodano adapter mapujący rekord snapshotu store na `MapSample`.
     # DLACZEGO: UI wymaga jednego miejsca konwersji kontraktu mapy i twardego odrzucenia danych niekompletnych.
@@ -257,6 +317,9 @@ class MapTab(QWidget):
                 sample = MapSample(
                     timestamp=ts_val,
                     frame_id=frame_val,
+                    x=float(pos_val[0]),
+                    y=float(pos_val[1]),
+                    yaw=0.0,
                     position_text=f"x={pos_val[0]:.2f}, y={pos_val[1]:.2f}",
                     trajectory_text=trajectory_text,
                     source=position_item.source,
@@ -277,6 +340,9 @@ class MapTab(QWidget):
             sample = MapSample(
                 timestamp=datetime.now(timezone.utc),
                 frame_id="map",
+                x=None,
+                y=None,
+                yaw=None,
                 position_text=position_text,
                 trajectory_text=None,
                 source="legacy",
