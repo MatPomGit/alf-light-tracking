@@ -287,3 +287,103 @@ def test_map_tab_rejects_series_of_kinematic_outliers() -> None:
         tab.set_map_sample(sample=outlier, quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=outlier.timestamp)
         assert "MAP_KINEMATIC_OUTLIER" in tab._quality_label.text()
         assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
+
+
+# [AI-CHANGE | 2026-04-30 23:40 UTC | v0.199]
+# CO ZMIENIONO: Dodano negatywne testy schematu wejściowego `validate_map_sample` dla błędnych typów/formatów:
+#               naive datetime, pusty frame/source, puste `position_text` oraz runtime exception.
+# DLACZEGO: Walidator musi zawsze zwracać bezpieczny wynik (`ERROR` + reason_code), a nie generować wyjątek w UI.
+# JAK TO DZIAŁA: Każdy test tworzy uszkodzoną próbkę i sprawdza finalne etykiety po `set_map_sample` oraz
+#                bezpośredni wynik `validate_map_sample`, oczekując `MAP_SAMPLE_INVALID_SCHEMA`.
+# TODO: Rozszerzyć przypadki o błędy serializacji z realnego transportu ROS (np. `timestamp=None` po deserializacji).
+@pytest.mark.parametrize(
+    "sample",
+    [
+        MapSample(
+            timestamp=datetime(2026, 4, 30, 12, 0, 0),
+            frame_id="map",
+            x=1.0,
+            y=2.0,
+            yaw=0.0,
+            position_text="X=1.0 Y=2.0",
+            trajectory_text="traj",
+            source="odom",
+        ),
+        MapSample(
+            timestamp=datetime(2026, 4, 30, 12, 0, 0, tzinfo=timezone.utc),
+            frame_id="   ",
+            x=1.0,
+            y=2.0,
+            yaw=0.0,
+            position_text="X=1.0 Y=2.0",
+            trajectory_text="traj",
+            source="odom",
+        ),
+        MapSample(
+            timestamp=datetime(2026, 4, 30, 12, 0, 0, tzinfo=timezone.utc),
+            frame_id="map",
+            x=1.0,
+            y=2.0,
+            yaw=0.0,
+            position_text="X=1.0 Y=2.0",
+            trajectory_text="traj",
+            source="  ",
+        ),
+        MapSample(
+            timestamp=datetime(2026, 4, 30, 12, 0, 0, tzinfo=timezone.utc),
+            frame_id="map",
+            x=1.0,
+            y=2.0,
+            yaw=0.0,
+            position_text="",
+            trajectory_text="traj",
+            source="odom",
+        ),
+    ],
+)
+def test_map_tab_returns_safe_error_for_invalid_schema_variants(sample: MapSample) -> None:
+    _ensure_qapplication()
+    tab = MapTab()
+    now_utc = datetime(2026, 4, 30, 12, 0, 1, tzinfo=timezone.utc)
+
+    quality, reason_code = tab.validate_map_sample(
+        sample=sample,
+        quality=DataQuality.VALID,
+        ros_connected=True,
+        tf_available=True,
+        now_utc=now_utc,
+    )
+    assert quality is DataQuality.ERROR
+    assert reason_code == "MAP_SAMPLE_INVALID_SCHEMA"
+
+    tab.set_map_sample(sample=sample, quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now_utc)
+    assert "reason_code=MAP_SAMPLE_INVALID_SCHEMA" in tab._quality_label.text()
+    assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
+
+
+def test_map_tab_validate_map_sample_catches_runtime_exception() -> None:
+    _ensure_qapplication()
+    tab = MapTab()
+    now = datetime.now(timezone.utc)
+
+    broken_sample = MapSample(
+        timestamp=now,
+        frame_id="map",
+        x=1.0,
+        y=2.0,
+        yaw=0.0,
+        position_text="X=1.0 Y=2.0",
+        trajectory_text="traj",
+        source="odom",
+    )
+    object.__setattr__(broken_sample, "timestamp", "2026-04-30T12:00:00Z")
+
+    quality, reason_code = tab.validate_map_sample(
+        sample=broken_sample,
+        quality=DataQuality.VALID,
+        ros_connected=True,
+        tf_available=True,
+        now_utc=now,
+    )
+    assert quality is DataQuality.ERROR
+    assert reason_code == "MAP_SAMPLE_INVALID_SCHEMA"
