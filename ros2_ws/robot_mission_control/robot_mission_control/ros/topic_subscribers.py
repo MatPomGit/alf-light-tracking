@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from robot_mission_control.core.models import MapPoseState
 from robot_mission_control.core.state_store import StateStore
 from robot_mission_control.ros.dependency_audit_client import DependencyAuditClient
 
@@ -386,3 +387,83 @@ class TelemetryTopicSubscribers:
         self._state_store.set_with_inference(key=tf_status_key, value=tf_status if data_quality == "VALID" else None, source=source, timestamp=normalized_timestamp, reason_code=inferred_reason)
         self._state_store.set_with_inference(key=data_quality_key, value=data_quality, source=source, timestamp=normalized_timestamp, reason_code=inferred_reason)
         self._state_store.set_with_inference(key=reason_code_key, value=inferred_reason or "ok", source=source, timestamp=normalized_timestamp)
+
+    # [AI-CHANGE | 2026-04-30 12:35 UTC | v0.200]
+    # CO ZMIENIONO: Dodano mapowanie surowego payloadu mapy bezpośrednio do modelu `MapPoseState`
+    #               oraz zapis tego modelu do `StateStore`.
+    # DLACZEGO: Centralny kontrakt modelu eliminuje duplikację transformacji i ogranicza ryzyko
+    #           niespójności pól między ROS bridge, store i UI.
+    # JAK TO DZIAŁA: Metoda waliduje surowy payload. Dla niekompletnych/uszkodzonych danych zapisuje
+    #                `MapPoseState` z `quality=UNAVAILABLE/ERROR` i pustą pozycją, zgodnie z zasadą
+    #                „lepiej brak wyniku niż błędny wynik”. Dla poprawnych danych zapisuje `VALID`.
+    # TODO: Rozszerzyć mapowanie o normalizację jednostek i walidację frame_id względem konfiguracji.
+    def on_map_state(
+        self,
+        *,
+        state_key: str,
+        payload: dict[str, Any] | None,
+        source: str,
+        sample_timestamp: datetime,
+        correlation_id: str,
+    ) -> None:
+        normalized_timestamp = self._normalize_timestamp(sample_timestamp)
+        if payload is None:
+            self._state_store.set_with_inference(
+                key=state_key,
+                value=MapPoseState(
+                    timestamp=None,
+                    frame_id=None,
+                    position=None,
+                    trajectory=None,
+                    source=source,
+                    quality="UNAVAILABLE",
+                    reason_code="map_state_missing",
+                ),
+                source=source,
+                timestamp=normalized_timestamp,
+                reason_code="map_state_missing",
+            )
+            return
+        try:
+            position_raw = payload["position"]
+            position = (float(position_raw["x"]), float(position_raw["y"]))
+            frame_id = str(payload["frame_id"])
+            trajectory_raw = payload.get("trajectory", [])
+            trajectory = tuple((float(point["x"]), float(point["y"])) for point in trajectory_raw)
+        except (KeyError, TypeError, ValueError):
+            invalid_state = MapPoseState(
+                timestamp=None,
+                frame_id=None,
+                position=None,
+                trajectory=None,
+                source=source,
+                quality="ERROR",
+                reason_code="map_state_invalid",
+            )
+            self._state_store.set_with_inference(
+                key=state_key,
+                value=invalid_state,
+                source=source,
+                timestamp=normalized_timestamp,
+                is_corrupted=True,
+                reason_code="map_state_invalid",
+            )
+            self._log_rejection(reason="map_state_invalid", correlation_id=correlation_id, details={"source": source})
+            return
+
+        valid_state = MapPoseState(
+            timestamp=normalized_timestamp,
+            frame_id=frame_id,
+            position=position,
+            trajectory=trajectory,
+            source=source,
+            quality="VALID",
+            reason_code=None,
+        )
+        self._state_store.set_with_inference(
+            key=state_key,
+            value=valid_state,
+            source=source,
+            timestamp=normalized_timestamp,
+            max_age=self._max_timestamp_drift,
+        )

@@ -222,6 +222,22 @@ class StateStore:
         with self._lock:
             return self._state.get(key)
 
+    # [AI-CHANGE | 2026-04-30 12:35 UTC | v0.200]
+    # CO ZMIENIONO: Dodano jawny helper do zapisu znormalizowanego modelu mapy do store.
+    # DLACZEGO: Ujednolicenie ścieżki zapisu modelu mapy upraszcza kontrakt i ogranicza
+    #           ryzyko, że różne moduły zapiszą niespójne pola jakości/reason_code.
+    # JAK TO DZIAŁA: Helper jest cienką nakładką na `set_with_inference` i utrzymuje
+    #                tę samą semantykę jakości (VALID/STALE/UNAVAILABLE/ERROR).
+    # TODO: Dodać dedykowany typ generyczny dla wartości mapy zamiast `Any` w interfejsie helpera.
+    def set_map_state(self, *, key: str, value: Any, source: str, timestamp: datetime | None, reason_code: str | None = None) -> StateValue:
+        return self.set_with_inference(
+            key=key,
+            value=value,
+            source=source,
+            timestamp=timestamp,
+            reason_code=reason_code,
+        )
+
     def snapshot(self) -> dict[str, StateValue]:
         """Read atomic snapshot for full UI render pass."""
         with self._lock:
