@@ -31,6 +31,9 @@ def _sample(*, ts: datetime, frame: str = "map", source: str = "odom") -> MapSam
     return MapSample(
         timestamp=ts,
         frame_id=frame,
+        x=1.0,
+        y=2.0,
+        yaw=0.1,
         position_text="X=1.0 Y=2.0",
         trajectory_text="(0,0)->(1,2)",
         source=source,
@@ -189,3 +192,65 @@ def test_map_tab_maps_panel_status_for_ready_and_waiting_states() -> None:
 
     tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.STALE, ros_connected=True, tf_available=True, now_utc=now)
     assert tab._availability_label.text() == "Status panelu: OCZEKIWANIE NA DANE"
+
+
+# [AI-CHANGE | 2026-04-30 22:10 UTC | v0.201]
+# CO ZMIENIONO: Dodano testy graniczne walidacji kinematyki: ruch poprawny, pojedynczy outlier
+#               oraz seria kolejnych outlierów utrzymująca blokadę renderowania.
+# DLACZEGO: To zabezpiecza wymaganie bezpieczeństwa „lepiej brak danych niż błędna pozycja/trajektoria”.
+# JAK TO DZIAŁA: Testy porównują próbki z kontrolowanym krokiem czasu i sprawdzają reason_code,
+#                jakość oraz etykiety pozycji/trajektorii po wykryciu przekroczeń limitów.
+# TODO: Dodać osobny test dla skoku kąta (`yaw`) bez istotnego ruchu liniowego.
+def test_map_tab_accepts_kinematically_valid_motion() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    first = MapSample(timestamp=now, frame_id="map", x=0.0, y=0.0, yaw=0.0, position_text="x=0.00,y=0.00", trajectory_text=None, source="odom")
+    second = MapSample(timestamp=now + timedelta(seconds=1), frame_id="map", x=0.5, y=0.0, yaw=0.2, position_text="x=0.50,y=0.00", trajectory_text=None, source="odom")
+
+    tab.set_map_sample(sample=first, quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=first.timestamp)
+    tab.set_map_sample(sample=second, quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=second.timestamp)
+
+    assert "reason_code=ok" in tab._quality_label.text()
+    assert tab._position_label.text() == "Pozycja: x=0.50,y=0.00"
+
+
+def test_map_tab_rejects_single_kinematic_outlier() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    base = MapSample(timestamp=now, frame_id="map", x=0.0, y=0.0, yaw=0.0, position_text="x=0.00,y=0.00", trajectory_text=None, source="odom")
+    outlier = MapSample(timestamp=now + timedelta(seconds=1), frame_id="map", x=25.0, y=0.0, yaw=4.0, position_text="x=25.00,y=0.00", trajectory_text=None, source="odom")
+
+    tab.set_map_sample(sample=base, quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=base.timestamp)
+    tab.set_map_sample(sample=outlier, quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=outlier.timestamp)
+
+    assert "MAP_KINEMATIC_OUTLIER" in tab._quality_label.text()
+    assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
+    assert tab._trajectory_label.text() == "Trajektoria: BRAK DANYCH"
+
+
+def test_map_tab_rejects_series_of_kinematic_outliers() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    valid_seed = MapSample(timestamp=now, frame_id="map", x=0.0, y=0.0, yaw=0.0, position_text="x=0.00,y=0.00", trajectory_text=None, source="odom")
+    tab.set_map_sample(sample=valid_seed, quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=valid_seed.timestamp)
+
+    for i in range(1, 4):
+        outlier = MapSample(
+            timestamp=now + timedelta(seconds=i),
+            frame_id="map",
+            x=20.0 * i,
+            y=0.0,
+            yaw=3.5 * i,
+            position_text=f"x={20.0 * i:.2f},y=0.00",
+            trajectory_text=None,
+            source="odom",
+        )
+        tab.set_map_sample(sample=outlier, quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=outlier.timestamp)
+        assert "MAP_KINEMATIC_OUTLIER" in tab._quality_label.text()
+        assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
