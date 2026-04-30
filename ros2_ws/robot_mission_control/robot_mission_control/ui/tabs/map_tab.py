@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
+from robot_mission_control.core.models import MapPoseState
 from robot_mission_control.core import (
     STATE_KEY_MAP_DATA_QUALITY,
     STATE_KEY_MAP_FRAME_ID,
@@ -323,6 +324,7 @@ class MapTab(QWidget):
     #                pole krytyczne jest niepoprawne, przekazuje do `set_map_sample` wartość `sample=None`.
     # TODO: Rozszerzyć adapter o walidację monotoniczności timestamp dla wykrywania cofnięć czasu.
     def update_from_store_snapshot(self, snapshot: dict[str, StateValue]) -> None:
+        map_state_item = snapshot.get("map_pose")
         position_item = snapshot.get(STATE_KEY_MAP_POSITION)
         frame_item = snapshot.get(STATE_KEY_MAP_FRAME_ID)
         timestamp_item = snapshot.get(STATE_KEY_MAP_TIMESTAMP)
@@ -331,7 +333,41 @@ class MapTab(QWidget):
         quality_item = snapshot.get(STATE_KEY_MAP_DATA_QUALITY)
         reason_item = snapshot.get(STATE_KEY_MAP_REASON_CODE)
 
+        # [AI-CHANGE | 2026-04-30 12:35 UTC | v0.200]
+        # CO ZMIENIONO: Priorytetowo czytamy gotowy model `MapPoseState` ze store i ograniczamy
+        #               lokalną transformację wyłącznie do renderowania etykiet.
+        # DLACZEGO: Konwersja powinna być wykonana wcześniej (ROS bridge), aby `MapTab` nie dublował
+        #           logiki mapowania i skupiał się na safety-check + prezentacji.
+        # JAK TO DZIAŁA: Jeśli `map_pose` zawiera poprawny `MapPoseState`, budujemy `MapSample`
+        #                bez odczytu rozproszonych pól. Gdy modelu brak, używamy istniejącego
+        #                fallbacku na osobne klucze dla kompatybilności wstecznej.
+        # TODO: Po pełnej migracji usunąć fallback na rozproszone klucze i zostawić tylko model.
         sample: MapSample | None = None
+        if map_state_item is not None and isinstance(map_state_item.value, MapPoseState):
+            model = map_state_item.value
+            if (
+                model.quality == "VALID"
+                and isinstance(model.timestamp, datetime)
+                and isinstance(model.frame_id, str)
+                and isinstance(model.position, tuple)
+                and len(model.position) == 2
+            ):
+                trajectory_text = f"points={len(model.trajectory)}" if model.trajectory is not None else None
+                sample = MapSample(
+                    timestamp=model.timestamp,
+                    frame_id=model.frame_id,
+                    x=float(model.position[0]),
+                    y=float(model.position[1]),
+                    yaw=0.0,
+                    position_text=f"x={model.position[0]:.2f}, y={model.position[1]:.2f}",
+                    trajectory_text=trajectory_text,
+                    source=model.source,
+                )
+            quality = DataQuality[model.quality] if model.quality in DataQuality.__members__ else DataQuality.ERROR
+            ros_connected = True
+            tf_available = True
+            self.set_map_sample(sample=sample, quality=quality, ros_connected=ros_connected, tf_available=tf_available)
+            return
         if all(item is not None for item in (position_item, frame_item, timestamp_item, tf_status_item)):
             pos_val = position_item.value if position_item else None
             frame_val = frame_item.value if frame_item else None

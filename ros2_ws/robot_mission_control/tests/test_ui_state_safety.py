@@ -769,3 +769,59 @@ def test_main_window_refreshes_map_tab_from_store_snapshot_end_to_end() -> None:
 
     assert map_tab._position_label.text() == "Pozycja: x=1.20, y=3.40"
     assert "VALID" in map_tab._quality_label.text()
+
+
+# [AI-CHANGE | 2026-04-30 12:35 UTC | v0.200]
+# CO ZMIENIONO: Dodano test bezpieczeństwa UI dla ścieżki `MapPoseState` pobieranej bezpośrednio ze store.
+# DLACZEGO: `MapTab` ma minimalizować lokalne transformacje i renderować wyłącznie poprawny model kontraktowy.
+# JAK TO DZIAŁA: Test zasila `STATE_KEY_MAP_POSE` modelem `MapPoseState` i weryfikuje poprawny render pozycji;
+#                następnie podaje model zdegradowany i sprawdza bezpieczny fallback `BRAK DANYCH`.
+# TODO: Dodać wariant z `quality=ERROR` i reason_code `MAP_KINEMATIC_OUTLIER` dla pełnej ścieżki guidance.
+def test_map_tab_prefers_map_pose_state_model_and_applies_safe_fallback() -> None:
+    _ensure_qapplication()
+    from robot_mission_control.core.models import MapPoseState
+    from robot_mission_control.ui.tabs.map_tab import MapTab
+
+    tab = MapTab()
+    now = datetime.now(timezone.utc)
+    tab.update_from_store_snapshot(
+        {
+            STATE_KEY_MAP_POSE: StateValue(
+                value=MapPoseState(
+                    timestamp=now,
+                    frame_id="map",
+                    position=(4.2, -1.0),
+                    trajectory=((4.2, -1.0),),
+                    source="map_source",
+                    quality="VALID",
+                    reason_code=None,
+                ),
+                timestamp=now,
+                source="map_source",
+                quality=DataQuality.VALID,
+                reason_code=None,
+            )
+        }
+    )
+    assert tab._position_label.text() == "Pozycja: x=4.20, y=-1.00"
+
+    tab.update_from_store_snapshot(
+        {
+            STATE_KEY_MAP_POSE: StateValue(
+                value=MapPoseState(
+                    timestamp=None,
+                    frame_id=None,
+                    position=None,
+                    trajectory=None,
+                    source="map_source",
+                    quality="UNAVAILABLE",
+                    reason_code="map_state_missing",
+                ),
+                timestamp=now,
+                source="map_source",
+                quality=DataQuality.VALID,
+                reason_code=None,
+            )
+        }
+    )
+    assert tab._position_label.text() == "Pozycja: BRAK DANYCH"

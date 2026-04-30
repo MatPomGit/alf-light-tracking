@@ -83,3 +83,25 @@ class MapSnapshotContract:
     tf_status: str | None
     data_quality: str
     reason_code: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class MapPoseState:
+    """Kontrakt pojedynczego stanu mapy przekazywanego ROS -> store -> UI."""
+
+    # [AI-CHANGE | 2026-04-30 12:35 UTC | v0.200]
+    # CO ZMIENIONO: Dodano nowy model domenowy `MapPoseState` z polami:
+    #               timestamp, frame_id, position, trajectory, source, quality, reason_code.
+    # DLACZEGO: Potrzebny jest pojedynczy i jawny kontrakt danych mapy, żeby uniknąć lokalnych
+    #           transformacji rozsianych po UI i zredukować ryzyko renderu błędnej pozycji.
+    # JAK TO DZIAŁA: Model przenosi komplet danych + metadane jakości. Warstwa ROS mapuje
+    #                surowe payloady do tej dataclass, store przechowuje obiekt, a UI wykonuje
+    #                jedynie lekki render i lokalne safety checks.
+    # TODO: Dodać walidator zakresów pozycji/trajectory (np. limity mapy) bezpośrednio w modelu.
+    timestamp: datetime | None
+    frame_id: str | None
+    position: tuple[float, float] | None
+    trajectory: tuple[tuple[float, float], ...] | None
+    source: str
+    quality: str
+    reason_code: str | None
