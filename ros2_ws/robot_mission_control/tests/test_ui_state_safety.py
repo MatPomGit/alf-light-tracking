@@ -664,3 +664,44 @@ def test_rosbag_tab_filters_log_and_counts_blocked_actions() -> None:
     assert "[BLOCKED]" in rosbag_tab._event_log_view.toPlainText()
     assert "start_playback=1" in rosbag_tab._blocked_telemetry_label.text()
     assert "start_recording=1" in rosbag_tab._blocked_telemetry_label.text()
+
+# [AI-CHANGE | 2026-04-30 14:20 UTC | v0.201]
+# CO ZMIENIONO: Dodano test nawigacji sidebaru dla przycisku „Mapa”, weryfikujący bezpieczny fallback
+#               oraz brak zależności od indeksu kart w `QTabWidget`.
+# DLACZEGO: Przy zmianie kolejności kart przełączanie po indeksie jest podatne na regresję i może
+#           otworzyć nieprawidłowy widok operatorski.
+# JAK TO DZIAŁA: Test tworzy MainWindow, dynamicznie dodaje kartę „Map”, przestawia jej pozycję,
+#                a następnie wywołuje `_activate_map_navigation()` i sprawdza poprawne przełączenie.
+#                Dodatkowo sprawdza przypadek braku karty, gdzie indeks aktywnej zakładki nie zmienia się.
+# TODO: Rozszerzyć test o symulację realnego kliknięcia QPushButton „Mapa” (QTest.mouseClick) po stabilizacji CI Qt.
+def test_main_window_map_navigation_uses_label_lookup_and_safe_fallback() -> None:
+    _ensure_qapplication()
+
+    from robot_mission_control.core import Supervisor
+    from robot_mission_control.ui.main_window import MainWindow
+    from robot_mission_control.versioning import VersionMetadata
+
+    window = MainWindow(
+        state_store=StateStore(),
+        supervisor=Supervisor(),
+        version_metadata=VersionMetadata(commit_count=201, short_sha="testsha", build_time_utc="2026-04-30T14:20:00Z", source="test"),
+        ui_timer_intervals_ms={"main_window_refresh_interval_ms": 60000},
+    )
+    window._refresh_timer.stop()
+
+    assert window._tabs_panel is not None
+    tabs = window._tabs_panel
+    initial_index = tabs.currentIndex()
+
+    map_widget = QWidget()
+    map_index = tabs.addTab(map_widget, "Map")
+    assert map_index >= 0
+
+    tabs.tabBar().moveTab(map_index, 0)
+    window._activate_map_navigation()
+    assert tabs.currentWidget() is map_widget
+
+    tabs.removeTab(tabs.indexOf(map_widget))
+    tabs.setCurrentIndex(initial_index)
+    window._activate_map_navigation()
+    assert tabs.currentIndex() == initial_index
