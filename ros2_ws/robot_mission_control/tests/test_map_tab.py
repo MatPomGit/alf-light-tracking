@@ -1,26 +1,40 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 qt_widgets = pytest.importorskip("PySide6.QtWidgets", reason="Brak bibliotek systemowych Qt (np. libGL) w środowisku testowym.")
 QApplication = qt_widgets.QApplication
 
 from robot_mission_control.core import DataQuality
-from robot_mission_control.ui.tabs.map_tab import MapTab
+from robot_mission_control.ui.tabs.map_tab import MapSample, MapTab
 
 
-# [AI-CHANGE | 2026-04-30 10:28 UTC | v0.201]
-# CO ZMIENIONO: Dodano minimalne testy importu i inicjalizacji nowej zakładki `MapTab`.
-# DLACZEGO: Potrzebna jest szybka regresja potwierdzająca bezpieczny stan startowy (`BRAK DANYCH`)
-#           i jawne statusy jakości bez domyślnego wyświetlania pozycji.
-# JAK TO DZIAŁA: Testy uruchamiają kartę w headless Qt i asertywnie sprawdzają etykiety startowe
-#                oraz zachowanie metody `set_map_status` dla jakości VALID/STALE.
-# TODO: Dodać testy integracyjne z MainWindow, które potwierdzą aktualizację mapy ze StateStore.
+# [AI-CHANGE | 2026-04-30 12:10 UTC | v0.201]
+# CO ZMIENIONO: Rozbudowano testy `MapTab` o przypadki brzegowe walidacji próbek mapy:
+#               brak TF, przeterminowany timestamp, niespójny frame_id, brak połączenia ROS
+#               oraz kontrolę, że przy degradacji nie utrzymujemy historycznej pozycji jako bieżącej.
+# DLACZEGO: Te scenariusze są krytyczne dla bezpieczeństwa operatorskiego i muszą gwarantować,
+#           że UI preferuje `BRAK DANYCH` zamiast ryzykownej prezentacji pozycji.
+# JAK TO DZIAŁA: Testy budują próbki `MapSample`, uruchamiają `set_map_sample` i sprawdzają etykiety
+#                jakości/pozycji/trajektorii oraz reason_code wynikający z walidacji.
+# TODO: Dodać test integracyjny z rzeczywistym feedem `tf2` i symulacją utraty pojedynczych ramek.
 def _ensure_qapplication() -> QApplication:
     app = QApplication.instance()
     if app is None:
         app = QApplication([])
     return app
+
+
+def _sample(*, ts: datetime, frame: str = "map", source: str = "odom") -> MapSample:
+    return MapSample(
+        timestamp=ts,
+        frame_id=frame,
+        position_text="X=1.0 Y=2.0",
+        trajectory_text="(0,0)->(1,2)",
+        source=source,
+    )
 
 
 def test_map_tab_initializes_with_safe_defaults() -> None:
@@ -29,16 +43,91 @@ def test_map_tab_initializes_with_safe_defaults() -> None:
     tab = MapTab()
 
     assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
-    assert tab._quality_label.text() == "Jakość danych mapy: UNAVAILABLE"
+    assert tab._trajectory_label.text() == "Trajektoria: BRAK DANYCH"
+    assert "UNAVAILABLE" in tab._quality_label.text()
 
 
-def test_map_tab_set_map_status_respects_quality_gate() -> None:
+def test_map_tab_renders_position_only_for_valid_quality() -> None:
     _ensure_qapplication()
-
+    now = datetime.now(timezone.utc)
     tab = MapTab()
-    tab.set_map_status(DataQuality.VALID, position_text="X=1.0 Y=2.0")
+
+    tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)
+    assert tab._position_label.text() == "Pozycja: X=1.0 Y=2.0"
+    assert tab._trajectory_label.text() == "Trajektoria: (0,0)->(1,2)"
+
+    tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.STALE, ros_connected=True, tf_available=True, now_utc=now)
+    assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
+    assert tab._trajectory_label.text() == "Trajektoria: BRAK DANYCH"
+    assert "degraded_input_quality:STALE" in tab._quality_label.text()
+
+
+def test_map_tab_handles_missing_tf() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.VALID, ros_connected=True, tf_available=False, now_utc=now)
+
+    assert "missing_tf" in tab._quality_label.text()
+    assert tab._position_label.text().endswith("BRAK DANYCH")
+
+
+def test_map_tab_handles_stale_timestamp() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    tab.set_map_sample(
+        sample=_sample(ts=now - timedelta(seconds=30)),
+        quality=DataQuality.VALID,
+        ros_connected=True,
+        tf_available=True,
+        now_utc=now,
+    )
+
+    assert "stale_timestamp" in tab._quality_label.text()
+    assert "STALE" in tab._quality_label.text()
+
+
+def test_map_tab_handles_inconsistent_frame_id() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    tab.set_map_sample(sample=_sample(ts=now, frame="map"), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)
+    tab.set_map_sample(sample=_sample(ts=now, frame="odom"), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)
+
+    assert "frame_mismatch" in tab._quality_label.text()
+    assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
+
+
+def test_map_tab_handles_ros_disconnection() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.VALID, ros_connected=False, tf_available=True, now_utc=now)
+
+    assert "ros_disconnected" in tab._quality_label.text()
+    assert tab._source_label.text() == "Źródło danych: BRAK DANYCH"
+
+
+def test_map_tab_does_not_show_historical_data_as_current_after_degradation() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)
     assert tab._position_label.text() == "Pozycja: X=1.0 Y=2.0"
 
-    tab.set_map_status(DataQuality.STALE, position_text="X=9.9 Y=9.9")
+    tab.set_map_sample(
+        sample=_sample(ts=now - timedelta(seconds=60), source="tf"),
+        quality=DataQuality.VALID,
+        ros_connected=True,
+        tf_available=True,
+        now_utc=now,
+    )
+
     assert tab._position_label.text() == "Pozycja: BRAK DANYCH"
-    assert tab._quality_label.text() == "Jakość danych mapy: STALE"
+    assert tab._trajectory_label.text() == "Trajektoria: BRAK DANYCH"
