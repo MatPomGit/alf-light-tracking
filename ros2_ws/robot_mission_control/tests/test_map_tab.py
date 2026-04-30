@@ -46,6 +46,7 @@ def test_map_tab_initializes_with_safe_defaults() -> None:
     assert tab._trajectory_label.text() == "Trajektoria: BRAK DANYCH"
     assert "historyczne" in tab._historical_label.text()
     assert "UNAVAILABLE" in tab._quality_label.text()
+    assert tab._availability_label.text() == "Status panelu: OCZEKIWANIE NA DANE"
 
 
 def test_map_tab_renders_position_only_for_valid_quality() -> None:
@@ -73,6 +74,7 @@ def test_map_tab_handles_missing_tf() -> None:
     assert "MAP_TF_MISSING" in tab._quality_label.text()
     assert tab._position_label.text().endswith("BRAK DANYCH")
     assert "Co się stało:" in tab._operator_hint_label.text()
+    assert tab._availability_label.text() == "Status panelu: BRAK TF"
 
 
 def test_map_tab_handles_stale_timestamp() -> None:
@@ -122,6 +124,7 @@ def test_map_tab_handles_ros_disconnection() -> None:
     assert "ros_unavailable" in tab._quality_label.text()
     assert "Warstwa ROS jest niedostępna" in tab._operator_hint_label.text()
     assert tab._source_label.text() == "Źródło danych: BRAK DANYCH"
+    assert tab._availability_label.text() == "Status panelu: ROZŁĄCZONY ROS"
 
 
 def test_map_tab_does_not_show_historical_data_as_current_after_degradation() -> None:
@@ -168,3 +171,21 @@ def test_map_tab_keeps_historical_sample_out_of_current_labels_for_stale_quality
     assert tab._trajectory_label.text() == "Trajektoria: BRAK DANYCH"
     assert "historyczne" in tab._historical_label.text()
     assert "X=1.0 Y=2.0" in tab._historical_label.text()
+
+
+# [AI-CHANGE | 2026-04-30 21:00 UTC | v0.201]
+# CO ZMIENIONO: Dodano test mapowania statusu panelu na podstawie walidacji próbki i reason_code.
+# DLACZEGO: Wymagane jest potwierdzenie, że etykieta statusu odzwierciedla realną gotowość danych mapy.
+# JAK TO DZIAŁA: Test przechodzi przez sekwencję stanów: GOTOWY -> OCZEKIWANIE NA DANE
+#                (degradacja jakości wejścia) i sprawdza końcowe etykiety UI.
+# TODO: Rozszerzyć test o weryfikację spójności kolorów statusu po wdrożeniu dedykowanego kodowania barw.
+def test_map_tab_maps_panel_status_for_ready_and_waiting_states() -> None:
+    _ensure_qapplication()
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+
+    tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)
+    assert tab._availability_label.text() == "Status panelu: GOTOWY"
+
+    tab.set_map_sample(sample=_sample(ts=now), quality=DataQuality.STALE, ros_connected=True, tf_available=True, now_utc=now)
+    assert tab._availability_label.text() == "Status panelu: OCZEKIWANIE NA DANE"
