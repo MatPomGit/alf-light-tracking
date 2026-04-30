@@ -504,9 +504,18 @@ class MainWindow(QMainWindow):
         self._refresh_runtime_status()
         return status_bar
 
+    # [AI-CHANGE | 2026-04-30 23:50 UTC | v0.201]
+    # CO ZMIENIONO: Ścieżka odświeżania używa jednego snapshotu przekazywanego zarówno do OperatorAlerts,
+    #               jak i do mapowej części UI oraz liczy aktywne incydenty mapy.
+    # DLACZEGO: Eliminuje to niespójność czasową między kartami oraz gwarantuje, że kody MAP_* trafiają
+    #           do alertów i liczników w tej samej iteracji odświeżenia.
+    # JAK TO DZIAŁA: `_refresh_runtime_status` pobiera snapshot raz, synchronizuje alerty, odświeża MapTab
+    #                i dopisuje `MAP_INCIDENTS` do paska statusu.
+    # TODO: Wydzielić dedykowany sygnał Qt emitowany tylko dla zmian kluczy mapowych.
     def _refresh_runtime_status(self) -> None:
         """Odświeża widoczne statusy na podstawie aktualnego snapshotu StateStore."""
-        self._operator_alerts.sync_from_snapshot(self._state_store.snapshot())
+        snapshot = self._state_store.snapshot()
+        self._operator_alerts.sync_from_snapshot(snapshot)
         playback = self._render_value(self._state_store.get(STATE_KEY_PLAYBACK_STATUS))
         recording = self._render_value(self._state_store.get(STATE_KEY_RECORDING_STATUS))
         connection = self._render_value(
@@ -515,6 +524,7 @@ class MainWindow(QMainWindow):
         )
         source_item = self._state_store.get(STATE_KEY_DATA_SOURCE_MODE)
         incidents_count = len(self._supervisor.incidents())
+        map_incidents_count = self._operator_alerts.active_map_incidents_count()
         action_status = self._render_value(self._state_store.get(STATE_KEY_ACTION_STATUS))
         action_progress = self._render_value(self._state_store.get(STATE_KEY_ACTION_PROGRESS))
         action_result = self._render_value(self._state_store.get(STATE_KEY_ACTION_RESULT))
@@ -525,11 +535,11 @@ class MainWindow(QMainWindow):
             self._connection_label.setText(f"Połączenie ROS: {connection}")
         if self._source_quality_label is not None:
             self._source_quality_label.setText(f"Jakość źródła: {self._render_quality(source_item)}")
-        self._refresh_map_tab_from_snapshot()
+        self._refresh_map_tab_from_snapshot(snapshot)
         if self._status_bar is not None:
             self._status_bar.showMessage(
                 f"{version_message} | STATUS: ROS={connection} PLAYBACK={playback} RECORDING={recording} "
-                f"ACTION={action_status} PROGRESS={action_progress} RESULT={action_result} INCIDENTS={incidents_count} | "
+                f"ACTION={action_status} PROGRESS={action_progress} RESULT={action_result} INCIDENTS={incidents_count} MAP_INCIDENTS={map_incidents_count} | "
                 f"{dependency_message}"
             )
 
@@ -539,10 +549,9 @@ class MainWindow(QMainWindow):
     # JAK TO DZIAŁA: Podczas każdego odświeżenia UI MainWindow wyszukuje instancję MapTab i przekazuje
     #                pełny snapshot przez adapter `update_from_store_snapshot`, który stosuje twardy fallback do None.
     # TODO: Dodać sygnał Qt emitowany tylko przy zmianach kluczy mapy, aby ograniczyć koszt pełnego odświeżania.
-    def _refresh_map_tab_from_snapshot(self) -> None:
+    def _refresh_map_tab_from_snapshot(self, snapshot: dict[str, StateValue]) -> None:
         if self._tabs_panel is None:
             return
-        snapshot = self._state_store.snapshot()
         for index in range(self._tabs_panel.count()):
             widget = self._tabs_panel.widget(index)
             if isinstance(widget, MapTab):
