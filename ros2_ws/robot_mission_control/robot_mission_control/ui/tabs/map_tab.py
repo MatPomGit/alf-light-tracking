@@ -59,6 +59,7 @@ class MapTab(QWidget):
         self._expected_frame_id: str | None = None
         self._last_valid_position_text: str | None = None
         self._last_valid_trajectory_text: str | None = None
+        self._last_valid_timestamp: datetime | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -79,6 +80,16 @@ class MapTab(QWidget):
 
         self._source_label = QLabel("Źródło danych: BRAK DANYCH", self)
         layout.addWidget(self._source_label)
+
+
+        # [AI-CHANGE | 2026-04-30 20:40 UTC | v0.201]
+        # CO ZMIENIONO: Dodano etykietę na ostatnią poprawną próbkę wyświetlaną jako dane historyczne.
+        # DLACZEGO: Operator potrzebuje kontekstu diagnostycznego bez mieszania historii z pozycją bieżącą.
+        # JAK TO DZIAŁA: Etykieta jest aktualizowana wyłącznie przy degradacji jakości i zawiera timestamp UTC.
+        # TODO: Rozważyć oddzielną sekcję UI z listą kilku ostatnich poprawnych próbek historycznych.
+        self._historical_label = QLabel("Ostatnia poprawna próbka (historyczne): BRAK DANYCH", self)
+        self._historical_label.setStyleSheet("color: #6b7280;")
+        layout.addWidget(self._historical_label)
 
         self._operator_hint_label = QLabel("Wskazówki: Sprawdź połączenie ROS i topic TF.", self)
         self._operator_hint_label.setStyleSheet("color: #b7791f;")
@@ -160,28 +171,38 @@ class MapTab(QWidget):
         if resolved_quality is DataQuality.VALID and sample is not None:
             self._last_valid_position_text = sample.position_text
             self._last_valid_trajectory_text = sample.trajectory_text
+            self._last_valid_timestamp = sample.timestamp
             self._position_label.setText(f"Pozycja: {sample.position_text}")
             trajectory = sample.trajectory_text or "BRAK DANYCH"
             self._trajectory_label.setText(f"Trajektoria: {trajectory}")
             self._source_label.setText(f"Źródło danych: {sample.source}")
+            self._historical_label.setText("Ostatnia poprawna próbka (historyczne): BRAK DANYCH")
             self._operator_hint_label.setText("Wskazówki: Dane poprawne, monitoruj ciągłość TF.")
             self._operator_hint_label.setStyleSheet("color: #0b6e4f;")
             return
 
-        # [AI-CHANGE | 2026-04-30 13:10 UTC | v0.201]
-        # CO ZMIENIONO: Dla jakości innej niż VALID podłączono `resolve_operator_guidance`,
-        #               aby sekcja operatorska prezentowała mapowanie „co się stało / co zrobić”
-        #               na bazie `reason_code` z walidacji mapy.
-        # DLACZEGO: Operator musi dostać precyzyjne zalecenia i bezpieczny fallback dla nieznanych
-        #           kodów; w logice krytycznej preferujemy brak kontynuacji działań zamiast ryzyka
-        #           decyzji na błędnych danych lokalizacji.
-        # JAK TO DZIAŁA: Przy degradacji mapy czyścimy pozycję/trajektorię do `BRAK DANYCH`,
-        #                a następnie budujemy etykietę z `meaning` i `action` z mapy guidance.
-        #                Gdy kod jest nieznany, `resolve_operator_guidance` zwraca ostrożny fallback.
+        # [AI-CHANGE | 2026-04-30 20:40 UTC | v0.201]
+        # CO ZMIENIONO: Dla jakości innej niż VALID dodano bezpieczny podział na dane bieżące i
+        #               sekcję historyczną oraz utrzymano guidance operatorski po `reason_code`.
+        # DLACZEGO: Zgodnie z zasadą bezpieczeństwa nie wolno pokazywać danych historycznych jako
+        #           aktualnej pozycji/trajektorii, ale warto zachować ostatnią poprawną próbkę
+        #           do diagnostyki incydentu jakości.
+        # JAK TO DZIAŁA: Główne etykiety pozycji/trajektorii są zawsze czyszczone do `BRAK DANYCH`,
+        #                a ostatnia poprawna próbka trafia wyłącznie do etykiety „historyczne”
+        #                z timestampem UTC; guidance pozostaje mapowane przez `resolve_operator_guidance`.
         # TODO: Dodać telemetrykę UI dla najczęstszych reason_code mapy i ich czasu trwania.
         self._position_label.setText("Pozycja: BRAK DANYCH")
         self._trajectory_label.setText("Trajektoria: BRAK DANYCH")
         self._source_label.setText("Źródło danych: BRAK DANYCH")
+        if self._last_valid_position_text and self._last_valid_timestamp is not None:
+            timestamp_text = self._last_valid_timestamp.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            historical_trajectory = self._last_valid_trajectory_text or "BRAK DANYCH"
+            self._historical_label.setText(
+                "Ostatnia poprawna próbka (historyczne): "
+                f"czas={timestamp_text} | pozycja={self._last_valid_position_text} | trajektoria={historical_trajectory}"
+            )
+        else:
+            self._historical_label.setText("Ostatnia poprawna próbka (historyczne): BRAK DANYCH")
         operator_guidance = resolve_operator_guidance(reason_code=reason_code, status=None)
         self._operator_hint_label.setText(
             f"Wskazówki: Co się stało: {operator_guidance.meaning} Co zrobić: {operator_guidance.action}"
