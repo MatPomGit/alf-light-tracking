@@ -317,15 +317,15 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(QLabel("Nawigacja", sidebar))
 
-        # [AI-CHANGE | 2026-04-30 12:00 UTC | v0.204]
-        # CO ZMIENIONO: W sekcji „Nawigacja” aktywowano przycisk „Robot” i podłączono go
-        #               do przełączania głównego panelu na zakładkę Telemetry.
+        # [AI-CHANGE | 2026-04-30 14:20 UTC | v0.201]
+        # CO ZMIENIONO: W sekcji „Nawigacja” utrzymano aktywny przycisk „Robot” oraz dodano aktywny
+        #               przycisk „Mapa” z dedykowanym handlerem przełączania kart.
         # DLACZEGO: Użytkownik zgłosił, że przycisk „Robot” był bezużyteczny (disabled z etykietą
         #           „NIEDOSTĘPNE W TEJ WERSJI”), więc wdrożono podstawową, użyteczną nawigację.
         # JAK TO DZIAŁA: Kliknięcie „Robot” wywołuje `_activate_robot_navigation()`, która bezpiecznie
         #                sprawdza obecność QTabWidget i przełącza widok na indeks zakładki telemetrycznej.
         #                Gdy panel nie jest gotowy, metoda kończy się bez wyjątku (bezpieczny fallback).
-        # TODO: Dodać mapowanie wszystkich przycisków sekcji Nawigacja na dedykowane zakładki/route'y.
+        # TODO: Dodać telemetrię kliknięć sidebaru i statystyki brakujących zakładek dla operatora.
         mission_button = QPushButton("Misja — NIEDOSTĘPNE W TEJ WERSJI", sidebar)
         mission_button.setEnabled(False)
         layout.addWidget(mission_button)
@@ -334,7 +334,11 @@ class MainWindow(QMainWindow):
         robot_button.clicked.connect(self._activate_robot_navigation)
         layout.addWidget(robot_button)
 
-        for label in ["Łączność", "Mapa", "Zadania"]:
+        map_button = QPushButton("Mapa", sidebar)
+        map_button.clicked.connect(self._activate_map_navigation)
+        layout.addWidget(map_button)
+
+        for label in ["Łączność", "Zadania"]:
             button = QPushButton(f"{label} — NIEDOSTĘPNE W TEJ WERSJI", sidebar)
             button.setEnabled(False)
             layout.addWidget(button)
@@ -362,19 +366,36 @@ class MainWindow(QMainWindow):
 
         return tabs
 
-    # [AI-CHANGE | 2026-04-30 12:00 UTC | v0.204]
-    # CO ZMIENIONO: Dodano helper aktywujący widok „Robot” przez przełączenie głównego panelu zakładek.
-    # DLACZEGO: Logika kliknięcia przycisku „Robot” powinna być wydzielona i testowalna.
-    # JAK TO DZIAŁA: Metoda ustawia indeks 1 (Telemetry) tylko wtedy, gdy `self._tabs_panel` istnieje
-    #                i zawiera odpowiednią liczbę zakładek; w przeciwnym razie nie wykonuje akcji.
-    # TODO: Zastąpić indeks stałą semantyczną lub wyszukiwaniem zakładki po nazwie, aby uniknąć regresji.
-    def _activate_robot_navigation(self) -> None:
+    # [AI-CHANGE | 2026-04-30 14:20 UTC | v0.201]
+    # CO ZMIENIONO: Zastąpiono przełączanie zakładek po indeksie metodami opartymi o etykiety oraz dodano
+    #               aktywny handler nawigacji „Mapa” z bezpiecznym fallbackiem braku zakładki.
+    # DLACZEGO: Układ kart może się zmieniać, więc indeksy liczbowe są kruche i prowadzą do regresji UI.
+    # JAK TO DZIAŁA: `_find_tab_index_by_labels` iteruje po `tabText(i)` i zwraca pierwszy pasujący indeks.
+    #                `_activate_robot_navigation` oraz `_activate_map_navigation` przełączają kartę tylko przy
+    #                pewnym dopasowaniu; w przeciwnym razie pozostawiają bieżący widok i publikują komunikat operatora.
+    # TODO: Przenieść aliasy etykiet kart do centralnej konfiguracji i18n, aby uniknąć duplikacji napisów.
+    def _find_tab_index_by_labels(self, expected_labels: tuple[str, ...]) -> int | None:
         if self._tabs_panel is None:
-            return
-        telemetry_tab_index = 1
-        if self._tabs_panel.count() <= telemetry_tab_index:
+            return None
+        normalized_expected = {label.casefold() for label in expected_labels}
+        for index in range(self._tabs_panel.count()):
+            if self._tabs_panel.tabText(index).casefold() in normalized_expected:
+                return index
+        return None
+
+    def _activate_robot_navigation(self) -> None:
+        telemetry_tab_index = self._find_tab_index_by_labels(("Telemetry", "Robot"))
+        if telemetry_tab_index is None:
+            self.statusBar().showMessage("Brak zakładki Robot/Telemetry — przełączenie pominięte.", 4000)
             return
         self._tabs_panel.setCurrentIndex(telemetry_tab_index)
+
+    def _activate_map_navigation(self) -> None:
+        map_tab_index = self._find_tab_index_by_labels(("Map", "Mapa"))
+        if map_tab_index is None:
+            self.statusBar().showMessage("Brak zakładki Map/Mapa — funkcja chwilowo niedostępna.", 4000)
+            return
+        self._tabs_panel.setCurrentIndex(map_tab_index)
 
     def _build_safe_tab(self, panel_name: str, panel_cls: type[QWidget]) -> QWidget:
         """Build single tab with local failure boundary (only this panel becomes unavailable)."""
