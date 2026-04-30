@@ -35,6 +35,13 @@ class MissionControlConfig:
     max_event_queue_size: int
     log_level: str
     ui_timer_intervals_ms: dict[str, int]
+    # [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano pole `map_config` z parametrami bezpieczeństwa walidacji mapy.
+    # DLACZEGO: Konfiguracja limitów mapy ma być przekazywana przez model core, a nie przez hardcoded stałe UI.
+    # JAK TO DZIAŁA: Loader zwraca słownik z kluczami `max_sample_age_s`, `max_speed_mps` i `allowed_frames`,
+    #                który następnie jest konsumowany przez `MainWindow` i `MapTab`.
+    # TODO: Zastąpić słownik `map_config` osobną dataclassą z pełną walidacją statyczną typów.
+    map_config: dict[str, float | list[str]]
 
 
 @dataclass(frozen=True, slots=True)

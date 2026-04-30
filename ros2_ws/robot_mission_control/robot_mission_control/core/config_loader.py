@@ -43,6 +43,7 @@ _REQUIRED_FIELDS: dict[str, type | tuple[type, ...]] = {
     "max_event_queue_size": int,
     "log_level": str,
     "ui_timer_intervals_ms": dict,
+    "map": dict,
 }
 
 _REQUIRED_UI_TIMER_KEYS: tuple[str, ...] = (
@@ -57,6 +58,7 @@ _REQUIRED_UI_TIMER_KEYS: tuple[str, ...] = (
     "extensions_tab_refresh_interval_ms",
     "overview_tab_refresh_interval_ms",
 )
+_REQUIRED_MAP_KEYS: tuple[str, ...] = ("max_sample_age_s", "max_speed_mps", "allowed_frames")
 
 
 def load_config(path: str | Path) -> MissionControlConfig:
@@ -139,10 +141,55 @@ def load_config(path: str | Path) -> MissionControlConfig:
             )
         ui_timer_intervals_ms[timer_key] = timer_value
 
+    # [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano walidację sekcji `map` (typy, zakresy i kompletność pól).
+    # DLACZEGO: Limity mapy decydują o odrzucaniu niepewnych próbek, więc błędna konfiguracja nie może przejść
+    #           niezauważona; bezpieczniej przerwać start niż ryzykować fałszywe dane pozycji.
+    # JAK TO DZIAŁA: Loader wymaga kluczy `max_sample_age_s`, `max_speed_mps`, `allowed_frames`, pilnuje
+    #                dodatnich wartości liczbowych i niepustej listy ramek tekstowych.
+    # TODO: Dodać walidację zgodności `allowed_frames` z docelowym drzewem TF aktywnej platformy.
+    raw_map = raw_data["map"]
+    missing_map_keys = [key for key in _REQUIRED_MAP_KEYS if key not in raw_map]
+    if missing_map_keys:
+        raise ConfigValidationError(
+            ErrorCode.CONFIG_MISSING_KEY,
+            "Brakuje wymaganych pól mapy: " + ", ".join(sorted(missing_map_keys)),
+        )
+    if not isinstance(raw_map["max_sample_age_s"], (int, float)):
+        raise ConfigValidationError(ErrorCode.CONFIG_INVALID_TYPE, "Pole 'map.max_sample_age_s' musi być liczbą.")
+    if not isinstance(raw_map["max_speed_mps"], (int, float)):
+        raise ConfigValidationError(ErrorCode.CONFIG_INVALID_TYPE, "Pole 'map.max_speed_mps' musi być liczbą.")
+    if not isinstance(raw_map["allowed_frames"], list):
+        raise ConfigValidationError(ErrorCode.CONFIG_INVALID_TYPE, "Pole 'map.allowed_frames' musi być listą.")
+    max_sample_age_s = float(raw_map["max_sample_age_s"])
+    max_speed_mps = float(raw_map["max_speed_mps"])
+    if max_sample_age_s <= 0.0:
+        raise ConfigValidationError(ErrorCode.CONFIG_INVALID_VALUE, "Pole 'map.max_sample_age_s' musi być dodatnie.")
+    if max_speed_mps <= 0.0:
+        raise ConfigValidationError(ErrorCode.CONFIG_INVALID_VALUE, "Pole 'map.max_speed_mps' musi być dodatnie.")
+    allowed_frames: list[str] = []
+    for frame_item in raw_map["allowed_frames"]:
+        if not isinstance(frame_item, str):
+            raise ConfigValidationError(
+                ErrorCode.CONFIG_INVALID_TYPE,
+                f"Element 'map.allowed_frames' ma typ {type(frame_item).__name__}, oczekiwano str.",
+            )
+        normalized = frame_item.strip()
+        if not normalized:
+            raise ConfigValidationError(ErrorCode.CONFIG_INVALID_VALUE, "Element 'map.allowed_frames' nie może być pusty.")
+        allowed_frames.append(normalized)
+    if not allowed_frames:
+        raise ConfigValidationError(ErrorCode.CONFIG_INVALID_VALUE, "Pole 'map.allowed_frames' nie może być puste.")
+
     return MissionControlConfig(
         session_id=str(raw_data["session_id"]).strip(),
         operator_timeout_sec=operator_timeout_sec,
         max_event_queue_size=max_event_queue_size,
         log_level=str(raw_data["log_level"]).strip().upper(),
         ui_timer_intervals_ms=ui_timer_intervals_ms,
+        map_config={
+            "max_sample_age_s": max_sample_age_s,
+            "max_speed_mps": max_speed_mps,
+            "allowed_frames": allowed_frames,
+        },
     )

@@ -23,3 +23,14 @@ ui_timer_intervals_ms:
   diagnostics_tab_refresh_interval_ms: 1200
   extensions_tab_refresh_interval_ms: 1500
   overview_tab_refresh_interval_ms: 700
+# [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+# CO ZMIENIONO: Dodano sekcję `map` z parametrami walidacji próbek i listą akceptowanych ramek odniesienia.
+# DLACZEGO: Ustawienia bezpieczeństwa mapy nie mogą być hardcodowane; muszą być kontrolowane konfiguracją runtime.
+# JAK TO DZIAŁA: `config_loader.py` waliduje pola mapy i przekazuje je do `MapTab`, który stosuje te limity
+#                przy ocenie świeżości oraz wiarygodności próbek pozycji.
+# TODO: Dodać profile mapy (sim/prod) z osobnymi limitami prędkości i akceptowanych frame_id.
+map:
+  max_sample_age_s: 2.5
+  max_speed_mps: 3.5
+  allowed_frames:
+    - "map"

@@ -91,6 +91,7 @@ class MainWindow(QMainWindow):
         supervisor: Supervisor,
         version_metadata: VersionMetadata,
         ui_timer_intervals_ms: dict[str, int] | None = None,
+        map_config: dict[str, float | list[str]] | None = None,
         submit_action_goal: Callable[[], None] | None = None,
         cancel_action_goal: Callable[[], None] | None = None,
         submit_quick_action: Callable[[str], None] | None = None,
@@ -119,6 +120,12 @@ class MainWindow(QMainWindow):
         # JAK TO DZIAŁA: MainWindow przechowuje słownik interwałów i udostępnia bezpieczny odczyt po kluczu.
         # TODO: Przenieść klucze interwałów do stałych współdzielonych między loaderem i UI.
         self._ui_timer_intervals_ms = dict(ui_timer_intervals_ms or {})
+        # [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+        # CO ZMIENIONO: Dodano przechowywanie `map_config` przekazywanej z warstwy bootstrap do UI.
+        # DLACZEGO: Parametry walidacji mapy mają być sterowane konfiguracją runtime, a nie stałymi w `MapTab`.
+        # JAK TO DZIAŁA: MainWindow trzyma lokalną kopię słownika i przekazuje ją podczas budowy zakładki mapy.
+        # TODO: Wydzielić wspólny walidator UI-config, aby logować przypadki uszkodzonej konfiguracji kart.
+        self._map_config = dict(map_config or {})
         self._submit_action_goal = submit_action_goal or (lambda: None)
         self._cancel_action_goal = cancel_action_goal or (lambda: None)
         self._submit_quick_action = submit_quick_action or (lambda _command_key: None)
@@ -427,7 +434,12 @@ class MainWindow(QMainWindow):
         self._supervisor.heartbeat_channel(panel_name, now)
 
         try:
-            panel = panel_cls(self)
+            # [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+            # CO ZMIENIONO: Dodano specjalne tworzenie `MapTab` z `map_config` zamiast domyślnego konstruktora.
+            # DLACZEGO: Zakładka mapy wymaga parametrów bezpieczeństwa z konfiguracji i nie może polegać na hardcodzie.
+            # JAK TO DZIAŁA: Dla `MapTab` przekazujemy `map_config`; pozostałe karty są tworzone jak wcześniej.
+            # TODO: Ujednolicić fabrykę kart z mapowaniem klas na argumenty konstruktorów.
+            panel = panel_cls(self, map_config=self._map_config) if panel_cls is MapTab else panel_cls(self)
             self._supervisor.record_channel_success(panel_name, now)
             return panel
         except Exception as exc:  # noqa: BLE001

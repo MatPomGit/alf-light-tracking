@@ -52,6 +52,39 @@ def test_map_tab_initializes_with_safe_defaults() -> None:
     assert tab._availability_label.text() == "Status panelu: OCZEKIWANIE NA DANE"
 
 
+# [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+# CO ZMIENIONO: Dodano testy inicjalizacji `MapTab` z poprawnym presetem oraz uszkodzonym presetem konfiguracji.
+# DLACZEGO: Musimy potwierdzić, że parametry mapy są konfigurowalne i jednocześnie bezpiecznie fallbackują przy błędzie.
+# JAK TO DZIAŁA: Pierwszy test sprawdza przyjęcie limitów z `map_config`, drugi weryfikuje fallback do defaultów.
+# TODO: Rozszerzyć testy o przypadek częściowo poprawnego presetu (np. tylko `allowed_frames`).
+def test_map_tab_initializes_with_custom_map_preset() -> None:
+    _ensure_qapplication()
+    tab = MapTab(
+        map_config={
+            "max_sample_age_s": 1.25,
+            "max_speed_mps": 1.75,
+            "allowed_frames": ["map", "odom"],
+        }
+    )
+    assert tab._max_sample_age_seconds == 1.25
+    assert tab._max_linear_speed_mps == 1.75
+    assert tab._allowed_frames == ("map", "odom")
+
+
+def test_map_tab_initializes_with_safe_fallback_for_broken_preset() -> None:
+    _ensure_qapplication()
+    tab = MapTab(
+        map_config={
+            "max_sample_age_s": -5.0,
+            "max_speed_mps": 0.0,
+            "allowed_frames": [""],
+        }
+    )
+    assert tab._max_sample_age_seconds == tab._DEFAULT_MAX_SAMPLE_AGE_SECONDS
+    assert tab._max_linear_speed_mps == tab._DEFAULT_MAX_LINEAR_SPEED_MPS
+    assert tab._allowed_frames == ("map",)
+
+
 def test_map_tab_renders_position_only_for_valid_quality() -> None:
     _ensure_qapplication()
     now = datetime.now(timezone.utc)
