@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from robot_mission_control.ui.tabs.operator_guidance import FALLBACK_GUIDANCE, resolve_operator_guidance
+from robot_mission_control.ui.tabs.operator_guidance import CODE_GUIDANCE_MAP, FALLBACK_GUIDANCE, resolve_operator_guidance
 
 
 # [AI-CHANGE | 2026-04-27 06:55 UTC | v0.203]
@@ -65,3 +65,57 @@ def test_unknown_reason_code_uses_cautious_fallback() -> None:
     guidance = resolve_operator_guidance(reason_code="MAP_FUTURE_UNKNOWN", status="RUNNING")
     assert guidance == FALLBACK_GUIDANCE
     assert "Wstrzymaj ryzykowne działania" in guidance.action
+
+
+# [AI-CHANGE | 2026-04-30 18:05 UTC | v0.201]
+# CO ZMIENIONO: Dodano test spójności słownika kodów między walidacją mapy i `operator_guidance`.
+# DLACZEGO: Każdy kod emitowany przez `MapTab.validate_map_sample` musi mieć dedykowane guidance,
+#           aby operator nigdy nie dostał ogólnego fallbacku dla znanego scenariusza degradacji.
+# JAK TO DZIAŁA: Test uruchamia walidację dla kontrolowanych przypadków i sprawdza, że każdy
+#                zwrócony `reason_code` istnieje w `CODE_GUIDANCE_MAP`.
+# TODO: Rozszerzyć test o automatyczne skanowanie reason_code z dodatkowych adapterów UI (poza mapą).
+def test_map_validation_reason_codes_exist_in_operator_guidance_map() -> None:
+    qt_widgets = pytest.importorskip(
+        "PySide6.QtWidgets",
+        reason="Brak bibliotek systemowych Qt (np. libGL) w środowisku testowym.",
+    )
+    qapplication = qt_widgets.QApplication
+    app = qapplication.instance()
+    if app is None:
+        app = qapplication([])
+    _ = app
+
+    from datetime import datetime, timedelta, timezone
+    from robot_mission_control.core import DataQuality
+    from robot_mission_control.ui.tabs.map_tab import MapSample, MapTab
+
+    now = datetime.now(timezone.utc)
+    tab = MapTab()
+    sample = MapSample(
+        timestamp=now,
+        frame_id="map",
+        position_text="x=1.00, y=2.00",
+        trajectory_text=None,
+        source="test",
+    )
+
+    scenarios = (
+        tab.validate_map_sample(sample=sample, quality=DataQuality.VALID, ros_connected=False, tf_available=True, now_utc=now),
+        tab.validate_map_sample(sample=sample, quality=DataQuality.VALID, ros_connected=True, tf_available=False, now_utc=now),
+        tab.validate_map_sample(
+            sample=MapSample(
+                timestamp=now - timedelta(seconds=60),
+                frame_id="map",
+                position_text="x=1.00, y=2.00",
+                trajectory_text=None,
+                source="test",
+            ),
+            quality=DataQuality.VALID,
+            ros_connected=True,
+            tf_available=True,
+            now_utc=now,
+        ),
+    )
+
+    for _, reason_code in scenarios:
+        assert reason_code in CODE_GUIDANCE_MAP

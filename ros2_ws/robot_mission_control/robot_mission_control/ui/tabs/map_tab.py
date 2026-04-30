@@ -100,10 +100,19 @@ class MapTab(QWidget):
         now_utc: datetime | None = None,
     ) -> tuple[DataQuality, str]:
         """Waliduje próbkę mapy i zwraca bezpieczny wynik jakości + reason_code."""
+        # [AI-CHANGE | 2026-04-30 18:05 UTC | v0.201]
+        # CO ZMIENIONO: Ujednolicono docelowy kod dla utraty łączności ROS na `ros_unavailable`
+        #               zamiast lokalnego wariantu `ros_disconnected`.
+        # DLACZEGO: Wspólny standard kodów upraszcza mapowanie guidance w wielu kartach UI i
+        #           eliminuje ryzyko niespójnych komunikatów operatorskich po tym samym incydencie.
+        # JAK TO DZIAŁA: Gdy `ros_connected` jest `False`, walidacja zwraca teraz dokładnie
+        #                `(DataQuality.UNAVAILABLE, "ros_unavailable")`, który ma dedykowany opis
+        #                i akcję w `CODE_GUIDANCE_MAP`.
+        # TODO: Wydzielić reason_code mapy do współdzielonych stałych, aby uniknąć literówek w UI/ROS bridge.
         if quality not in self._ALLOWED_QUALITIES:
             return (DataQuality.ERROR, "invalid_quality")
         if not ros_connected:
-            return (DataQuality.UNAVAILABLE, "ros_disconnected")
+            return (DataQuality.UNAVAILABLE, "ros_unavailable")
         if not tf_available:
             return (DataQuality.UNAVAILABLE, "MAP_TF_MISSING")
         if sample is None:
