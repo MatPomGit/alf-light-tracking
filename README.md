@@ -46,3 +46,21 @@ colcon test-result --verbose
 - Plan wdrożenia: [`ros2_ws/robot_mission_control/DEPLOYMENT_PLAN.md`](ros2_ws/robot_mission_control/DEPLOYMENT_PLAN.md)
 - Runbook: [`docs/operator/incident_runbook.md`](docs/operator/incident_runbook.md)
 - Macierz środowisk: [`docs/spec/hard_environment_matrix.md`](docs/spec/hard_environment_matrix.md)
+
+
+
+<!--
+[AI-CHANGE | 2026-04-30 14:15 UTC | v0.201]
+CO ZMIENIONO: Dodano sekcję statusu funkcji „Mapa” po wdrożeniu aktywnej nawigacji i bezpiecznego renderowania danych mapowych.
+DLACZEGO: README miał skrócony start, ale brakowało informacji operacyjnej o nowym zachowaniu zakładki Mapa.
+JAK TO DZIAŁA: Sekcja opisuje aktywny przycisk Mapa, zasady walidacji jakości i bezpieczny fallback `BRAK DANYCH`.
+TODO: Dodać zrzut ekranu zakładki Mapa z przykładami statusów VALID/UNAVAILABLE po stabilizacji pipeline UI.
+-->
+
+## 5. Status funkcji „Mapa” w Mission Control
+
+- Przycisk **Mapa** w lewym panelu GUI jest aktywny i przełącza do zakładki mapy.
+- Zakładka renderuje pozycję wyłącznie dla danych `VALID`; dla jakości niepewnej pokazuje `BRAK DANYCH`.
+- Dla typowych problemów (`MAP_TF_MISSING`, `MAP_POSE_STALE`, `MAP_FRAME_MISMATCH`) UI prezentuje wskazówki operatorskie.
+
+> Zasada bezpieczeństwa: jeśli dane lokalizacyjne są niepewne, system preferuje brak wyniku zamiast fałszywej pozycji.

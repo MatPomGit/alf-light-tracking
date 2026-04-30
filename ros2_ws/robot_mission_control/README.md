@@ -85,6 +85,22 @@ Logi są zapisywane do katalogu `logs/e2e_real_flow/`.
 - W zakładce **Controls** dostępne są szybkie akcje: `Rozpocznij patrol`, `Powrót do bazy`, `Wstrzymaj misję`, `Wznów misję`.
 - Podczas aktywnego goal szybkie akcje są blokowane, by uniknąć kolizji komend.
 
+
+
+<!--
+[AI-CHANGE | 2026-04-30 14:15 UTC | v0.201]
+CO ZMIENIONO: Uzupełniono README pakietu o sekcję opisującą działanie zakładki Mapa oraz zasady bezpieczeństwa renderowania.
+DLACZEGO: Po wdrożeniu funkcji mapy brakowało jej opisu w głównej dokumentacji komponentu dla operatorów i devów.
+JAK TO DZIAŁA: Sekcja wskazuje, jak działa nawigacja do zakładki, walidacja ROS/TF/timestamp/frame i guidance przez reason_code.
+TODO: Rozszerzyć sekcję o mapę kluczy StateStore z przykładowymi payloadami danych mapowych.
+-->
+
+## Mapa (zakładka UI)
+
+- Przycisk **Mapa** w sidebarze jest aktywny i przełącza widok po etykiecie zakładki (nie po kruchym indeksie).
+- `MapTab` stosuje walidację bezpieczeństwa (ROS/TF/timestamp/frame) i przy degradacji czyści pozycję/trajektorię do `BRAK DANYCH`.
+- Jakość danych mapy jest pokazywana wspólnie z `reason_code`, a instrukcje operatorskie pochodzą z `operator_guidance.py`.
+
 ## Historia zmian dokumentu
 
 - Szczegółowa historia zmian README jest utrzymywana w `COMMIT_LOG.md`.
