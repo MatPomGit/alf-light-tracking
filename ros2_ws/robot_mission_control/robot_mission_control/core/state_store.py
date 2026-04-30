@@ -55,6 +55,16 @@ STATE_KEY_ACTION_STATUS = "action_status"
 STATE_KEY_ACTION_PROGRESS = "action_progress"
 STATE_KEY_ACTION_RESULT = "action_result"
 STATE_KEY_ACTION_GOAL_ID = "action_goal_id"
+# [AI-CHANGE | 2026-04-30 12:00 UTC | v0.201]
+# CO ZMIENIONO: Dodano globalne klucze stanu mapy (`map_pose`, `map_path`, `map_frame_status`).
+# DLACZEGO: Warstwa ROS i UI potrzebują stabilnych, współdzielonych identyfikatorów do bezpiecznego
+#           publikowania pozycji/trasy oraz statusu transformacji mapy.
+# JAK TO DZIAŁA: Klucze są bootstrapowane jak pozostałe wpisy StateStore; brak lub niepewność danych
+#                domyślnie kończy się jakośćią UNAVAILABLE/ERROR i wartością `None`.
+# TODO: Zastąpić surowe stringi kluczy dedykowanym enumem domenowym dla mapy.
+STATE_KEY_MAP_POSE = "map_pose"
+STATE_KEY_MAP_PATH = "map_path"
+STATE_KEY_MAP_FRAME_STATUS = "map_frame_status"
 
 GLOBAL_STATE_KEYS = (
     STATE_KEY_DATA_SOURCE_MODE,
@@ -68,6 +78,9 @@ GLOBAL_STATE_KEYS = (
     STATE_KEY_ACTION_PROGRESS,
     STATE_KEY_ACTION_RESULT,
     STATE_KEY_ACTION_GOAL_ID,
+    STATE_KEY_MAP_POSE,
+    STATE_KEY_MAP_PATH,
+    STATE_KEY_MAP_FRAME_STATUS,
 )
 
 

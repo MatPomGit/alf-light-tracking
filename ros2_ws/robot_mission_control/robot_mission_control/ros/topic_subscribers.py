@@ -29,6 +29,22 @@ class TelemetryFieldSpec:
     expected_type: type
 
 
+@dataclass(frozen=True, slots=True)
+class MapPosePayload:
+    """Zweryfikowana pozycja robota na mapie."""
+
+    x: float
+    y: float
+    yaw: float
+
+
+@dataclass(frozen=True, slots=True)
+class MapPathPayload:
+    """Zweryfikowana ścieżka robota na mapie."""
+
+    points: tuple[tuple[float, float], ...]
+
+
 class TelemetryTopicSubscribers:
     """Warstwa mapowania danych z ROS topiców do StateStore."""
 
@@ -196,4 +212,137 @@ class TelemetryTopicSubscribers:
             correlation_id=correlation_id,
             session_id=self._session_id,
             details={"reason": reason, **details},
+        )
+
+    # [AI-CHANGE | 2026-04-30 12:00 UTC | v0.201]
+    # CO ZMIENIONO: Dodano dedykowane mapowanie danych mapy (pose/path/frame_status) do StateStore
+    #               wraz z twardą walidacją typów i bezpiecznym fallbackiem reason_code.
+    # DLACZEGO: Dla mapy obowiązuje zasada bezpieczeństwa — przy niepewności wolimy brak pozycji niż
+    #           pokazanie błędnego punktu/trasy mogących wprowadzić operatora w błąd.
+    # JAK TO DZIAŁA: Każdy callback sprawdza kompletność i typ wejścia; przy błędzie zapisuje `None`
+    #                z jakością UNAVAILABLE/ERROR przez `set_with_inference`, a tylko poprawne dane
+    #                publikowane są jako `DataQuality.VALID`.
+    # TODO: Dodać filtr outlierów geometrii (np. skok pozycji > limit) i mapować go na reason_code `pose_outlier`.
+    def on_map_pose(
+        self,
+        *,
+        state_key: str,
+        payload: dict[str, Any] | None,
+        source: str,
+        sample_timestamp: datetime,
+        correlation_id: str,
+    ) -> None:
+        normalized_timestamp = self._normalize_timestamp(sample_timestamp)
+        if payload is None:
+            self._state_store.set_with_inference(
+                key=state_key,
+                value=None,
+                source=source,
+                timestamp=normalized_timestamp,
+                reason_code="map_pose_missing",
+            )
+            return
+        try:
+            pose = MapPosePayload(x=float(payload["x"]), y=float(payload["y"]), yaw=float(payload["yaw"]))
+        except (KeyError, TypeError, ValueError):
+            self._state_store.set_with_inference(
+                key=state_key,
+                value=None,
+                source=source,
+                timestamp=normalized_timestamp,
+                is_corrupted=True,
+                reason_code="map_pose_invalid",
+            )
+            self._log_rejection(reason="map_pose_invalid", correlation_id=correlation_id, details={"source": source})
+            return
+        self._state_store.set_with_inference(
+            key=state_key,
+            value=pose,
+            source=source,
+            timestamp=normalized_timestamp,
+            max_age=self._max_timestamp_drift,
+        )
+
+    def on_map_path(
+        self,
+        *,
+        state_key: str,
+        payload: list[dict[str, Any]] | None,
+        source: str,
+        sample_timestamp: datetime,
+        correlation_id: str,
+    ) -> None:
+        normalized_timestamp = self._normalize_timestamp(sample_timestamp)
+        if payload is None:
+            self._state_store.set_with_inference(
+                key=state_key,
+                value=None,
+                source=source,
+                timestamp=normalized_timestamp,
+                reason_code="map_path_missing",
+            )
+            return
+        try:
+            points = tuple((float(point["x"]), float(point["y"])) for point in payload)
+            path = MapPathPayload(points=points)
+        except (KeyError, TypeError, ValueError):
+            self._state_store.set_with_inference(
+                key=state_key,
+                value=None,
+                source=source,
+                timestamp=normalized_timestamp,
+                is_corrupted=True,
+                reason_code="map_path_invalid",
+            )
+            self._log_rejection(reason="map_path_invalid", correlation_id=correlation_id, details={"source": source})
+            return
+        self._state_store.set_with_inference(
+            key=state_key,
+            value=path,
+            source=source,
+            timestamp=normalized_timestamp,
+            max_age=self._max_timestamp_drift,
+        )
+
+    def on_map_frame_status(
+        self,
+        *,
+        state_key: str,
+        payload: str | None,
+        source: str,
+        sample_timestamp: datetime,
+        correlation_id: str,
+    ) -> None:
+        normalized_timestamp = self._normalize_timestamp(sample_timestamp)
+        if payload is None:
+            self._state_store.set_with_inference(
+                key=state_key,
+                value=None,
+                source=source,
+                timestamp=normalized_timestamp,
+                reason_code="map_frame_status_missing",
+            )
+            return
+        normalized_payload = payload.upper()
+        if normalized_payload not in {"OK", "DEGRADED", "ERROR"}:
+            self._state_store.set_with_inference(
+                key=state_key,
+                value=None,
+                source=source,
+                timestamp=normalized_timestamp,
+                is_corrupted=True,
+                reason_code="map_frame_status_invalid",
+            )
+            self._log_rejection(
+                reason="map_frame_status_invalid",
+                correlation_id=correlation_id,
+                details={"source": source, "payload": normalized_payload},
+            )
+            return
+        self._state_store.set_with_inference(
+            key=state_key,
+            value=normalized_payload,
+            source=source,
+            timestamp=normalized_timestamp,
+            max_age=self._max_timestamp_drift,
         )
