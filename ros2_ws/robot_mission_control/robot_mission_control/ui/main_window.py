@@ -43,6 +43,13 @@ from robot_mission_control.ui.tabs.controls_tab import ControlsTab
 from robot_mission_control.ui.tabs.debug_tab import DebugTab
 from robot_mission_control.ui.tabs.diagnostics_tab import DiagnosticsTab
 from robot_mission_control.ui.tabs.extensions_tab import ExtensionsTab
+# [AI-CHANGE | 2026-04-30 10:28 UTC | v0.201]
+# CO ZMIENIONO: Dodano import `MapTab` do rejestru kart ładowanych przez MainWindow.
+# DLACZEGO: Bez jawnego importu MainWindow nie może bezpiecznie skonstruować zakładki mapy.
+# JAK TO DZIAŁA: Klasa `MapTab` jest dostępna podczas budowania listy `tab_defs` i przechodzi przez
+#                `_build_safe_tab`, dzięki czemu ewentualny błąd pozostaje lokalny dla tej karty.
+# TODO: Rozważyć automatyczny rejestr kart, aby ograniczyć ręczne utrzymywanie listy importów.
+from robot_mission_control.ui.tabs.map_tab import MapTab
 from robot_mission_control.ui.tabs.overview_tab import OverviewTab
 from robot_mission_control.ui.tabs.rosbag_tab import RosbagTab
 from robot_mission_control.ui.tabs.telemetry_tab import TelemetryTab
@@ -351,9 +358,18 @@ class MainWindow(QMainWindow):
         tabs.setDocumentMode(True)
         self._tabs_panel = tabs
 
+        # [AI-CHANGE | 2026-04-30 10:28 UTC | v0.201]
+        # CO ZMIENIONO: Dodano tab definicję `Map` opartą o `MapTab` i bezpieczny mechanizm
+        #               `_build_safe_tab(panel_name, panel_cls)` używany przez pozostałe karty.
+        # DLACZEGO: Zakładka mapy musi być integralną częścią panelu tabs i korzystać z istniejącej
+        #           granicy błędu, aby awaria pojedynczej karty nie destabilizowała całego UI.
+        # JAK TO DZIAŁA: `MapTab` jest tworzony tak samo jak inne zakładki; przy wyjątku zostanie
+        #                zastąpiony panelem unavailable bez przerwania inicjalizacji MainWindow.
+        # TODO: Dodać politykę kolejności kart konfigurowalną per profil operatora (UX role-based).
         tab_defs = [
             ("Overview", "panel_overview", OverviewTab),
             ("Telemetry", "panel_telemetry", TelemetryTab),
+            ("Map", "panel_map", MapTab),
             ("Video & Depth", "panel_video_depth", VideoDepthTab),
             ("Controls", "panel_controls", ControlsTab),
             ("Diagnostics", "panel_diagnostics", DiagnosticsTab),
