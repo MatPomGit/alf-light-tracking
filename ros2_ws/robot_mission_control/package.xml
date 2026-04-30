@@ -1,4 +1,9 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- [AI-CHANGE | 2026-04-30 10:10 UTC | v0.204] -->
+<!-- CO ZMIENIONO: Ustawiono jawne kodowanie UTF-8 w deklaracji XML i doprecyzowano techniczny komentarz walidacyjny bez znaków ryzykownych dla parsera. -->
+<!-- DLACZEGO: W CI pojawil sie blad "not well-formed (invalid token)", wiec jawna deklaracja kodowania zmniejsza ryzyko blednej interpretacji znakow specjalnych. -->
+<!-- JAK TO DZIALA: Parser XML otrzymuje jednoznaczna deklaracje kodowania, dzieki czemu manifest package.xml jest deterministycznie interpretowany. -->
+<!-- TODO: Dodac krok CI: xmllint (noout) ros2_ws/robot_mission_control/package.xml przed colcon build. -->
 <!-- [AI-CHANGE | 2026-04-29 13:51 UTC | v0.333] -->
 <!-- CO ZMIENIONO: Poprawiono komentarz manifestu ROS2 tak, aby był zgodny z regułami XML. -->
 <!-- DLACZEGO: XML nie dopuszcza sekwencji podwójnego myślnika wewnątrz komentarza, a opis komendy colcon łamał parsowanie package.xml. -->
