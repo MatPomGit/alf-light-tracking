@@ -13,7 +13,13 @@ import pytest
 
 qt_widgets = pytest.importorskip("PySide6.QtWidgets", reason="Brak bibliotek systemowych Qt (np. libGL) w środowisku testowym.")
 QApplication = qt_widgets.QApplication
+QPushButton = qt_widgets.QPushButton
 QWidget = qt_widgets.QWidget
+
+qt_core = pytest.importorskip("PySide6.QtCore", reason="Brak bibliotek systemowych Qt (np. libGL) w środowisku testowym.")
+qt_test = pytest.importorskip("PySide6.QtTest", reason="Brak bibliotek systemowych Qt (np. libGL) w środowisku testowym.")
+Qt = qt_core.Qt
+QTest = qt_test.QTest
 
 from robot_mission_control.core import (
     STATE_KEY_ACTION_GOAL_ID,
@@ -665,15 +671,15 @@ def test_rosbag_tab_filters_log_and_counts_blocked_actions() -> None:
     assert "start_playback=1" in rosbag_tab._blocked_telemetry_label.text()
     assert "start_recording=1" in rosbag_tab._blocked_telemetry_label.text()
 
-# [AI-CHANGE | 2026-04-30 14:20 UTC | v0.201]
-# CO ZMIENIONO: Dodano test nawigacji sidebaru dla przycisku „Mapa”, weryfikujący bezpieczny fallback
-#               oraz brak zależności od indeksu kart w `QTabWidget`.
-# DLACZEGO: Przy zmianie kolejności kart przełączanie po indeksie jest podatne na regresję i może
-#           otworzyć nieprawidłowy widok operatorski.
-# JAK TO DZIAŁA: Test tworzy MainWindow, dynamicznie dodaje kartę „Map”, przestawia jej pozycję,
-#                a następnie wywołuje `_activate_map_navigation()` i sprawdza poprawne przełączenie.
-#                Dodatkowo sprawdza przypadek braku karty, gdzie indeks aktywnej zakładki nie zmienia się.
-# TODO: Rozszerzyć test o symulację realnego kliknięcia QPushButton „Mapa” (QTest.mouseClick) po stabilizacji CI Qt.
+# [AI-CHANGE | 2026-04-30 20:05 UTC | v0.201]
+# CO ZMIENIONO: Przebudowano test nawigacji mapy tak, aby wyszukiwał przycisk `QPushButton` „Mapa”
+#               w sidebarze i przełączał zakładkę przez `QTest.mouseClick` zamiast wywołania metody prywatnej.
+# DLACZEGO: Test ma odzwierciedlać realny przepływ operatorski (kliknięcie UI), a nie skrót techniczny,
+#           oraz pilnować bezpiecznego fallbacku przy braku zakładki mapy.
+# JAK TO DZIAŁA: Test znajduje przycisk po tekście, klika go lewym przyciskiem myszy i sprawdza przełączenie
+#                na zakładkę „Map”; następnie usuwa zakładkę, klika ponownie i weryfikuje brak zmiany indeksu
+#                oraz komunikat fallback w status barze.
+# TODO: Dodać wariant testu z aliasem etykiety „Mapa” jako nazwą zakładki, aby pokryć scenariusz i18n.
 def test_main_window_map_navigation_uses_label_lookup_and_safe_fallback() -> None:
     _ensure_qapplication()
 
@@ -697,14 +703,18 @@ def test_main_window_map_navigation_uses_label_lookup_and_safe_fallback() -> Non
     map_index = tabs.addTab(map_widget, "Map")
     assert map_index >= 0
 
+    map_button = next((button for button in window.findChildren(QPushButton) if button.text() == "Mapa"), None)
+    assert map_button is not None
+
     tabs.tabBar().moveTab(map_index, 0)
-    window._activate_map_navigation()
+    QTest.mouseClick(map_button, Qt.LeftButton)
     assert tabs.currentWidget() is map_widget
 
     tabs.removeTab(tabs.indexOf(map_widget))
     tabs.setCurrentIndex(initial_index)
-    window._activate_map_navigation()
+    QTest.mouseClick(map_button, Qt.LeftButton)
     assert tabs.currentIndex() == initial_index
+    assert window.statusBar().currentMessage() == "Brak zakładki Map/Mapa — funkcja chwilowo niedostępna."
 
 # [AI-CHANGE | 2026-04-30 16:20 UTC | v0.201]
 # CO ZMIENIONO: Dodano scenariusz end-to-end dla przepływu store -> MainWindow -> MapTab.
