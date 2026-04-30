@@ -20,7 +20,17 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES action_msgs
 )
 
-ament_python_install_package(${PROJECT_NAME})
+# [AI-CHANGE | 2026-04-30 10:22 UTC | v0.202]
+# CO ZMIENIONO: Zastąpiono `ament_python_install_package(${PROJECT_NAME})` ręczną instalacją katalogu modułu Python.
+# DLACZEGO: `rosidl_generator_py` i `ament_python_install_package` tworzyły identyczne cele CMake
+#           (`ament_cmake_python_copy_robot_mission_control`), co kończyło konfigurację błędem duplikatu celu.
+# JAK TO DZIAŁA: Moduł aplikacji `robot_mission_control` jest instalowany bezpośrednio do `${PYTHON_INSTALL_DIR}`,
+#                a interfejs Action nadal jest generowany przez `rosidl_generate_interfaces`.
+# TODO: Rozważyć wydzielenie interfejsów Action do osobnego pakietu `*_interfaces`, aby uprościć zależności build-time.
+install(DIRECTORY
+  ${PROJECT_NAME}
+  DESTINATION ${PYTHON_INSTALL_DIR}
+)
 
 install(PROGRAMS
   scripts/robot_mission_control
