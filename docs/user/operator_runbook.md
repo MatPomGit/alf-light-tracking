@@ -144,6 +144,63 @@ Każde zgłoszenie incydentu musi zawierać: timestamp, `DataQuality`, `reason_c
 
 ---
 
+
+<!--
+[AI-CHANGE | 2026-04-30 12:20 UTC | v0.198]
+CO ZMIENIONO: Dodano sekcję „Mapa” z definicjami statusów VALID/STALE/UNAVAILABLE/ERROR, tabelę decyzji operacyjnych dla `reason_code`, macierz „objaw → działanie” dla kodów mapowych oraz checklistę przed ruchem zależnym od lokalizacji.
+DLACZEGO: Operator musi podejmować spójne decyzje w oparciu o to samo słownictwo co UI i słownik statusów, aby ograniczyć ryzyko wykonania ruchu na niepewnych danych lokalizacyjnych.
+JAK TO DZIAŁA: Sekcja wiąże statusy mapy z decyzją „kontynuacja/pause/eskalacja”, mapuje `reason_code` na konkretne kroki operacyjne i wymusza krótką kontrolę bezpieczeństwa przed każdym ruchem zależnym od pozycji.
+TODO: Dodać do UI licznik czasu przebywania w statusie STALE/UNAVAILABLE oraz automatyczne podpowiedzi eskalacji po przekroczeniu progów czasowych.
+-->
+
+## Mapa (`MapTab`) — statusy, decyzje i bezpieczeństwo
+
+### Znaczenie statusów mapy (`VALID/STALE/UNAVAILABLE/ERROR`)
+
+Poniższe nazwy są spięte ze słownictwem z dokumentu statusów UI i komunikatami operatorskimi (`reason_code`) używanymi przez aplikację.
+
+| Status mapy | Znaczenie operacyjne | Odpowiednik słowny w UI | Decyzja domyślna |
+|---|---|---|---|
+| `VALID` | Próbka mapy jest świeża, kompletna i przeszła walidację. | `GOTOWY` | **Kontynuacja** (z zachowaniem monitoringu). |
+| `STALE` | Dane mapowe są przeterminowane (`MAP_POSE_STALE`) i nie odzwierciedlają bieżącej pozycji. | `OCZEKIWANIE NA DANE` | **Pause** ruchu zależnego od lokalizacji. |
+| `UNAVAILABLE` | Brak wiarygodnych danych mapowych (`MAP_TF_MISSING`, `ros_unavailable`, `missing_sample`). | `BRAK TF` / `ROZŁĄCZONY ROS` / `OCZEKIWANIE NA DANE` | **Pause + eskalacja**, jeśli stan się utrzymuje. |
+| `ERROR` | Błąd walidacji lub niespójność kontraktu (`MAP_FRAME_MISMATCH`, `MAP_SAMPLE_INVALID_SCHEMA`, `transport_failure`). | `OCZEKIWANIE NA DANE` (z kodem błędu w diagnostyce) | **Natychmiastowa eskalacja** i blokada decyzji mapowych. |
+
+> Reguła bezpieczeństwa: jeżeli status ≠ `VALID`, preferuj **brak wyniku** i wstrzymanie ruchu zamiast ryzyka błędnej lokalizacji.
+
+### Decyzje operacyjne per `reason_code`
+
+| `reason_code` | Co oznacza | Decyzja operatora |
+|---|---|---|
+| `ok` | Próbka mapy poprawna. | **Kontynuacja**: można wykonywać ruch zależny od lokalizacji. |
+| `MAP_POSE_STALE` | Pozycja mapowa jest nieaktualna. | **Pause**: zatrzymaj ruch lokalizacyjny, czekaj na świeżą próbkę; eskaluj przy utrzymaniu trendu. |
+| `MAP_TF_MISSING` | Brakuje transformacji TF. | **Pause + eskalacja L2**: sprawdź łańcuch TF, nie wznawiaj ruchu bez potwierdzenia. |
+| `MAP_FRAME_MISMATCH` | Niespójne `frame_id`. | **Eskalacja**: przerwij decyzje mapowe, napraw konfigurację ramek przed wznowieniem. |
+| `MAP_SAMPLE_INVALID_SCHEMA` | Próbka narusza kontrakt danych. | **Eskalacja**: odrzuć próbkę, zgłoś problem do właściciela publishera. |
+| `missing_sample` | Brak próbki w oknie czasowym. | **Pause**: traktuj lokalizację jako niewiarygodną; eskaluj, gdy przekracza próg czasowy dyżuru. |
+| `degraded_input_quality:*` | Wejście ma zbyt niską jakość. | **Pause**: utrzymaj blokadę publikacji i przejdź do diagnostyki źródła. |
+| `ros_unavailable` | Kanał ROS niedostępny. | **Eskalacja natychmiastowa**: bez łączności brak podstaw do ruchu autonomicznego. |
+| `transport_failure` | Awaria transportu danych. | **Eskalacja natychmiastowa** i przejście na tryb bezpieczny. |
+
+### Macierz „objaw → działanie” (kody mapowe)
+
+| Objaw w UI/telemetrii | Najczęstszy kod | Działanie natychmiastowe | Działanie po 5–10 min |
+|---|---|---|---|
+| Status mapy przechodzi `VALID → STALE` | `MAP_POSE_STALE` | Wstrzymaj ruch zależny od pozycji i potwierdź świeżość timestampów. | Jeśli brak poprawy: eskaluj do L2 i utrzymaj `NO-GO`. |
+| Widok mapy pokazuje brak pozycji robota | `MAP_TF_MISSING` | Sprawdź dostępność TF i ostatni poprawny frame. | Eskaluj do zespołu ROS/TF, restart tylko zależnych komponentów. |
+| Diagnostyka zgłasza niespójne układy odniesienia | `MAP_FRAME_MISMATCH` | Zablokuj decyzje mapowe; nie wykonuj ruchu krytycznego. | Ujednolić konfigurację ramek, potwierdzić spójną walidację przed wznowieniem. |
+| Błąd kontraktu próbki mapy | `MAP_SAMPLE_INVALID_SCHEMA` | Odrzuć próbkę i zabezpiecz log walidatora. | Eskaluj do właściciela źródła danych; wznowienie tylko po poprawce kontraktu. |
+| Brak nowych próbek mapy | `missing_sample` | Traktuj lokalizację jako `UNAVAILABLE`; pause automatyki lokalizacyjnej. | Eskaluj przy przekroczeniu progu czasowego i zweryfikuj publisher/transport. |
+| Rozłączenie warstwy ROS | `ros_unavailable` | Natychmiast `NO-GO`, brak komend zależnych od mapy. | Eskalacja krytyczna L2/L3, wznowienie po stabilnym reconnect. |
+
+### Krótka checklista przed ruchem zależnym od lokalizacji
+
+1. Status mapy = `VALID` (nie `STALE/UNAVAILABLE/ERROR`).
+2. Brak aktywnego `reason_code` krytycznego (`MAP_*`, `ros_unavailable`, `transport_failure`).
+3. Ostatnia próbka mapy mieści się w oknie świeżości operacyjnej.
+4. TF i `frame_id` są spójne w diagnostyce.
+5. Gdy którykolwiek punkt jest niespełniony: **pause + brak publikacji decyzji ruchowej**.
+
 ## Reakcja na awarie (skrócone procedury)
 
 ### A) Brak detekcji przy aktywnych wejściach
