@@ -6,7 +6,17 @@ from datetime import datetime, timedelta, timezone
 
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from robot_mission_control.core import DataQuality
+from robot_mission_control.core import (
+    STATE_KEY_MAP_DATA_QUALITY,
+    STATE_KEY_MAP_FRAME_ID,
+    STATE_KEY_MAP_REASON_CODE,
+    STATE_KEY_MAP_TF_STATUS,
+    STATE_KEY_MAP_TIMESTAMP,
+    STATE_KEY_MAP_TRAJECTORY,
+    STATE_KEY_MAP_POSITION,
+    DataQuality,
+    StateValue,
+)
 from .operator_guidance import resolve_operator_guidance
 from .state_rendering import quality_color_hex, render_quality_with_icon
 
@@ -168,6 +178,53 @@ class MapTab(QWidget):
             f"Wskazówki: Co się stało: {operator_guidance.meaning} Co zrobić: {operator_guidance.action}"
         )
         self._operator_hint_label.setStyleSheet("color: #b7791f;")
+
+    # [AI-CHANGE | 2026-04-30 16:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano adapter mapujący rekord snapshotu store na `MapSample`.
+    # DLACZEGO: UI wymaga jednego miejsca konwersji kontraktu mapy i twardego odrzucenia danych niekompletnych.
+    # JAK TO DZIAŁA: Metoda czyta osobne klucze mapy (dane + quality + reason_code); gdy którekolwiek
+    #                pole krytyczne jest niepoprawne, przekazuje do `set_map_sample` wartość `sample=None`.
+    # TODO: Rozszerzyć adapter o walidację monotoniczności timestamp dla wykrywania cofnięć czasu.
+    def update_from_store_snapshot(self, snapshot: dict[str, StateValue]) -> None:
+        position_item = snapshot.get(STATE_KEY_MAP_POSITION)
+        frame_item = snapshot.get(STATE_KEY_MAP_FRAME_ID)
+        timestamp_item = snapshot.get(STATE_KEY_MAP_TIMESTAMP)
+        trajectory_item = snapshot.get(STATE_KEY_MAP_TRAJECTORY)
+        tf_status_item = snapshot.get(STATE_KEY_MAP_TF_STATUS)
+        quality_item = snapshot.get(STATE_KEY_MAP_DATA_QUALITY)
+        reason_item = snapshot.get(STATE_KEY_MAP_REASON_CODE)
+
+        sample: MapSample | None = None
+        if all(item is not None for item in (position_item, frame_item, timestamp_item, tf_status_item)):
+            pos_val = position_item.value if position_item else None
+            frame_val = frame_item.value if frame_item else None
+            ts_val = timestamp_item.value if timestamp_item else None
+            tf_val = tf_status_item.value if tf_status_item else None
+            if (
+                isinstance(pos_val, tuple)
+                and len(pos_val) == 2
+                and isinstance(frame_val, str)
+                and isinstance(ts_val, datetime)
+                and isinstance(tf_val, str)
+            ):
+                trajectory_text = None
+                if trajectory_item is not None and isinstance(trajectory_item.value, tuple):
+                    trajectory_text = f"points={len(trajectory_item.value)}"
+                sample = MapSample(
+                    timestamp=ts_val,
+                    frame_id=frame_val,
+                    position_text=f"x={pos_val[0]:.2f}, y={pos_val[1]:.2f}",
+                    trajectory_text=trajectory_text,
+                    source=position_item.source,
+                )
+
+        quality = DataQuality.UNAVAILABLE
+        if quality_item is not None and quality_item.quality is DataQuality.VALID and isinstance(quality_item.value, str):
+            quality = DataQuality[quality_item.value] if quality_item.value in DataQuality.__members__ else DataQuality.ERROR
+
+        ros_connected = True
+        tf_available = bool(tf_status_item and tf_status_item.quality is DataQuality.VALID and tf_status_item.value == "OK")
+        self.set_map_sample(sample=sample, quality=quality, ros_connected=ros_connected, tf_available=tf_available)
 
     def set_map_status(self, quality: DataQuality, *, position_text: str | None = None) -> None:
         """Kompatybilny wrapper dla istniejących wywołań testowych."""

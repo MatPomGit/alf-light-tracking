@@ -705,3 +705,57 @@ def test_main_window_map_navigation_uses_label_lookup_and_safe_fallback() -> Non
     tabs.setCurrentIndex(initial_index)
     window._activate_map_navigation()
     assert tabs.currentIndex() == initial_index
+
+# [AI-CHANGE | 2026-04-30 16:20 UTC | v0.201]
+# CO ZMIENIONO: Dodano scenariusz end-to-end dla przepływu store -> MainWindow -> MapTab.
+# DLACZEGO: Test potwierdza, że MainWindow cyklicznie przekazuje snapshot mapy i że etykiety MapTab
+#           aktualizują się wyłącznie przy kompletnych danych (zachowanie fail-safe).
+# JAK TO DZIAŁA: Test zapisuje komplet kluczy mapy do StateStore, wywołuje `_refresh_runtime_status`,
+#                a następnie asertywnie sprawdza zmianę tekstu etykiet pozycji/jakości w MapTab.
+# TODO: Dodać wariant z niekompletną próbką i weryfikacją fallbacku `Pozycja: BRAK DANYCH` po timerze Qt.
+def test_main_window_refreshes_map_tab_from_store_snapshot_end_to_end() -> None:
+    _ensure_qapplication()
+
+    from robot_mission_control.core import (
+        STATE_KEY_MAP_DATA_QUALITY,
+        STATE_KEY_MAP_FRAME_ID,
+        STATE_KEY_MAP_POSITION,
+        STATE_KEY_MAP_TF_STATUS,
+        STATE_KEY_MAP_TIMESTAMP,
+        STATE_KEY_MAP_TRAJECTORY,
+        Supervisor,
+    )
+    from robot_mission_control.ui.main_window import MainWindow
+    from robot_mission_control.ui.tabs.map_tab import MapTab
+    from robot_mission_control.versioning import VersionMetadata
+
+    store = StateStore()
+    window = MainWindow(
+        state_store=store,
+        supervisor=Supervisor(),
+        version_metadata=VersionMetadata(commit_count=201, short_sha="testsha", build_time_utc="2026-04-30T16:20:00Z", source="test"),
+        ui_timer_intervals_ms={"main_window_refresh_interval_ms": 60000},
+    )
+    window._refresh_timer.stop()
+
+    map_tab = None
+    assert window._tabs_panel is not None
+    for i in range(window._tabs_panel.count()):
+        widget = window._tabs_panel.widget(i)
+        if isinstance(widget, MapTab):
+            map_tab = widget
+            break
+    assert map_tab is not None
+
+    now = datetime.now(timezone.utc)
+    _set_state(store, STATE_KEY_MAP_POSITION, value=(1.2, 3.4), quality=DataQuality.VALID)
+    _set_state(store, STATE_KEY_MAP_FRAME_ID, value="map", quality=DataQuality.VALID)
+    _set_state(store, STATE_KEY_MAP_TIMESTAMP, value=now, quality=DataQuality.VALID)
+    _set_state(store, STATE_KEY_MAP_TRAJECTORY, value=((1.2, 3.4), (1.4, 3.8)), quality=DataQuality.VALID)
+    _set_state(store, STATE_KEY_MAP_TF_STATUS, value="OK", quality=DataQuality.VALID)
+    _set_state(store, STATE_KEY_MAP_DATA_QUALITY, value="VALID", quality=DataQuality.VALID)
+
+    window._refresh_runtime_status()
+
+    assert map_tab._position_label.text() == "Pozycja: x=1.20, y=3.40"
+    assert "VALID" in map_tab._quality_label.text()

@@ -346,3 +346,43 @@ class TelemetryTopicSubscribers:
             timestamp=normalized_timestamp,
             max_age=self._max_timestamp_drift,
         )
+
+
+    # [AI-CHANGE | 2026-04-30 16:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano publikację pełnego kontraktu pól mapy do osobnych kluczy store
+    #               (position, frame_id, timestamp, trajectory, tf_status, data_quality, reason_code).
+    # DLACZEGO: Sama łączność ROS jest niewystarczająca; UI mapy potrzebuje jawnych publikacji rekordów mapowych.
+    # JAK TO DZIAŁA: Funkcja atomowo zapisuje wszystkie pola mapy. Przy niepewnych danych ustawia
+    #                quality=UNAVAILABLE/ERROR oraz `None`, aby UI nie renderowało fałszywej pozycji.
+    # TODO: Dodać wersjonowanie payloadu mapy i metryki odrzuceń per reason_code.
+    def publish_map_snapshot_fields(
+        self,
+        *,
+        position_key: str,
+        frame_id_key: str,
+        timestamp_key: str,
+        trajectory_key: str,
+        tf_status_key: str,
+        data_quality_key: str,
+        reason_code_key: str,
+        position: tuple[float, float] | None,
+        frame_id: str | None,
+        sample_timestamp: datetime | None,
+        trajectory: tuple[tuple[float, float], ...] | None,
+        tf_status: str | None,
+        source: str,
+        reason_code: str | None = None,
+    ) -> None:
+        normalized_timestamp = self._normalize_timestamp(sample_timestamp or datetime.now(timezone.utc))
+        inferred_reason = reason_code
+        data_quality = "VALID"
+        if position is None or frame_id is None or sample_timestamp is None or tf_status not in {"OK", "DEGRADED", "ERROR"}:
+            data_quality = "UNAVAILABLE"
+            inferred_reason = inferred_reason or "map_snapshot_incomplete"
+        self._state_store.set_with_inference(key=position_key, value=position if data_quality == "VALID" else None, source=source, timestamp=normalized_timestamp, reason_code=inferred_reason)
+        self._state_store.set_with_inference(key=frame_id_key, value=frame_id if data_quality == "VALID" else None, source=source, timestamp=normalized_timestamp, reason_code=inferred_reason)
+        self._state_store.set_with_inference(key=timestamp_key, value=sample_timestamp if data_quality == "VALID" else None, source=source, timestamp=normalized_timestamp, reason_code=inferred_reason)
+        self._state_store.set_with_inference(key=trajectory_key, value=trajectory if data_quality == "VALID" else None, source=source, timestamp=normalized_timestamp, reason_code=inferred_reason)
+        self._state_store.set_with_inference(key=tf_status_key, value=tf_status if data_quality == "VALID" else None, source=source, timestamp=normalized_timestamp, reason_code=inferred_reason)
+        self._state_store.set_with_inference(key=data_quality_key, value=data_quality, source=source, timestamp=normalized_timestamp, reason_code=inferred_reason)
+        self._state_store.set_with_inference(key=reason_code_key, value=inferred_reason or "ok", source=source, timestamp=normalized_timestamp)

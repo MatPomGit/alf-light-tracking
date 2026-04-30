@@ -65,6 +65,21 @@ STATE_KEY_ACTION_GOAL_ID = "action_goal_id"
 STATE_KEY_MAP_POSE = "map_pose"
 STATE_KEY_MAP_PATH = "map_path"
 STATE_KEY_MAP_FRAME_STATUS = "map_frame_status"
+# [AI-CHANGE | 2026-04-30 16:20 UTC | v0.201]
+# CO ZMIENIONO: Dodano osobne klucze kontraktu mapy dla pozycji, frame_id, timestamp, trajektorii,
+#               statusu TF oraz metadanych jakości/reason_code.
+# DLACZEGO: Rozdzielenie pól eliminuje niejednoznaczność kontraktu między ROS a UI i pozwala
+#           walidować kompletność każdego elementu mapy bez ryzyka prezentacji błędnych danych.
+# JAK TO DZIAŁA: Każde pole mapy ma dedykowany klucz w StateStore; UI może czytać komplet rekordu,
+#                a przy braku któregokolwiek elementu bezpiecznie odrzuca próbkę (fallback do None).
+# TODO: Przenieść kontrakt kluczy mapy do osobnego modułu schema i dodać walidator wersji.
+STATE_KEY_MAP_POSITION = "map_position"
+STATE_KEY_MAP_FRAME_ID = "map_frame_id"
+STATE_KEY_MAP_TIMESTAMP = "map_timestamp"
+STATE_KEY_MAP_TRAJECTORY = "map_trajectory"
+STATE_KEY_MAP_TF_STATUS = "map_tf_status"
+STATE_KEY_MAP_DATA_QUALITY = "map_data_quality"
+STATE_KEY_MAP_REASON_CODE = "map_reason_code"
 
 GLOBAL_STATE_KEYS = (
     STATE_KEY_DATA_SOURCE_MODE,
@@ -81,6 +96,13 @@ GLOBAL_STATE_KEYS = (
     STATE_KEY_MAP_POSE,
     STATE_KEY_MAP_PATH,
     STATE_KEY_MAP_FRAME_STATUS,
+    STATE_KEY_MAP_POSITION,
+    STATE_KEY_MAP_FRAME_ID,
+    STATE_KEY_MAP_TIMESTAMP,
+    STATE_KEY_MAP_TRAJECTORY,
+    STATE_KEY_MAP_TF_STATUS,
+    STATE_KEY_MAP_DATA_QUALITY,
+    STATE_KEY_MAP_REASON_CODE,
 )
 
 

@@ -56,3 +56,23 @@ class ErrorDescriptor:
     code: str
     message: str
     details: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MapSnapshotContract:
+    """Kontrakt pełnego rekordu mapy przekazywanego między store i UI."""
+
+    # [AI-CHANGE | 2026-04-30 16:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano model kontraktu mapy z osobnymi polami danych, jakości i reason_code.
+    # DLACZEGO: Kontrakt musi być jednoznaczny, aby UI mogło odrzucać niekompletne próbki zamiast
+    #           renderować potencjalnie błędną lokalizację robota.
+    # JAK TO DZIAŁA: Model wymaga osobnych wartości: position/frame_id/timestamp/trajectory/tf_status
+    #                oraz metadanych data_quality/reason_code odczytywanych ze store.
+    # TODO: Dodać walidację zakresów pozycji i dopuszczalnych statusów TF na poziomie modelu.
+    position: tuple[float, float] | None
+    frame_id: str | None
+    timestamp: datetime | None
+    trajectory: tuple[tuple[float, float], ...] | None
+    tf_status: str | None
+    data_quality: str
+    reason_code: str | None
