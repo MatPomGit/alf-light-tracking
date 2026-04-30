@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
-CO ZMIENIONO: Scalono dwa nagłówkowe wpisy AI macierzy środowisk w jeden aktualny opis dokumentu.
-DLACZEGO: Osobne bloki utworzenia i akceptacji były obok siebie, a dokument powinien zaczynać się od jednej czytelnej metainformacji.
-JAK TO DZIAŁA: Macierz nadal definiuje politykę ALLOW/BLOCK, profil referencyjny, bramki release i formalną akceptację operacyjną.
-TODO: Dodać automatyczny walidator `env-hard-gate` uruchamiany w CI przed etapem publikacji artefaktów.
--->
-
 # Twarda macierz środowisk (HARD ENV MATRIX)
 
 ## Akceptacja operacyjna

@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
-CO ZMIENIONO: Scalono dwa nagłówkowe wpisy AI inwentaryzacji ROS2 w jeden blok opisujący aktualny zakres.
-DLACZEGO: Historia utworzenia dokumentu i późniejszej relokacji ścieżek była zapisana jako dwa bloki pod rząd przed tytułem.
-JAK TO DZIAŁA: Dokument nadal mapuje interfejsy MVP, ownerów, QoS, częstotliwości i aktualne ścieżki w `ros2_ws/`.
-TODO: Zautomatyzować generację tej inwentaryzacji z kodu (`create_*`, `declare_parameter`) i dodać walidację w CI blokującą merge przy brakach owner/QoS/frequency.
--->
-
 # Inwentaryzacja interfejsów ROS2 (MVP)
 
 ## Zakres i definicja MVP

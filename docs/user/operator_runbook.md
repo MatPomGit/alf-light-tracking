@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-23 19:01 UTC | v0.195]
-CO ZMIENIONO: Rozszerzono runbook o pełną procedurę dla wszystkich tabów UI, instrukcje pracy na kartach, interpretację jakości danych i reakcje na awarie.
-DLACZEGO: Operator ma mieć jedną, kompletną instrukcję działania bez luk i bez rozproszonych notatek.
-JAK TO DZIAŁA: Dokument prowadzi operatora kolejno przez zakładki, decyzje jakościowe i scenariusze awaryjne; domyślną decyzją przy niepewności jest odrzucenie wyniku.
-TODO: Dodać mapowanie pól UI do konkretnych tematów ROS2 po zamrożeniu kontraktu telemetrycznego.
--->
-
 # Runbook operatora UI
 
 ## Zasada nadrzędna

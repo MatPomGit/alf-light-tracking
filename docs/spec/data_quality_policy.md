@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-20 20:56 UTC | v0.155]
-CO ZMIENIONO: Zaktualizowano politykę jakości danych o obowiązkową regułę "niepewne dane => brak wyniku" oraz dodano mapowanie jakości dla klas danych i każdego panelu MVP.
-DLACZEGO: Potrzebna była jawna, testowalna polityka decyzyjna, która eliminuje zgadywanie i wymusza bezpieczną degradację prezentacji danych.
-JAK TO DZIAŁA: Każdy panel najpierw czyta `quality` z kontraktu danych, następnie stosuje deterministyczną mapę zachowania UI; stany `UNAVAILABLE` i `ERROR` blokują prezentację wartości domenowej.
-TODO: Dodać automatyczne testy kontraktowe UI (snapshot + testy mapowania quality), aby każdy panel MVP był weryfikowany w CI.
--->
-
 # Polityka jakości danych
 
 ## Priorytet systemu

@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-20 20:56 UTC | v0.155]
-CO ZMIENIONO: Przepisano kontrakt danych, definiując obowiązkowe pola (`value`, `timestamp`, `source`, `quality`, `reason_code?`) oraz klasy danych z jednoznacznym mapowaniem jakości `VALID/STALE/UNAVAILABLE/ERROR`.
-DLACZEGO: Ujednolicenie formatu rekordów i polityki jakości zmniejsza ryzyko propagacji niepewnych danych między modułami i panelami MVP.
-JAK TO DZIAŁA: Każdy rekord przechodzi walidację pól obowiązkowych, walidację semantyczną klasy danych i mapowanie do jakości; dane niepewne są odrzucane jako `UNAVAILABLE` lub `ERROR`.
-TODO: Dodać walidator kontraktu jako krok CI (np. test schematu JSON dla tematów ROS2) i raport pokrycia klas danych.
--->
-
 # Kontrakty danych
 
 ## Cel

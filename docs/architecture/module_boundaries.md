@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
-CO ZMIENIONO: Scalono dwa nagłówkowe bloki AI w jeden opis aktualnego zakresu dokumentu.
-DLACZEGO: Kolejne bloki meta przed tytułem dublowały historię utworzenia i relokacji pakietu, utrudniając wejście w treść architektury.
-JAK TO DZIAŁA: Dokument nadal opisuje granice modułów Stage 0 i aktualne ścieżki `ros2_ws/robot_mission_control/...`.
-TODO: Dodać sekcję zależności runtime pomiędzy modułami core a mostem ROS.
--->
-
 # Granice modułów
 
 ## Moduły

@@ -1,11 +1,3 @@
-<!--
-[AI-CHANGE | 2026-04-29 13:51 UTC | v0.333]
-CO ZMIENIONO: Scalono nagłówkowe wpisy AI runbooka w jeden blok opisujący treść i akceptację operacyjną.
-DLACZEGO: Dwa bloki meta pod rząd powtarzały historię utworzenia i zatwierdzenia, odciągając uwagę od procedury incydentowej.
-JAK TO DZIAŁA: Runbook zachowuje triage, eskalację, rollback, kryteria zamknięcia i sekcję akceptacji operacyjnej jako zwykłą treść dokumentu.
-TODO: Zintegrować sekcję „Timeline incydentu” z automatycznym eksportem zdarzeń z UI do systemu ticketowego.
--->
-
 # Runbook incydentów (operacyjny)
 
 ## Akceptacja operacyjna
