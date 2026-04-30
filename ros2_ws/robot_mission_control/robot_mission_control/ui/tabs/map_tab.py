@@ -55,12 +55,21 @@ class MapTab(QWidget):
         DataQuality.UNAVAILABLE,
         DataQuality.ERROR,
     )
-    _MAX_SAMPLE_AGE_SECONDS = 2.5
-    _MAX_LINEAR_SPEED_MPS = 3.5
+    _DEFAULT_MAX_SAMPLE_AGE_SECONDS = 2.5
+    _DEFAULT_MAX_LINEAR_SPEED_MPS = 3.5
     _MAX_ANGULAR_SPEED_RADPS = 2.5
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, map_config: dict[str, float | list[str]] | None = None) -> None:
         super().__init__(parent)
+        # [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+        # CO ZMIENIONO: Dodano bezpieczne wczytanie parametrów mapy z `map_config` z fallbackiem do wartości domyślnych.
+        # DLACZEGO: Niepewna lub uszkodzona konfiguracja nie może powodować awarii ani niebezpiecznego poluzowania walidacji.
+        # JAK TO DZIAŁA: `_resolve_map_runtime_limits` waliduje pola i przy błędzie używa konserwatywnych defaultów.
+        # TODO: Dodać jawny kanał diagnostyczny sygnalizujący, które pola map_config uruchomiły fallback.
+        resolved_map_config = self._resolve_map_runtime_limits(raw_config=map_config or {})
+        self._max_sample_age_seconds = resolved_map_config["max_sample_age_s"]
+        self._max_linear_speed_mps = resolved_map_config["max_speed_mps"]
+        self._allowed_frames = tuple(resolved_map_config["allowed_frames"])
         self._expected_frame_id: str | None = None
         self._last_valid_position_text: str | None = None
         self._last_valid_trajectory_text: str | None = None
@@ -138,9 +147,10 @@ class MapTab(QWidget):
             return (quality, f"degraded_input_quality:{quality.value}")
 
         reference_time = now_utc if now_utc is not None else datetime.now(timezone.utc)
-        if reference_time - sample.timestamp > timedelta(seconds=self._MAX_SAMPLE_AGE_SECONDS):
+        if reference_time - sample.timestamp > timedelta(seconds=self._max_sample_age_seconds):
             return (DataQuality.STALE, "MAP_POSE_STALE")
-
+        if sample.frame_id not in self._allowed_frames:
+            return (DataQuality.ERROR, "MAP_FRAME_NOT_ALLOWED")
         if self._expected_frame_id is None:
             self._expected_frame_id = sample.frame_id
         elif sample.frame_id != self._expected_frame_id:
@@ -165,6 +175,29 @@ class MapTab(QWidget):
             return (kinematic_quality, kinematic_reason)
 
         return (DataQuality.VALID, "ok")
+
+    # [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+    # CO ZMIENIONO: Dodano lokalny resolver limitów mapy z walidacją i bezpiecznym fallbackiem.
+    # DLACZEGO: `MapTab` musi działać stabilnie nawet przy uszkodzonej konfiguracji wejściowej.
+    # JAK TO DZIAŁA: Metoda akceptuje tylko dodatnie liczby i niepustą listę `allowed_frames`; w przeciwnym razie
+    #                zwraca twarde defaulty zgodne z polityką bezpieczeństwa danych.
+    # TODO: Rozszerzyć fallback o strategię „strict mode”, która całkowicie blokuje render mapy przy błędnym configu.
+    def _resolve_map_runtime_limits(self, *, raw_config: dict[str, float | list[str]]) -> dict[str, float | list[str]]:
+        max_sample_age_s = raw_config.get("max_sample_age_s")
+        if not isinstance(max_sample_age_s, (int, float)) or float(max_sample_age_s) <= 0.0:
+            max_sample_age_s = self._DEFAULT_MAX_SAMPLE_AGE_SECONDS
+        max_speed_mps = raw_config.get("max_speed_mps")
+        if not isinstance(max_speed_mps, (int, float)) or float(max_speed_mps) <= 0.0:
+            max_speed_mps = self._DEFAULT_MAX_LINEAR_SPEED_MPS
+        raw_allowed_frames = raw_config.get("allowed_frames")
+        allowed_frames = [item.strip() for item in raw_allowed_frames if isinstance(item, str) and item.strip()] if isinstance(raw_allowed_frames, list) else []
+        if not allowed_frames:
+            allowed_frames = ["map"]
+        return {
+            "max_sample_age_s": float(max_sample_age_s),
+            "max_speed_mps": float(max_speed_mps),
+            "allowed_frames": allowed_frames,
+        }
 
     def set_map_sample(
         self,
@@ -278,7 +311,7 @@ class MapTab(QWidget):
         linear_speed = (dx * dx + dy * dy) ** 0.5 / dt_seconds
         angular_speed = dyaw / dt_seconds
 
-        if linear_speed > self._MAX_LINEAR_SPEED_MPS or angular_speed > self._MAX_ANGULAR_SPEED_RADPS:
+        if linear_speed > self._max_linear_speed_mps or angular_speed > self._MAX_ANGULAR_SPEED_RADPS:
             return (DataQuality.ERROR, "MAP_KINEMATIC_OUTLIER")
 
         return (DataQuality.VALID, "ok")

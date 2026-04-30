@@ -805,6 +805,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         supervisor=supervisor,
         version_metadata=resolve_version_metadata(),
         ui_timer_intervals_ms=runtime_config.ui_timer_intervals_ms,
+        # [AI-CHANGE | 2026-04-30 23:20 UTC | v0.201]
+        # CO ZMIENIONO: Dodano przekazanie `map_config` do MainWindow podczas inicjalizacji aplikacji.
+        # DLACZEGO: Zakładka mapy ma używać limitów z konfiguracji, a nie wartości hardcodowanych.
+        # JAK TO DZIAŁA: MainWindow przekazuje słownik do konstruktora `MapTab`, który stosuje walidację/fallback.
+        # TODO: Ujednolicić przekazywanie wszystkich sekcji configu przez pojedynczy obiekt RuntimeSettings.
+        map_config=runtime_config.map_config,
         submit_action_goal=bridge.submit_action_goal,
         cancel_action_goal=bridge.cancel_action_goal,
         submit_quick_action=bridge.submit_quick_action,
