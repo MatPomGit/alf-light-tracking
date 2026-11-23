@@ -30,11 +30,15 @@ if __package__ in (None, ""):
                 sys.path.insert(0, candidate_str)
             break
 
+# [AI-CHANGE | 2026-11-23 15:30 UTC | v0.334]
+# CO ZMIENIONO: Uporządkowano importy i usunięto zbędne konstrukcje zgłaszane przez Ruff.
+# DLACZEGO: Kontrola lint blokowała CI przy zachowaniu poprawnego wykonania ROS2 E2E.
+# JAK TO DZIAŁA: Kolejność importów i równoważne iterowanie po mapie nie zmieniają logiki.
+# TODO: Oddzielić zależności UI od głównego entrypointu dla testów izolowanych.
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from robot_mission_control.core import (
-    ActionStatusLabel,
     STATE_KEY_ACTION_GOAL_ID,
     STATE_KEY_ACTION_PROGRESS,
     STATE_KEY_ACTION_RESULT,
@@ -46,21 +50,28 @@ from robot_mission_control.core import (
     STATE_KEY_RECORDING_STATUS,
     STATE_KEY_ROS_CONNECTION_STATUS,
     STATE_KEY_SELECTED_BAG,
+    ActionStatusLabel,
     HealthMonitor,
     StateStore,
     Supervisor,
     WorkerModule,
     utc_now,
 )
-from robot_mission_control.ros.action_backend import ActionBackendConfig, Ros2MissionActionBackend
-from robot_mission_control.ros.action_clients import ActionClientBindings, MissionActionClient
+from robot_mission_control.core.config_loader import ConfigValidationError, load_config
+from robot_mission_control.ros.action_backend import (
+    ActionBackendConfig,
+    Ros2MissionActionBackend,
+)
+from robot_mission_control.ros.action_clients import (
+    ActionClientBindings,
+    MissionActionClient,
+)
 from robot_mission_control.ros.dependency_audit_client import DependencyStatusClient
 from robot_mission_control.ros.node_manager import ReconnectPolicy, RosNodeManager
-from robot_mission_control.core.config_loader import ConfigValidationError, load_config
-from robot_mission_control.ui.main_window import MainWindow
 from robot_mission_control.rosbag.integrity_checker import IntegrityChecker
 from robot_mission_control.rosbag.playback_controller import PlaybackController
 from robot_mission_control.rosbag.record_controller import RecordController
+from robot_mission_control.ui.main_window import MainWindow
 from robot_mission_control.versioning import resolve_version_metadata
 
 # [AI-CHANGE | 2026-04-21 03:58 UTC | v0.160]
@@ -224,7 +235,7 @@ class RosBridgeService:
             return False
 
         for payload in self._quick_command_map.values():
-            for payload_key in payload.keys():
+            for payload_key in payload:
                 if payload_key not in goal_fields:
                     return False
 
@@ -743,14 +754,14 @@ class RosBridgeService:
 def _install_global_excepthook(supervisor: Supervisor) -> None:
     """Install global boundary for unhandled UI/runtime exceptions."""
 
-    def _hook(exc_type, exc, tb):  # noqa: ANN001
+    def _hook(exc_type, exc, tb):
         _ = exc_type, tb
         supervisor.mark_panel_unavailable(panel_name="global_ui", exc=exc, now=utc_now())
 
     sys.excepthook = _hook
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Application entrypoint."""
     monitor = HealthMonitor(
         heartbeat_timeout=timedelta(seconds=10),
