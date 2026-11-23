@@ -82,8 +82,8 @@ jobs:
           # JAK TO DZIAŁA: find wybiera tylko moduły unit; osobne joby zachowują E2E i UI.
           # TODO: Rozdzielić testy unit/UI/E2E na katalogi z własnymi markerami.
           mapfile -d '' unit_tests < <(
-            find ros2_ws/robot_mission_control/tests -maxdepth 1 -type f -name 'test_*.py' \\
-              ! -name 'test_action_e2e_launch_testing.py' \\
+            find ros2_ws/robot_mission_control/tests -maxdepth 1 -type f -name 'test_*.py' \
+              ! -name 'test_action_e2e_launch_testing.py' \
               ! -name 'test_ui_state_safety.py' -print0 | sort -z
           )
           if [ "${#unit_tests[@]}" -eq 0 ]; then
