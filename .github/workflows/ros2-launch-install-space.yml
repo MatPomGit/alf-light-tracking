@@ -50,9 +50,12 @@ jobs:
       - name: Install build and test tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep python3-pip python3-pytest libgl1 libegl1
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r ros2_ws/robot_mission_control/requirements-ui.txt
+          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep python3-pip python3-venv python3-pytest libgl1 libegl1
+          # Ubuntu 24.04 manages system Python via APT (PEP 668).
+          # Retain system ROS packages but install Qt dependencies in an isolated venv.
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -r ros2_ws/robot_mission_control/requirements-ui.txt
 
       - name: Build workspace
         run: |
@@ -66,7 +69,7 @@ jobs:
           source /opt/ros/jazzy/setup.bash
           source install/setup.bash
           set -u
-          pytest -q ros2_ws/robot_mission_control/tests -k 'not launch_testing and not e2e_launch_testing and not ui_state_safety'
+          .venv/bin/python -m pytest -q ros2_ws/robot_mission_control/tests -k 'not launch_testing and not e2e_launch_testing and not ui_state_safety'
 
       - name: Run UI tests (environment-gated)
         if: ${{ env.RUN_UI_TESTS == '1' }}
@@ -76,7 +79,7 @@ jobs:
           source /opt/ros/jazzy/setup.bash
           source install/setup.bash
           set -u
-          pytest -q ros2_ws/robot_mission_control/tests/test_ui_state_safety.py
+          .venv/bin/python -m pytest -q ros2_ws/robot_mission_control/tests/test_ui_state_safety.py
 
   # [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
   # CO ZMIENIONO: Dodano osobny job `launch-testing` dla E2E ROS2.
