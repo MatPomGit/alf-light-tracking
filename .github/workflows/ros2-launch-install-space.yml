@@ -76,7 +76,21 @@ jobs:
           # JAK TO DZIAŁA: --ignore wyklucza zależny od launch_testing moduł przed
           #                importem, a osobny job E2E zachowuje jego wykonanie.
           # TODO: Przenieść testy E2E do odrębnego katalogu z jawnie określonymi markerami.
-          .venv/bin/python -m pytest -q -rs ros2_ws/robot_mission_control/tests --ignore=ros2_ws/robot_mission_control/tests/test_action_e2e_launch_testing.py -k 'not ui_state_safety'
+          # [AI-CHANGE | 2026-11-23 20:42 UTC | v0.335]
+          # CO ZMIENIONO: Przekazujemy jawny wykaz testów unit do pytest.
+          # DLACZEGO: W logu CI import testu E2E przerywał kolekcję, mimo --ignore.
+          # JAK TO DZIAŁA: find wybiera tylko moduły unit; osobne joby zachowują E2E i UI.
+          # TODO: Rozdzielić testy unit/UI/E2E na katalogi z własnymi markerami.
+          mapfile -d '' unit_tests < <(
+            find ros2_ws/robot_mission_control/tests -maxdepth 1 -type f -name 'test_*.py' \\
+              ! -name 'test_action_e2e_launch_testing.py' \\
+              ! -name 'test_ui_state_safety.py' -print0 | sort -z
+          )
+          if [ "${#unit_tests[@]}" -eq 0 ]; then
+            echo "::error::Nie znaleziono testów jednostkowych." >&2
+            exit 1
+          fi
+          .venv/bin/python -m pytest -q -rs "${unit_tests[@]}"
 
       - name: Run UI tests (environment-gated)
         if: ${{ env.RUN_UI_TESTS == '1' }}
