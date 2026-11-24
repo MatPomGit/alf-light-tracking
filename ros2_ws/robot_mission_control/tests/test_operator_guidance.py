@@ -91,9 +91,17 @@ def test_map_validation_reason_codes_exist_in_operator_guidance_map() -> None:
 
     now = datetime.now(timezone.utc)
     tab = MapTab()
+    # [AI-CHANGE | 2026-11-24 08:09 UTC | v0.337]
+    # CO ZMIENIONO: Dodano wymagane współrzędne x/y/yaw w obu próbkach.
+    # DLACZEGO: MapSample bez tych parametrów zgłasza TypeError przed asercją.
+    # JAK TO DZIAŁA: Testy nadal rozróżniają brak ROS, brak TF i stare dane.
+    # TODO: Wydzielić fabrykę poprawnych próbek do wspólnych fixture.
     sample = MapSample(
         timestamp=now,
         frame_id="map",
+        x=1.0,
+        y=2.0,
+        yaw=0.0,
         position_text="x=1.00, y=2.00",
         trajectory_text=None,
         source="test",
@@ -106,6 +114,9 @@ def test_map_validation_reason_codes_exist_in_operator_guidance_map() -> None:
             sample=MapSample(
                 timestamp=now - timedelta(seconds=60),
                 frame_id="map",
+                x=1.0,
+                y=2.0,
+                yaw=0.0,
                 position_text="x=1.00, y=2.00",
                 trajectory_text=None,
                 source="test",
