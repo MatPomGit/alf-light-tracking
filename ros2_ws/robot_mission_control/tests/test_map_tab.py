@@ -133,7 +133,14 @@ def test_map_tab_handles_stale_timestamp() -> None:
 def test_map_tab_handles_inconsistent_frame_id() -> None:
     _ensure_qapplication()
     now = datetime.now(timezone.utc)
-    tab = MapTab()
+    # [AI-CHANGE | 2026-11-24 08:08 UTC | v0.336]
+    # CO ZMIENIONO: Obie ramy są jawnie dozwolone w teście niespójności.
+    # DLACZEGO: Domyślnie 'odom' jest odrzucane jako MAP_FRAME_NOT_ALLOWED
+    #           przed sprawdzeniem spójności względem poprzedniej ramy.
+    # JAK TO DZIAŁA: Pierwsza próbka ustala oczekiwaną ramę 'map',
+    #                druga, dozwolona rama 'odom' musi dać MAP_FRAME_MISMATCH.
+    # TODO: Dodać osobny test dla odrzucania niedozwolonej ramy.
+    tab = MapTab(map_config={"allowed_frames": ["map", "odom"]})
 
     tab.set_map_sample(sample=_sample(ts=now, frame="map"), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)
     tab.set_map_sample(sample=_sample(ts=now, frame="odom"), quality=DataQuality.VALID, ros_connected=True, tf_available=True, now_utc=now)

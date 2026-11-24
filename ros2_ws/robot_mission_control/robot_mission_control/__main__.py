@@ -7,7 +7,11 @@ from __future__ import annotations
 # DLACZEGO: Ułatwia lokalny smoke-test aplikacji bez instalowania entrypointu w systemie.
 # JAK TO DZIAŁA: Moduł deleguje wykonanie do `app.entrypoint.main` i zwraca kod zakończenia procesu.
 # TODO: Dodać parametry CLI `--offline` i `--headless` do testów automatycznych.
-
+# [AI-CHANGE | 2026-11-23 15:30 UTC | v0.334]
+# CO ZMIENIONO: Usunięto separator blokujący normalizację importów Ruff.
+# DLACZEGO: Ruff I001 traktował pusty wiersz przed importem jako osobny blok.
+# JAK TO DZIAŁA: Deklaracja importu pozostaje identyczna.
+# TODO: Rozdzielić konfigurację entrypointu od uruchamiania GUI.
 from robot_mission_control.app.entrypoint import main
 
 

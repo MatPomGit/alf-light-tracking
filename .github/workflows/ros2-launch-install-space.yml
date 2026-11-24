@@ -50,9 +50,12 @@ jobs:
       - name: Install build and test tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep python3-pip python3-pytest libgl1 libegl1
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r ros2_ws/robot_mission_control/requirements-ui.txt
+          sudo apt-get install -y python3-colcon-common-extensions python3-rosdep python3-pip python3-venv python3-pytest libgl1 libegl1
+          # Ubuntu 24.04 manages system Python via APT (PEP 668).
+          # Retain system ROS packages but install Qt dependencies in an isolated venv.
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -r ros2_ws/robot_mission_control/requirements-ui.txt
 
       - name: Build workspace
         run: |
@@ -66,7 +69,28 @@ jobs:
           source /opt/ros/jazzy/setup.bash
           source install/setup.bash
           set -u
-          pytest -q ros2_ws/robot_mission_control/tests -k 'not launch_testing and not e2e_launch_testing and not ui_state_safety'
+          # [AI-CHANGE | 2026-11-23 14:27 UTC | v0.334]
+          # CO ZMIENIONO: Pominięto moduł E2E już podczas kolekcji testów unit.
+          # DLACZEGO: Moduł E2E wywołuje pytest.importorskip w momencie importu;
+          #           filtr -k działa dopiero po kolekcji, a CI zwracało exit 5.
+          # JAK TO DZIAŁA: --ignore wyklucza zależny od launch_testing moduł przed
+          #                importem, a osobny job E2E zachowuje jego wykonanie.
+          # TODO: Przenieść testy E2E do odrębnego katalogu z jawnie określonymi markerami.
+          # [AI-CHANGE | 2026-11-23 20:42 UTC | v0.335]
+          # CO ZMIENIONO: Przekazujemy jawny wykaz testów unit do pytest.
+          # DLACZEGO: W logu CI import testu E2E przerywał kolekcję, mimo --ignore.
+          # JAK TO DZIAŁA: find wybiera tylko moduły unit; osobne joby zachowują E2E i UI.
+          # TODO: Rozdzielić testy unit/UI/E2E na katalogi z własnymi markerami.
+          mapfile -d '' unit_tests < <(
+            find ros2_ws/robot_mission_control/tests -maxdepth 1 -type f -name 'test_*.py' \
+              ! -name 'test_action_e2e_launch_testing.py' \
+              ! -name 'test_ui_state_safety.py' -print0 | sort -z
+          )
+          if [ "${#unit_tests[@]}" -eq 0 ]; then
+            echo "::error::Nie znaleziono testów jednostkowych." >&2
+            exit 1
+          fi
+          .venv/bin/python -m pytest -q -rs "${unit_tests[@]}"
 
       - name: Run UI tests (environment-gated)
         if: ${{ env.RUN_UI_TESTS == '1' }}
@@ -76,7 +100,7 @@ jobs:
           source /opt/ros/jazzy/setup.bash
           source install/setup.bash
           set -u
-          pytest -q ros2_ws/robot_mission_control/tests/test_ui_state_safety.py
+          .venv/bin/python -m pytest -q ros2_ws/robot_mission_control/tests/test_ui_state_safety.py
 
   # [AI-CHANGE | 2026-04-28 16:20 UTC | v0.201]
   # CO ZMIENIONO: Dodano osobny job `launch-testing` dla E2E ROS2.
